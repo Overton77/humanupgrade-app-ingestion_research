@@ -1,0 +1,142 @@
+# --- Business Mutations ---
+
+mutation CreateBusiness($input: BusinessCreateWithIdsInput!) {
+  createBusiness(input: $input) {
+    id
+    name
+    description
+  }
+}
+
+mutation UpdateBusiness($input: BusinessUpdateWithIdsInput!) {
+  updateBusiness(input: $input) {
+    id
+    name
+    description
+  }
+}
+
+mutation UpdateBusinessRelations($input: BusinessUpdateRelationFieldsInput!) {
+  updateBusinessRelations(input: $input) {
+    id
+    name
+  }
+}
+
+# --- Product Mutations ---
+
+mutation CreateProduct($input: ProductCreateWithIdsInput!) {
+  createProduct(input: $input) {
+    id
+    name
+    description
+  }
+}
+
+mutation UpdateProduct($input: ProductUpdateWithIdsInput!) {
+  updateProduct(input: $input) {
+    id
+    name
+    description
+  }
+}
+
+mutation UpdateProductRelations($input: ProductUpdateRelationFieldsInput!) {
+  updateProductRelations(input: $input) {
+    id
+    name
+  }
+}
+
+# --- Person Mutations ---
+
+mutation CreatePerson($input: PersonCreateWithIdsInput!) {
+  createPerson(input: $input) {
+    id
+    name
+    role
+  }
+}
+
+mutation UpdatePerson($input: PersonUpdateWithIdsInput!) {
+  updatePerson(input: $input) {
+    id
+    name
+    role
+  }
+}
+
+mutation UpdatePersonRelations($input: PersonUpdateRelationFieldsInput!) {
+  updatePersonRelations(input: $input) {
+    id
+    name
+  }
+}
+
+# --- Episode Mutations ---
+
+mutation CreateEpisode($input: EpisodeCreateWithIdsInput!) {
+  createEpisode(input: $input) {
+    id
+    episodeTitle
+    channelName
+  }
+}
+
+mutation UpdateEpisode($input: EpisodeUpdateWithIdsInput!) {
+  updateEpisode(input: $input) {
+    id
+    episodeTitle
+    channelName
+  }
+}
+
+mutation UpdateEpisodeRelations($input: EpisodeUpdateRelationFieldsInput!) {
+  updateEpisodeRelations(input: $input) {
+    id
+    episodeTitle
+  }
+}
+
+# --- Compound Mutations ---
+
+mutation CreateCompound($input: CompoundCreateWithIdsInput!) {
+  createCompound(input: $input) {
+    id
+    name
+    description
+  }
+}
+
+mutation UpdateCompound($input: CompoundUpdateWithIdsInput!) {
+  updateCompound(input: $input) {
+    id
+    name
+    description
+  }
+}
+
+mutation UpdateCompoundRelations($input: CompoundUpdateRelationFieldsInput!) {
+  updateCompoundRelations(input: $input) {
+    id
+    name
+  }
+}
+
+# --- CaseStudy Mutations ---
+
+mutation CreateCaseStudy($input: CaseStudyCreateWithOptionalIdsInput!) {
+  createCaseStudy(input: $input) {
+    id
+    title
+    summary
+  }
+}
+
+mutation UpdateCaseStudy($input: CaseStudyUpdateWithOptionalIdsInput!) {
+  updateCaseStudy(input: $input) {
+    id
+    title
+    summary
+  }
+}

@@ -1,0 +1,113 @@
+query Business($id: ID!) {
+  business(id: $id) {
+    id
+    name
+    description
+    website
+    products {
+      id
+      name
+      description
+    }
+    executives {
+      role
+      title
+      person {
+        id
+        name
+      }
+    }
+    owners {
+      id
+      name
+    }
+  }
+}
+
+query Businesses($limit: Int, $offset: Int) {
+  businesses(limit: $limit, offset: $offset) {
+    id
+    name
+    description
+  }
+}
+
+query Product($id: ID!) {
+  product(id: $id) {
+    id
+    name
+    description
+  }
+}
+
+query Products($limit: Int, $offset: Int) {
+  products(limit: $limit, offset: $offset) {
+    id
+    name
+    description
+  }
+}
+
+query Person($id: ID!) {
+  person(id: $id) {
+    id
+    name
+    role
+  }
+}
+
+query People($limit: Int, $offset: Int) {
+  people(limit: $limit, offset: $offset) {
+    id
+    name
+    role
+  }
+}
+
+query Compound($id: ID!) {
+  compound(id: $id) {
+    id
+    name
+    description
+  }
+}
+
+query Compounds($limit: Int, $offset: Int) {
+  compounds(limit: $limit, offset: $offset) {
+    id
+    name
+    description
+  }
+}
+
+query CaseStudy($id: ID!) {
+  caseStudy(id: $id) {
+    id
+    title
+    summary
+  }
+}
+
+query CaseStudies($limit: Int, $offset: Int) {
+  caseStudies(limit: $limit, offset: $offset) {
+    id
+    title
+    summary
+  }
+}
+
+query Episode($id: ID!) {
+  episode(id: $id) {
+    id
+    episodeTitle
+    channelName
+  }
+}
+
+query Episodes($limit: Int, $offset: Int) {
+  episodes(limit: $limit, offset: $offset) {
+    id
+    episodeTitle
+    channelName
+  }
+}

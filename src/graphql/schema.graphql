@@ -1,0 +1,535 @@
+scalar DateTime
+
+type MediaLink {
+  label: String
+  url: String!
+  type: String
+}
+
+enum UserProvider {
+  LOCAL
+  GOOGLE
+  GITHUB
+  APPLE
+}
+
+enum UserRole {
+  ADMIN
+  USER
+}
+
+input MediaLinkInput {
+  label: String
+  url: String!
+  type: String
+}
+
+input UserUpsertInput {
+  email: String!
+  password: String
+  provider: UserProvider
+  providerId: String
+  name: String
+  role: UserRole
+  mediaLinks: [MediaLinkInput!]
+}
+
+input UserCreateInput {
+  email: String!
+  password: String
+  provider: UserProvider
+  providerId: String
+  name: String
+  role: UserRole
+  mediaLinks: [MediaLinkInput!]
+}
+
+input BusinessCreateWithIdsInput {
+  name: String!
+  description: String
+  website: String
+  mediaLinks: [MediaLinkInput!]
+  ownerIds: [ID!]
+  productIds: [ID!]
+  sponsorEpisodeIds: [ID!]
+}
+
+input BusinessUpdateWithIdsInput {
+  id: ID!
+  name: String
+  description: String
+  website: String
+  mediaLinks: [MediaLinkInput!]
+  ownerIds: [ID!]
+  productIds: [ID!]
+  sponsorEpisodeIds: [ID!]
+}
+
+input BusinessOwnerNestedInput {
+  id: ID
+  name: String
+  role: String
+  bio: String
+  mediaLinks: [MediaLinkInput!]
+}
+
+input BusinessProductNestedInput {
+  id: ID
+  name: String
+  description: String
+  ingredients: [String!]
+  mediaLinks: [MediaLinkInput!]
+  sourceUrl: String
+}
+
+input BusinessExecutiveRelationInput {
+  personId: ID!
+  title: String
+  role: String
+}
+
+input SponsorLinkObjectInput {
+  text: String
+  links: [String!]
+  hasCodeDave: Boolean
+  code: String
+  brand: String
+  discountPercent: Float
+}
+
+input WebPageTimelineInput {
+  from: String!
+  to: String!
+  title: String
+  description: String
+}
+
+input BusinessEpisodeNestedInput {
+  id: ID
+  channelName: String!
+  episodeNumber: Int
+  episodeTitle: String
+  publishedAt: DateTime
+  summaryShort: String
+  webPageSummary: String
+  summaryDetailed: String
+  youtubeVideoId: String
+  youtubeWatchUrl: String
+  youtubeEmbedUrl: String
+  takeaways: [String!]
+  s3TranscriptKey: String
+  s3TranscriptUrl: String
+  mediaLinks: [MediaLinkInput!]
+  sponsorLinkObjects: [SponsorLinkObjectInput!]
+  webPageTimelines: [WebPageTimelineInput!]
+}
+
+input BusinessUpdateRelationFieldsInput {
+  id: ID!
+
+  ownerIds: [ID!]
+  ownersNested: [BusinessOwnerNestedInput!]
+
+  productIds: [ID!]
+  productsNested: [BusinessProductNestedInput!]
+
+  executives: [BusinessExecutiveRelationInput!]
+
+  sponsorEpisodeIds: [ID!]
+  sponsorEpisodesNested: [BusinessEpisodeNestedInput!]
+}
+
+# --- Product Inputs ---
+
+input ProductCreateWithIdsInput {
+  name: String!
+  businessId: ID!
+  description: String
+  ingredients: [String!]
+  mediaLinks: [MediaLinkInput!]
+  sourceUrl: String
+  compoundIds: [ID!]
+}
+
+input ProductUpdateWithIdsInput {
+  id: ID!
+  name: String
+  description: String
+  ingredients: [String!]
+  mediaLinks: [MediaLinkInput!]
+  sourceUrl: String
+  compoundIds: [ID!]
+}
+
+input ProductCompoundNestedInput {
+  id: ID
+  name: String
+  description: String
+  aliases: [String!]
+  mediaLinks: [MediaLinkInput!]
+}
+
+input ProductUpdateRelationFieldsInput {
+  id: ID!
+
+  compoundIds: [ID!]
+  compoundsNested: [ProductCompoundNestedInput!]
+}
+
+# --- Person Inputs ---
+
+input PersonCreateWithIdsInput {
+  name: String!
+  role: String
+  bio: String
+  mediaLinks: [MediaLinkInput!]
+  businessIds: [ID!]
+}
+
+input PersonUpdateWithIdsInput {
+  id: ID!
+  name: String
+  role: String
+  bio: String
+  mediaLinks: [MediaLinkInput!]
+  businessIds: [ID!]
+}
+
+input PersonBusinessNestedInput {
+  id: ID
+  name: String
+  description: String
+  website: String
+  mediaLinks: [MediaLinkInput!]
+}
+
+input PersonUpdateRelationFieldsInput {
+  id: ID!
+
+  businessIds: [ID!]
+  businessesNested: [PersonBusinessNestedInput!]
+}
+
+# --- Episode Inputs ---
+
+input EpisodeCreateWithIdsInput {
+  channelName: String!
+  episodeNumber: Int
+  episodeTitle: String
+  episodePageUrl: String
+  episodeTranscriptUrl: String
+  publishedAt: DateTime
+  summaryShort: String
+  webPageSummary: String
+  summaryDetailed: String
+  youtubeVideoId: String
+  youtubeWatchUrl: String
+  youtubeEmbedUrl: String
+  takeaways: [String!]
+  s3TranscriptKey: String
+  s3TranscriptUrl: String
+  mediaLinks: [MediaLinkInput!]
+  sponsorLinkObjects: [SponsorLinkObjectInput!]
+  webPageTimelines: [WebPageTimelineInput!]
+  guestIds: [ID!]
+  sponsorBusinessIds: [ID!]
+}
+
+input EpisodeUpdateWithIdsInput {
+  id: ID!
+  channelName: String
+  episodeNumber: Int
+  episodeTitle: String
+  episodePageUrl: String
+  episodeTranscriptUrl: String
+  publishedAt: DateTime
+  summaryShort: String
+  webPageSummary: String
+  summaryDetailed: String
+  youtubeVideoId: String
+  youtubeWatchUrl: String
+  youtubeEmbedUrl: String
+  takeaways: [String!]
+  s3TranscriptKey: String
+  s3TranscriptUrl: String
+  mediaLinks: [MediaLinkInput!]
+  sponsorLinkObjects: [SponsorLinkObjectInput!]
+  webPageTimelines: [WebPageTimelineInput!]
+  guestIds: [ID!]
+  sponsorBusinessIds: [ID!]
+}
+
+input EpisodeGuestNestedInput {
+  id: ID
+  name: String
+  role: String
+  bio: String
+  mediaLinks: [MediaLinkInput!]
+}
+
+input EpisodeSponsorBusinessNestedInput {
+  id: ID
+  name: String
+  description: String
+  website: String
+  mediaLinks: [MediaLinkInput!]
+}
+
+input EpisodeUpdateRelationFieldsInput {
+  id: ID!
+
+  guestIds: [ID!]
+  guestsNested: [EpisodeGuestNestedInput!]
+
+  sponsorBusinessIds: [ID!]
+  sponsorBusinessesNested: [EpisodeSponsorBusinessNestedInput!]
+}
+
+# --- Compound Inputs ---
+
+input CompoundCreateWithIdsInput {
+  name: String!
+  description: String
+  aliases: [String!]
+  mediaLinks: [MediaLinkInput!]
+  productIds: [ID!]
+}
+
+input CompoundUpdateWithIdsInput {
+  id: ID!
+  name: String
+  description: String
+  aliases: [String!]
+  mediaLinks: [MediaLinkInput!]
+  productIds: [ID!]
+}
+
+input CompoundProductNestedInput {
+  id: ID
+  name: String
+  description: String
+  ingredients: [String!]
+  mediaLinks: [MediaLinkInput!]
+  sourceUrl: String
+}
+
+input CompoundUpdateRelationFieldsInput {
+  id: ID!
+
+  productIds: [ID!]
+  productsNested: [CompoundProductNestedInput!]
+}
+
+type User {
+  id: ID!
+  email: String!
+  name: String
+  savedEpisodes: [Episode!]!
+  savedProducts: [Product!]!
+  savedBusinesses: [Business!]!
+  role: String!
+}
+
+type WebPageTimeline {
+  from: String!
+  to: String!
+  title: String
+  description: String
+}
+
+type SponsorLinkObject {
+  text: String
+  links: [String!]
+  hasCodeDave: Boolean
+  code: String
+  brand: String
+  discountPercent: Float
+}
+type Episode {
+  id: ID!
+  channelName: String!
+  episodeNumber: Int
+  episodeTitle: String
+  episodeTranscriptUrl: String
+  episodePageUrl: String
+  webPageSummary: String
+  webPageTimelines: [WebPageTimeline!]
+  sponsorLinkObjects: [SponsorLinkObject!]
+  takeaways: [String!]!
+  s3TranscriptKey: String
+  s3TranscriptUrl: String
+  youtubeVideoId: String
+  youtubeWatchUrl: String
+  youtubeEmbedUrl: String
+  mediaLinks: [MediaLink!]
+  publishedAt: DateTime
+  guests: [Person!]
+  summaryShort: String
+  summaryDetailed: String
+  sponsorBusinesses: [Business!]
+}
+
+type Person {
+  id: ID!
+  name: String!
+  mediaLinks: [MediaLink!]
+  role: String
+  bio: String
+  businesses: [Business!]
+  episodes: [Episode!]
+}
+
+type BusinessExecutive {
+  person: Person!
+  title: String
+  role: String
+}
+
+type Business {
+  id: ID!
+  name: String!
+  mediaLinks: [MediaLink!]
+  description: String
+  website: String
+  products: [Product!]
+  owners: [Person!]
+  executives: [BusinessExecutive!]
+  sponsoredEpisodes: [Episode!]
+}
+
+type Product {
+  id: ID!
+  name: String!
+  mediaLinks: [MediaLink!]
+  business: Business!
+  description: String
+  ingredients: [String!]!
+  sponsorEpisodes: [Episode!]
+  sourceUrl: String
+  compounds: [Compound!]
+}
+
+type Compound {
+  id: ID!
+  name: String!
+  description: String
+  mediaLinks: [MediaLink!]
+  aliases: [String!]!
+  products: [Product!]!
+  caseStudies: [CaseStudy!]!
+}
+
+enum CaseStudySourceType {
+  PUBMED
+  CLINICAL_TRIAL
+  ARTICLE
+  OTHER
+}
+
+type CaseStudy {
+  id: ID!
+  title: String!
+  summary: String!
+  mediaLinks: [MediaLink!]
+  url: String
+  sourceType: String!
+  episodes: [Episode!]!
+  compounds: [Compound!]!
+}
+
+input CaseStudyCreateWithOptionalIdsInput {
+  title: String!
+  summary: String!
+  url: String
+  sourceType: CaseStudySourceType
+  episodeIds: [ID!]
+  compoundIds: [ID!]
+}
+
+input CaseStudyUpdateWithOptionalIdsInput {
+  id: ID!
+  title: String
+  summary: String
+  url: String
+  sourceType: CaseStudySourceType
+  # These are *additional* IDs to merge and dedupe with existing ones
+  episodeIds: [ID!]
+  compoundIds: [ID!]
+}
+
+type Query {
+  me: User
+  episodes(limit: Int = 20, offset: Int = 0): [Episode!]!
+  episode(id: ID!): Episode
+  products(limit: Int = 20, offset: Int = 0): [Product!]!
+  product(id: ID!): Product
+  compounds(limit: Int = 20, offset: Int = 0): [Compound!]!
+  compound(id: ID!): Compound
+  people(limit: Int = 20, offset: Int = 0): [Person!]!
+  person(id: ID!): Person
+  businesses(limit: Int = 20, offset: Int = 0): [Business!]!
+  business(id: ID!): Business
+  caseStudies(limit: Int = 20, offset: Int = 0): [CaseStudy!]!
+  caseStudy(id: ID!): CaseStudy
+  allUsers(limit: Int = 20, offset: Int = 0): [User!]!
+}
+
+type AuthPayload {
+  token: String!
+  user: User!
+}
+
+input UserMassSaveInput {
+  userId: ID!
+  episodeIds: [ID!]
+  productIds: [ID!]
+  businessIds: [ID!]
+}
+
+type Mutation {
+  register(email: String!, password: String!, name: String): AuthPayload!
+  login(email: String!, password: String!): AuthPayload!
+
+  toggleSaveEpisode(episodeId: ID!): User!
+  toggleSaveProduct(productId: ID!): User!
+  toggleSaveBusiness(businessId: ID!): User!
+
+  # --- Business management ---
+
+  createBusiness(input: BusinessCreateWithIdsInput!): Business!
+  updateBusiness(input: BusinessUpdateWithIdsInput!): Business
+  updateBusinessRelations(input: BusinessUpdateRelationFieldsInput!): Business
+
+  # --- Product management ---
+
+  createProduct(input: ProductCreateWithIdsInput!): Product!
+  updateProduct(input: ProductUpdateWithIdsInput!): Product
+  updateProductRelations(input: ProductUpdateRelationFieldsInput!): Product
+
+  # --- Person management ---
+
+  createPerson(input: PersonCreateWithIdsInput!): Person!
+  updatePerson(input: PersonUpdateWithIdsInput!): Person
+  updatePersonRelations(input: PersonUpdateRelationFieldsInput!): Person
+
+  # --- Episode management ---
+
+  createEpisode(input: EpisodeCreateWithIdsInput!): Episode!
+  updateEpisode(input: EpisodeUpdateWithIdsInput!): Episode
+  updateEpisodeRelations(input: EpisodeUpdateRelationFieldsInput!): Episode
+
+  # --- Compound management ---
+
+  createCompound(input: CompoundCreateWithIdsInput!): Compound!
+  updateCompound(input: CompoundUpdateWithIdsInput!): Compound
+  updateCompoundRelations(input: CompoundUpdateRelationFieldsInput!): Compound
+
+  createCaseStudy(input: CaseStudyCreateWithOptionalIdsInput!): CaseStudy!
+
+  updateCaseStudy(input: CaseStudyUpdateWithOptionalIdsInput!): CaseStudy!
+
+  upsertUser(input: UserUpsertInput!): User!
+
+  addSavedItemsToUser(input: UserMassSaveInput!): User!
+  removeSavedItemsFromUser(input: UserMassSaveInput!): User!
+}

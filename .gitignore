@@ -1,0 +1,238 @@
+# Python bytecode, caches, and artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+*.pyd
+*.pyc
+*.pyd
+*.pyc
+*.pyo
+
+# Python virtual environments
+.venv/
+venv/
+env/
+ENV/
+*.venv/
+*.env/
+.virtualenv/
+.virtualenvs/
+.conda/
+conda-meta/
+
+# Pipenv
+Pipfile.lock
+
+# Poetry
+poetry.lock
+
+# Hatch
+.hatch/
+
+# pip-tools
+*.txt~   # Transient output from pip-compile
+
+# C extensions / native
+*.so
+*.dylib
+*.dll
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+*.manifest
+*.spec
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+.noseids
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
+.pytest_cache/
+pytestdebug.log
+test-results/
+junit*.xml
+
+# Translations
+*.mo
+*.pot
+
+# Django stuff:
+*.log
+local_settings.py
+db.sqlite3
+db.sqlite3-journal
+media/
+staticfiles/
+static/
+public/static/
+public/media/
+
+# Flask stuff:
+instance/
+.webassets-cache
+
+# FastAPI stuff and Uvicorn artifacts/logs
+*.db
+*.sqlite3
+*.pid
+*.pid.lock
+*.reload
+*.reload.lock
+uvicorn.log
+gunicorn.log
+*.uv/
+
+# Scrapy stuff:
+.scrapy
+
+# Sphinx documentation
+docs/_build/
+build/
+target/
+_output/
+
+# PyBuilder
+target/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+*.nbconvert.ipynb
+
+# IPython 
+profile_default/
+ipython_config.py
+
+# pyenv
+.python-version
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Pyre type checker
+.pyre/
+
+# PyCharm
+.idea/
+
+# VSCode
+.vscode/
+.history/
+.code-workspace
+
+# VS Code extensions like devcontainers
+.devcontainer/
+
+# Jupyter Lab settings
+.jupyter/
+
+# macOS
+.DS_Store
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Linux
+*~
+
+# dotenv
+.env
+.env.*
+!.env.example
+
+# Caches & Metadata (Deep learning/ML style)
+.uff_cache/
+.cache/
+.cache/* 
+.ruff_cache/ 
+.mypy_cache/
+.pytest_cache/
+.coverage*
+.coverage
+.coverage.*
+.coverage.*.*
+.coverage.*.*.*
+*.h5
+*.hdf5
+*.ckpt
+checkpoints/
+runs/
+wandb/
+mlruns/
+logs/
+tensorboard/
+*.tfevents.*
+
+# Local data, experiment/dev dumps
+**/dev_env/**
+*.local
+*.bak
+*.tmp
+*.swp
+*.swo
+
+# Qdrant / vectorstore related
+qdrant_data/
+qdrant_storage/
+*.qdrant
+
+# Docker
+docker-compose.override.yml
+.docker/
+docker-compose*.yml
+Dockerfile
+Dockerfile.*
+.dockerignore
+*.container
+*.log
+
+# LangGraph & general graph artifact
+*.graph.json
+langgraph.json
+
+# Miscellaneous
+*.out
+*.err
+# End of system files
+
+# LangGraph local runtime / API state
+.langgraph_api/
+
+# Local checkpoints
+checkpoints.db  
+
+.env 
