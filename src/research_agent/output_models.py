@@ -32,22 +32,18 @@ class TranscriptSummaryOutput(BaseModel):
     )  
 
 
-class ResearchDirection(BaseModel): 
-    research_topic: str = Field(
-        ...,
-        description="The direction of the research to be conducted."
-    )  
 
-    research_type: Union[Literal["general_web_search", "specific_web_search", "medical_db_search", "wikipedia_search"], List[str]] = Field(
-        ...,
-        description="The type of research to be conducted."
-    )  
+ResearchType = Literal["general", "medical", "casestudy"] 
 
-    research_depth: Literal["shallow", "medium", "deep"] = Field(
-        ...,
-        description="The depth of the research to be conducted."
-    )    
-
+class ResearchDirection(BaseModel):
+    id: str
+    topic: str
+    description: str  
+    overview: str              # what to investigate
+    research_type: ResearchType   # "general" / "medical" / "casestudy"
+    depth: Literal["shallow", "medium", "deep"] = "shallow"    
+    priority: int = 1
+    max_steps: int = 5    
 
 
     

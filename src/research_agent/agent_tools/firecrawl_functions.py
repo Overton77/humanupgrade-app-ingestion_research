@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Optional, Literal
+from typing import Any, Dict, List, Optional, Literal, Union 
 from firecrawl import AsyncFirecrawlApp
 
 
@@ -9,8 +9,6 @@ async def firecrawl_scrape(
     include_links: bool = False,
     max_depth: int = 0,
     include_images: bool = False,
-    timeout: Optional[int] = None,
-    custom_headers: Optional[Dict[str, str]] = None,
 ) -> Dict[str, Any]:
     """
     High-level async wrapper around Firecrawl's scrape endpoint.
@@ -28,33 +26,25 @@ async def firecrawl_scrape(
     Returns:
         A dict with scraped content in requested formats (implementation-specific).
     """
-    scrape_options: Dict[str, Any] = {
-        "url": url,
-    }
-
-    if formats:
-        scrape_options["formats"] = formats
-    if include_links:
-        scrape_options["includeLinks"] = True
-    if max_depth is not None:
-        scrape_options["maxDepth"] = max_depth
-    if include_images:
-        scrape_options["includeImages"] = True
-    if custom_headers:
-        scrape_options["headers"] = custom_headers
-
-    # Firecrawl SDK name for this may be app.scrape or app.scrape_url depending on version.
-    result = await app.scrape(scrape_options, timeout=timeout)
+    # Pass keyword arguments directly to the SDK method
+    result = await app.scrape(
+        url,
+        formats=formats,
+        include_links=include_links,
+        max_depth=max_depth,
+        include_images=include_images,
+    
+    )
     return result
 
 
 async def firecrawl_map(
     app: AsyncFirecrawlApp,
     url: str,
-    max_depth: int = 1,
+    search: Optional[str] = None,
+    include_subdomains: Optional[bool] = None,
     limit: Optional[int] = None,
-    same_domain_only: bool = True,
-    timeout: Optional[int] = None,
+    sitemap: Optional[Literal["only", "include", "skip"]] = None,
 ) -> Dict[str, Any]:
     """
     Async wrapper around Firecrawl's map endpoint.
@@ -63,62 +53,151 @@ async def firecrawl_map(
     Args:
         app: AsyncFirecrawlApp instance.
         url: Root URL to start from.
-        max_depth: How many link levels deep to explore.
-        limit: Max number of URLs to collect (if Firecrawl supports it).
-        same_domain_only: Whether to restrict crawling to same domain.
+        search: Optional search term to filter URLs.
+        include_subdomains: Whether to include subdomains in the mapping.
+        limit: Max number of URLs to collect.
+        sitemap: How to handle sitemaps: "only" (only use sitemap), "include" (use sitemap + crawl), "skip" (ignore sitemap).
         timeout: Optional timeout.
+        integration: Optional integration identifier.
 
     Returns:
         A dict containing discovered URLs and metadata.
     """
-    map_options: Dict[str, Any] = {
-        "url": url,
-        "maxDepth": max_depth,
-        "sameDomainOnly": same_domain_only,
-    }
-    if limit is not None:
-        map_options["limit"] = limit
-
-    result = await app.map(map_options, timeout=timeout)
+    # Pass keyword arguments directly to the SDK method
+    result = await app.map(
+        url,
+        search=search,
+        include_subdomains=include_subdomains,
+        limit=limit,
+        sitemap=sitemap,
+       
+        
+    )
     return result 
 
 
-async def firecrawl_extract(
-    app: AsyncFirecrawlApp,
-    url: str,
-    extraction_instructions: str,
-    schema: Optional[Dict[str, Any]] = None,
-    max_depth: int = 0,
-    formats: Optional[List[Literal["markdown", "html", "raw"]]] = None,
-    timeout: Optional[int] = None,
-) -> Dict[str, Any]:
+
+
+
+def format_firecrawl_search_response(
+    response: Dict[str, Any] | List[Dict[str, Any]],
+    *,
+    max_results: Optional[int] = None,
+    max_content_chars: Optional[int] = None,
+) -> str:
     """
-    Wrapper around Firecrawl's extract endpoint.
+    Format Firecrawl search (or scrape) response into a string suitable for LLM summarization.
+
+    Handles:
+      - SERP-only results: title, url, description
+      - Scraped results: markdown/html/rawHtml as content
+      - Optionally truncates long content
+    """
+
+    # Normalize
+    if isinstance(response, dict) and "data" in response:
+        results = response["data"]
+    elif isinstance(response, list):
+        results = response
+    else:
+        raise ValueError("Unexpected Firecrawl response format")
+
+    if max_results is not None:
+        results = results[:max_results]
+
+    lines: List[str] = []
+    lines.append("=== Firecrawl Search Results ===")
+
+    if not results:
+        lines.append("(no results)")
+    else:
+        for i, r in enumerate(results, start=1):
+            title = r.get("title") or "(no title)"
+            url = r.get("url") or r.get("metadata", {}).get("sourceURL") or "(no url)"
+            description = r.get("description")
+            # Try content: prioritize markdown, fallback to html or rawHtml
+            content = r.get("markdown") or r.get("html") or r.get("rawHtml") or ""
+            if max_content_chars and content and len(content) > max_content_chars:
+                content = content[:max_content_chars] + "\n...[truncated]"
+
+            lines.append(f"[Result {i}]")
+            lines.append(f"Title: {title}")
+            lines.append(f"URL: {url}")
+            if description:
+                lines.append(f"Description: {description}")
+            if content:
+                lines.append("Content:")
+                lines.append(content.strip())
+            else:
+                lines.append("Content: (none)")
+
+            lines.append("")  # empty line between results
+
+    return "\n".join(lines).strip() 
+
+
+def format_firecrawl_map_response(
+    response: Dict[str, Any] | List[Dict[str, Any]],
+    *,
+    max_urls: Optional[int] = None,
+) -> str:
+    """
+    Format a Firecrawl `map()` response into a clean, readable string.
+
+    Handles both:
+      - Full dict response: { success, data: [...] }
+      - Bare list of URL metadata objects
+
+    Each entry includes:
+        - url
+        - source (if present)
+        - depth (if present)
+        - statusCode (if present)
+        - error (if present)
 
     Args:
-        app: AsyncFirecrawlApp instance.
-        url: URL to extract structured data from.
-        extraction_instructions: Natural-language instructions for what to extract
-                                 (good for LLM tools).
-        schema: Optional JSON schema-like dict to shape the output.
-        max_depth: How deep to follow links from this page.
-        formats: Optional underlying formats to use (e.g., ["markdown"]).
-        timeout: Optional timeout.
+        response: The result of AsyncFirecrawlApp.map() or equivalent.
+        max_urls: Optional cap on number of URLs to output.
 
     Returns:
-        A dict with structured extraction results.
+        A formatted string of discovered URLs with metadata.
     """
-    extract_options: Dict[str, Any] = {
-        "url": url,
-        "instructions": extraction_instructions,
-    }
+    # Normalize to list of items
+    if isinstance(response, dict) and "data" in response:
+        items = response["data"]
+    elif isinstance(response, list):
+        items = response
+    else:
+        raise ValueError(f"Unexpected Firecrawl map() response type: {type(response)!r}")
 
-    if schema is not None:
-        extract_options["schema"] = schema
-    if max_depth is not None:
-        extract_options["maxDepth"] = max_depth
-    if formats:
-        extract_options["formats"] = formats
+    if max_urls is not None:
+        items = items[:max_urls]
 
-    result = await app.extract(extract_options, timeout=timeout)
-    return result
+    lines: List[str] = []
+    lines.append("=== Firecrawl URL Map Results ===")
+
+    if not items:
+        lines.append("(no URLs discovered)")
+        return "\n".join(lines)
+
+    for i, entry in enumerate(items, start=1):
+        url = entry.get("url", "(no url)")
+        source = entry.get("source")  # 'sitemap' | 'crawl' | ...
+        depth = entry.get("depth")
+        status = entry.get("statusCode")
+        error = entry.get("error")
+
+        lines.append(f"[URL {i}]")
+        lines.append(f"URL: {url}")
+        if source:
+            lines.append(f"Source: {source}")
+        if depth is not None:
+            lines.append(f"Depth: {depth}")
+        if status is not None:
+            lines.append(f"Status Code: {status}")
+        if error:
+            lines.append(f"Error: {error}")
+
+        lines.append("")  # spacing
+
+    return "\n".join(lines).strip()

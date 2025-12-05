@@ -22,7 +22,7 @@ if sys.platform == "win32":
     asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
 from research_agent.output_models import TranscriptSummaryOutput
-from research_agent.prompts import summary_prompt, SUMMARY_SYSTEM_PROMPT
+from research_agent.prompts.prompts import summary_prompt, SUMMARY_SYSTEM_PROMPT
 
 
 # -----------------------------------------------------------------------------
