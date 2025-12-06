@@ -1,5 +1,9 @@
 from langchain_core.prompts import PromptTemplate
 
+# ============================================================================
+# SUMMARY-ONLY PROMPTS (for parallel extraction)
+# ============================================================================
+
 SUMMARY_SYSTEM_PROMPT = """
 You are an expert summarization assistant for "The Human Upgrade with Dave Asprey" podcast.
 
@@ -14,12 +18,158 @@ Your job is to:
   recovery, biomarkers, biohacking tactics).
 - Highlight the most important ideas, protocols, and takeaways for a listener who wants to apply
   them in their life.
-- Infer clear guest information (name, description, company, product) ONLY from the provided inputs.
-  If you are unsure about something, leave it blank rather than guessing.
 
-Be accurate, concrete, and non-repetitive.
+Be accurate, concrete, and non-repetitive. Focus ONLY on the summary - guest information
+will be extracted separately.
 """
 
+
+summary_only_prompt = PromptTemplate.from_template(
+    """
+You are assisting a biotech information system built in collaboration with
+"The Human Upgrade with Dave Asprey" podcast.
+
+The system ingests episode webpage summaries and full transcripts in order to:
+- Build a high-quality knowledge base about human longevity, performance, and excellence.
+- Track protocols, biomarkers, case studies, tools, and companies relevant to human upgrade.
+
+Your task is to produce ONLY the summary field. Guest information is extracted separately.
+
+WEBPAGE SUMMARY (marketing/episode page):
+--------------------
+{webpage_summary}
+
+FULL TRANSCRIPT:
+--------------------
+{full_transcript}
+
+CRITICAL INSTRUCTIONS – SUMMARY:
+
+1. The `summary` field is the primary output for a vector database that will be indexed
+   and split for semantic search. Treat it as an information-dense, multi-section summary
+   of the episode.
+
+2. As you summarize the transcript, imagine you are recursively compressing it into
+   conceptual blocks. Whenever there is a clear switch in concept, conversation, or topic
+   (e.g., new protocol, new case study, new mechanism, new company/product focus),
+   insert the exact marker:
+
+   <summary_break>
+
+   Rules for using this marker:
+   - Use **exactly** `<summary_break>` (no spaces, no capitalization changes, no extra characters).
+   - Put it on its own line or directly between sections of text.
+   - Use it to separate coherent sections such as:
+     - High-level episode overview
+     - Specific protocols or interventions
+     - Mechanisms/biological explanations
+     - Case studies or anecdotes
+     - Products/companies and their roles
+     - Implementation advice or key takeaways
+
+3. Within each section of the `summary`:
+   - Emphasize how the content relates to human longevity, performance, and excellence
+     (e.g., energy, cognition, recovery, resilience, metabolic health, biomarkers).
+   - Be concrete and non-redundant.
+   - Highlight protocols, tools, and principles listeners could apply in their lives.
+
+Example conceptual shape of the `summary` string (this is just a shape, not literal text):
+
+[Overview of the episode and main theme]
+<summary_break>
+[Discussion of key protocols, mechanisms, or frameworks]
+<summary_break>
+[Case studies, anecdotes, or notable experimental details]
+<summary_break>
+[Products/companies and how they fit into human upgrade]
+<summary_break>
+[Implementation tips and core takeaways for human performance and longevity]
+
+TRUTHFULNESS CONSTRAINTS:
+
+Do NOT invent facts that are not clearly supported by the webpage summary or transcript.
+
+YOUR TASK:
+
+Produce a multi-section, information-dense summary of the episode that uses `<summary_break>`
+at concept/topic boundaries. The `<summary_break>` marker is critical for downstream 
+splitting and vectorization.
+"""
+)
+
+
+# ============================================================================
+# GUEST EXTRACTION PROMPTS (for parallel extraction)
+# ============================================================================
+
+GUEST_EXTRACTION_SYSTEM_PROMPT = """
+You are an expert at extracting structured guest information from podcast transcripts.
+
+Your job is to identify the primary guest on "The Human Upgrade with Dave Asprey" podcast
+and extract their key information accurately.
+
+Focus on:
+- The guest's full name
+- A brief, relevant bio (1-2 sentences)
+- Their associated company or organization (if mentioned)
+- Their associated product, program, or offering (if mentioned)
+
+Be accurate and only include information that is clearly supported by the content.
+If something is unclear or not mentioned, leave it blank rather than guessing.
+"""
+
+
+guest_extraction_prompt = PromptTemplate.from_template(
+    """
+You are extracting guest information from a podcast episode of "The Human Upgrade with Dave Asprey".
+
+Your task is to identify the PRIMARY GUEST (the main expert Dave interviews) and extract their
+structured information.
+
+WEBPAGE SUMMARY (marketing/episode page):
+--------------------
+{webpage_summary}
+
+
+
+
+EXTRACTION GUIDELINES:
+
+1. **name** (REQUIRED):
+   - Full name of the primary guest (the main expert Dave interviews).
+   - If multiple guests appear, focus on the main one.
+
+2. **description** (REQUIRED):
+   - 1–2 sentence bio describing who they are and why they are relevant to this episode.
+   - Focus on their expertise, credentials, or notable achievements mentioned.
+
+3. **company** (OPTIONAL):
+   - Company or organization associated with the guest in this episode.
+   - Only include if clearly mentioned in the transcript or webpage summary.
+   - Leave as null if not clearly stated.
+
+4. **product** (OPTIONAL):
+   - Key product, program, or offering associated with the guest in this episode.
+   - Only include if clearly mentioned.
+   - Leave as null if not clearly stated.
+
+WHERE TO LOOK:
+- The webpage summary will contain guest name, some overview of the guest, and possibly company, and product affiliations.
+
+
+TRUTHFULNESS CONSTRAINTS:
+- Do NOT invent facts that are not clearly supported by the content.
+- If company or product are not clearly supported, leave them empty (null).
+- If more than one guest appears, focus on the main expert Dave is interviewing.
+
+Extract the guest information now.
+"""
+)
+
+
+# ============================================================================
+# LEGACY COMBINED PROMPT (kept for backwards compatibility)
+# ============================================================================
 
 summary_prompt = PromptTemplate.from_template(
     """
@@ -111,7 +261,7 @@ GUEST INFORMATION (SECONDARY BUT REQUIRED):
    - The beginning of the transcript where Dave introduces the guest.
 
    Use those sections first when identifying:
-   - The guest’s name
+   - The guest's name
    - Their role, expertise, and affiliation
    - Any flagship product/program mentioned
 

@@ -1,15 +1,12 @@
-from re import I
-from langgraph.types import Command  
 from langgraph.graph import StateGraph, START, END  
 from typing_extensions import TypedDict, Annotated  
-from typing import List, Dict, Any, Optional, Sequence, Literal 
+from typing import List, Dict, Any, Optional, Sequence, Literal, Union 
 from langchain_core.messages import AnyMessage, BaseMessage, ToolMessage, SystemMessage, HumanMessage, filter_messages   
 from langchain_openai import ChatOpenAI  
-from dataclasses import dataclass  
 from pydantic import BaseModel, Field  
-import aiohttp 
 import operator   
 import os   
+import uuid
 from firecrawl import AsyncFirecrawlApp   
 from langchain.agents import create_agent  
 from langchain_core.prompts import PromptTemplate 
@@ -18,18 +15,30 @@ from dotenv import load_dotenv
 from langchain.tools import ToolRuntime, tool    
 from research_agent.agent_tools.tavily_functions import tavily_search, format_tavily_search_response    
 from research_agent.agent_tools.firecrawl_functions import firecrawl_scrape, format_firecrawl_map_response, format_firecrawl_search_response, firecrawl_map, format_firecrawl_map_response 
+from research_agent.agent_tools.filesystem_tools import write_file, read_file
 from research_agent.medical_db_tools.pub_med_tools import ( 
    pubmed_literature_search_tool 
 )    
 from langchain_community.tools import WikipediaQueryRun  
 from langchain_community.utilities import WikipediaAPIWrapper   
 from research_agent.prompts.summary_prompts import TAVILY_SUMMARY_PROMPT, FIRECRAWL_SCRAPE_PROMPT  
-from research_agent.prompts.research_prompts import (DEEP_RESEARCH_PROMPT, GENERAL_RESEARCH_TOOL_INSTRUCTIONS, MEDICAL_RESEARCH_TOOL_INSTRUCTIONS,  
-CASESTUDY_RESEARCH_TOOL_INSTRUCTIONS, RESEARCH_RESULT_PROMPT) 
-from research_agent.prompts.structured_output_prompts import STRUCTURED_OUTPUT_PROMPT
-
-
-
+from research_agent.prompts.research_prompts import (
+    DEEP_RESEARCH_PROMPT, 
+    TOOL_INSTRUCTIONS,
+    RESEARCH_RESULT_PROMPT,
+) 
+from research_agent.prompts.structured_output_prompts import ENTITY_EXTRACTION_PROMPT
+from research_agent.output_models import (
+    DirectionResearchResult, 
+    ResearchDirection,
+    ResearchEntities,
+    ExtractedEntityBase,
+    ProductOutput,
+    CompoundOutput,
+    BusinessOutput,
+    PersonOutput,
+    CaseStudyOutput,
+)
 
 
 
@@ -52,27 +61,23 @@ wikipedia_api_wrapper = WikipediaAPIWrapper(
 wiki_tool = WikipediaQueryRun(api_wrapper=wikipedia_api_wrapper)   
 
 
-ResearchType = Literal["general", "medical", "casestudy"] 
+# ============================================================================
+# INTERMEDIATE SUMMARY MODEL (for file-based context offloading)
+# ============================================================================
+
+class IntermediateSummary(BaseModel):
+    """A checkpoint summary written during research for context offloading."""
+    summary_id: str = Field(default_factory=lambda: str(uuid.uuid4())[:8])
+    topic_focus: str = Field(..., description="What aspect of research this summary covers")
+    synthesis: str = Field(..., description="Synthesized findings so far")
+    confidence: float = Field(..., ge=0.0, le=1.0, description="Confidence in findings (0-1)")
+    open_questions: List[str] = Field(default_factory=list, description="Questions still to investigate")
+    key_sources: List[str] = Field(default_factory=list, description="Most important citations for this summary")
 
 
-class DirectionResearchResult(BaseModel):
-    direction_id: str
-    extensive_summary: str
-    key_findings: List[str]
-    citations: List[str]          
-
-
-# This feeds the prompt as well 
-
-class ResearchDirection(BaseModel):
-    id: str
-    topic: str
-    description: str  
-    overview: str              # what to investigate
-    research_type: ResearchType   # "general" / "medical" / "casestudy"
-    depth: Literal["shallow", "medium", "deep"] = "shallow"    
-    priority: int = 1
-    max_steps: int = 5    
+# ============================================================================
+# RESEARCH STATE
+# ============================================================================
 
 class ResearchState(TypedDict, total=False):  
     # Core tool-loop plumbing
@@ -86,15 +91,23 @@ class ResearchState(TypedDict, total=False):
 
     # Accumulated research data
     research_notes: Annotated[List[str], operator.add]     # human-readable notes from each step
-    citations: Annotated[List[str], operator.add]          # URLs / DOIs
-    file_refs: List[str]          # paths you wrote to FS/S3
+    citations: Annotated[List[str], operator.add]          # URLs / DOIs  
+
+    # File-based context offloading
+    file_refs: Annotated[List[str], operator.add]          # paths to intermediate summary files
+
+    final_summary: str 
     steps_taken: int 
 
-    structured_outputs: Annotated[List[BaseModel], operator.add] = []   
+    structured_outputs: Annotated[List[BaseModel], operator.add]   
 
     # Final structured result
     result: DirectionResearchResult
 
+
+# ============================================================================
+# LLM MODELS
+# ============================================================================
 
 research_model = ChatOpenAI(
     model="gpt-5-mini", 
@@ -124,6 +137,10 @@ structured_output_model = ChatOpenAI(
 )
 
 
+# ============================================================================
+# CITATION MODELS
+# ============================================================================
+
 class TavilyCitation(BaseModel): 
     url: str = Field(..., description="The URL of the source")  
     title: str = Field(..., description="The title of the source")   
@@ -142,10 +159,13 @@ class TavilyResultsSummary(BaseModel):
 
 class FirecrawlResultsSummary(BaseModel):  
     summary: str = Field(..., description="A faithful summary of the markdown representation of the content")
-
     citations: List[FirecrawlCitation] = Field(..., description="A summary of the markdown of the content")  
 
-# This is more extensive 
+
+# ============================================================================
+# SUMMARIZATION HELPERS
+# ============================================================================
+
 async def summarize_tavily_web_search(search_results: str) -> TavilyResultsSummary:  
     agent_instructions = TAVILY_SUMMARY_PROMPT.format(search_results=search_results) 
     web_search_summary_agent = create_agent( 
@@ -158,12 +178,9 @@ async def summarize_tavily_web_search(search_results: str) -> TavilyResultsSumma
         {"messages": [{"role": "user", "content": agent_instructions}]}
     )
 
-
     return web_search_summary_agent_response["structured_response"]
 
 
-
-# This is more extensive 
 async def summarize_firecrawl_scrape(search_results: str) -> FirecrawlResultsSummary:  
     agent_instructions = FIRECRAWL_SCRAPE_PROMPT.format(search_results=search_results) 
     web_search_summary_agent = create_agent( 
@@ -176,10 +193,12 @@ async def summarize_firecrawl_scrape(search_results: str) -> FirecrawlResultsSum
         {"messages": [{"role": "user", "content": agent_instructions}]}
     )
 
-
     return web_search_summary_agent_response["structured_response"]
 
 
+# ============================================================================
+# RESEARCH TOOLS
+# ============================================================================
 
 @tool(
     description="Use Firecrawl to map all relevant URLs from a base URL.",
@@ -231,7 +250,6 @@ async def firecrawl_map_tool(
         sitemap=sitemap,
     )
 
-
     formatted_result = format_firecrawl_map_response(result) 
 
     return formatted_result  
@@ -256,6 +274,7 @@ def format_firecrawl_summary_results(summary: FirecrawlResultsSummary) -> str:
             lines.append(f"- {c.title}\n  URL: {c.url}{desc_str}")
 
     return "\n".join(lines)
+
 
 @tool(
     description="Use Firecrawl to turn a URL into readable markdown or text content.",
@@ -303,7 +322,6 @@ async def firecrawl_scrape_tool(
 
     """
 
-
    
     results = await firecrawl_scrape(async_firecrawl_app, 
         url, 
@@ -315,17 +333,14 @@ async def firecrawl_scrape_tool(
 
     formatted_results = format_firecrawl_search_response(results)  
 
+    summary_of_scrape = await summarize_firecrawl_scrape(formatted_results)  
 
-    summary_of_scrape = await summarize_firecrawl_scrape(formatted_results, FIRECRAWL_SCRAPE_PROMPT )  
-
-    runtime.state.get("citations").extend([citation.url for citation in summary_of_scrape.citations])
-    runtime.state.get("research_notes").append(summary_of_scrape.summary)
+    runtime.state.get("citations", []).extend([citation.url for citation in summary_of_scrape.citations])
+    runtime.state.get("research_notes", []).append(summary_of_scrape.summary)
 
     formatted_scrape_summary = format_firecrawl_summary_results(summary_of_scrape) 
 
     return formatted_scrape_summary 
-
-
 
 
 def format_tavily_summary_results(summary: TavilyResultsSummary) -> str:
@@ -348,7 +363,8 @@ def format_tavily_summary_results(summary: TavilyResultsSummary) -> str:
 
             lines.append(f"- {c.title}\n  URL: {c.url}{published_str}{score_str}")
 
-    return "\n".join(lines)
+    return "\n".join(lines) 
+
 
 @tool(
     description="Search the web for information about a specific topic or query.",
@@ -402,7 +418,6 @@ async def tavily_web_search_tool(
 
     runtime.state["steps_taken"] = runtime.state.get("steps_taken", 0) + 1 
 
-
     search_results = await tavily_search( 
         client=async_tavily_client, 
         query=query, 
@@ -413,85 +428,157 @@ async def tavily_web_search_tool(
         include_raw_content=include_raw_content, 
         ) 
 
-
     formatted_search_results = format_tavily_search_response(search_results)  
-
 
     web_search_summary = await summarize_tavily_web_search(formatted_search_results)   
 
-    runtime.state.get("citations").extend([citation.url for citation in web_search_summary.citations])
-    runtime.state.get("research_notes").append(web_search_summary.summary)
-
+    runtime.state.get("citations", []).extend([citation.url for citation in web_search_summary.citations])
+    runtime.state.get("research_notes", []).append(web_search_summary.summary)
 
     web_search_summary_formatted = format_tavily_summary_results(web_search_summary)     
 
     return web_search_summary_formatted 
 
 
+# ============================================================================
+# WRITE RESEARCH SUMMARY TOOL (Incremental Synthesis + Context Offloading)
+# ============================================================================
+
+@tool(
+    description="Write an intermediate research summary to consolidate findings before continuing. "
+                "Use this after gathering substantial information on a sub-topic.",
+    parse_docstring=False,
+)
+async def write_research_summary_tool(
+    runtime: ToolRuntime,
+    topic_focus: str,
+    synthesis: str,
+    confidence: float,
+    open_questions: List[str],
+    key_sources: List[str],
+) -> str:
+    """
+    Consolidate research findings into an intermediate summary file.
+    
+    Call this tool when you have gathered enough information on a specific
+    aspect and want to:
+    1. Free up context by offloading findings to a file
+    2. Create a checkpoint before investigating other aspects
+    3. Organize your research into coherent themes
+    
+    Args:
+        runtime (ToolRuntime): Tool runtime containing shared agent state.
+        topic_focus (str): What specific aspect this summary covers 
+            (e.g., "product mechanism", "clinical evidence", "company background").
+        synthesis (str): Your synthesized understanding of the findings.
+            Should be 2-4 paragraphs that capture the key insights.
+        confidence (float): 0.0-1.0 confidence score for these findings.
+            - 0.0-0.3: Low confidence (limited/contradictory sources)
+            - 0.4-0.6: Medium confidence (some evidence, gaps remain)
+            - 0.7-1.0: High confidence (strong evidence, multiple sources agree)
+        open_questions (List[str]): Questions that remain unanswered.
+            These help guide further research if needed.
+        key_sources (List[str]): Most important URLs/DOIs supporting this summary.
+            Include 2-5 of the most authoritative sources.
+    
+    Returns:
+        str: Confirmation with the file path where summary was stored.
+    """
+    direction = runtime.state.get("direction")
+    direction_id = direction.id if direction else "unknown"
+    
+    # Create the IntermediateSummary model
+    summary = IntermediateSummary(
+        topic_focus=topic_focus,
+        synthesis=synthesis,
+        confidence=confidence,
+        open_questions=open_questions,
+        key_sources=key_sources,
+    )
+    
+    # Write to file system (under research/<direction_id>/)
+    filename = f"research/{direction_id}/summary_{summary.summary_id}.json"
+    await write_file(filename, summary.model_dump_json(indent=2))
+    
+    # Track file reference in state for later aggregation
+    file_refs = runtime.state.get("file_refs", [])
+    if file_refs is None:
+        file_refs = []
+    file_refs.append(filename)
+    runtime.state["file_refs"] = file_refs
+    
+    # Also add a compact version to research_notes for backward compatibility
+    # and in case files aren't accessible
+    compact_note = (
+        f"[SUMMARY: {topic_focus}]\n"
+        f"Confidence: {confidence}\n\n"
+        f"{synthesis}\n\n"
+        f"Open Questions: {'; '.join(open_questions) if open_questions else 'None'}\n"
+        f"Key Sources: {', '.join(key_sources[:3]) if key_sources else 'None cited'}"
+    )
+    research_notes = runtime.state.get("research_notes", [])
+    if research_notes is None:
+        research_notes = []
+    research_notes.append(compact_note)
+    runtime.state["research_notes"] = research_notes
+    
+    return (
+        f"✓ Summary written to {filename}\n"
+        f"  Topic: {topic_focus}\n"
+        f"  Confidence: {confidence}\n"
+        f"  Open questions: {len(open_questions)}\n\n"
+        f"You can now continue researching other aspects or stop if you have enough information."
+    )
 
 
-tools_map: Dict[ResearchType, List[Any]] = {
-    "general": [tavily_web_search_tool, firecrawl_scrape_tool, firecrawl_map_tool, wiki_tool],
-    "casestudy": [pubmed_literature_search_tool, wiki_tool],
-    "medical": [pubmed_literature_search_tool, wiki_tool],
-} 
+# ============================================================================
+# ALL TOOLS - Agent has access to everything
+# ============================================================================
 
-
-
-# All tools that might be referenced by tool calls
-all_tools = [
+# All research tools available to the agent
+ALL_RESEARCH_TOOLS = [
     tavily_web_search_tool,
     firecrawl_scrape_tool,
     firecrawl_map_tool,
-    pubmed_literature_search_tool,
     wiki_tool,
-] 
+    pubmed_literature_search_tool,
+    write_research_summary_tool,
+]
 
-tools_by_name = {t.name: t for t in all_tools}
+tools_by_name = {t.name: t for t in ALL_RESEARCH_TOOLS}
 
-def get_tool_instructions(research_type: ResearchType) -> str:
-    if research_type == "general":
-        return GENERAL_RESEARCH_TOOL_INSTRUCTIONS.strip()
-    if research_type == "medical":
-        return MEDICAL_RESEARCH_TOOL_INSTRUCTIONS.strip()
-    if research_type == "casestudy":
-        return CASESTUDY_RESEARCH_TOOL_INSTRUCTIONS.strip()
-    return ""
 
-deep_research_prompt = """
-You are a focused research agent working on ONE research direction
-for the Human Upgrade Podcast.
+def get_tool_instructions(direction: ResearchDirection) -> str:
+    """
+    Get tool instructions based on the research direction.
+    Uses include_scientific_literature flag to guide tool prioritization.
+    """
+    return TOOL_INSTRUCTIONS.format(
+        include_scientific_literature="YES" if direction.include_scientific_literature else "NO",
+        scientific_guidance=(
+            "PRIORITIZE PubMed for peer-reviewed evidence on mechanisms, interventions, and clinical outcomes. "
+            "Use it to verify scientific claims found on company/product websites."
+            if direction.include_scientific_literature
+            else "PubMed is available if you discover scientific claims that need verification, "
+            "but focus primarily on web research for this direction."
+        ),
+    )
 
-You have access to tools for web search, scraping, and medical literature.
-Use tools only when needed. Accumulate concise research notes and
-relevant citations. When you have enough information, stop calling tools
-and prepare to summarize your findings.
 
-Research direction:
-- ID: {direction_id}
-- Title: {title}
-- Description: {description}
-- Research type: {research_type}
-
-Episode context:
-{episode_context}
-
-Existing research notes (may be empty):
-{research_notes}
-"""
-
+# ============================================================================
+# GRAPH NODES
+# ============================================================================
 
 async def call_model(state: ResearchState) -> ResearchState:
     """LLM decides what to do next for this research direction."""
     direction = state["direction"] 
-    # Probably don't need episode context here 
     episode_context = state.get("episode_context", "")
     notes = state.get("research_notes", [])
 
-    tools = tools_map.get(direction.research_type, [])
-    model_with_tools = research_model.bind_tools(tools) 
+    # Agent gets ALL tools - no silos
+    model_with_tools = research_model.bind_tools(ALL_RESEARCH_TOOLS) 
 
-    tool_instructions = get_tool_instructions(direction.research_type)
+    tool_instructions = get_tool_instructions(direction)
 
     system = SystemMessage(
         content=DEEP_RESEARCH_PROMPT.format(
@@ -499,11 +586,11 @@ async def call_model(state: ResearchState) -> ResearchState:
             topic=direction.topic,
             description=direction.description,
             overview=direction.overview,
-            research_type=direction.research_type,
+            include_scientific_literature="YES" if direction.include_scientific_literature else "NO",
             depth=direction.depth,
             priority=direction.priority,
             max_steps=direction.max_steps,
-            query_seed=direction.topic,  # or a separate query_seed var if you have one
+            query_seed=direction.topic,
             tool_instructions=tool_instructions,
         )
     )
@@ -517,6 +604,7 @@ async def call_model(state: ResearchState) -> ResearchState:
         "messages": [ai_msg],
         "llm_calls": state.get("llm_calls", 0) + 1,
     }
+
 
 async def tool_node(state: ResearchState) -> ResearchState:
     """Execute tool calls requested by the last AI message."""
@@ -532,7 +620,8 @@ async def tool_node(state: ResearchState) -> ResearchState:
             content=(
                 "You have reached the maximum number of tool steps "
                 "for this research direction. Please stop calling tools, "
-                "summarize your findings, and prepare to finalize."
+                "write a final summary using write_research_summary_tool if you haven't, "
+                "and prepare to finalize."
             )
         )
         return {
@@ -573,117 +662,68 @@ async def tool_node(state: ResearchState) -> ResearchState:
 
     
 
-class ProductOutput(BaseModel):
-    product_id: str
-    product_name: str
-    product_description: str
-    product_price: float  
-
-class BusinessOutput(BaseModel):
-    business_name: str
-    business_description: str
-    business_products: List[ProductOutput]
-    business_website: str
-   
-class PersonBusinessAffiliation(BaseModel):  
-    business_name: str 
-    business_overview: str 
-    person_role: str 
-class PersonOutput(BaseModel):  
-    person_name: str   
-    person_bio: str   
-
-    person_business_affiliations: List[PersonBusinessAffiliation] 
-
-
-class CaseStudyOutput(BaseModel):
-    case_study_name: str 
-    case_study_summary: str 
-    case_study_citations: List[str]
-    case_study_notes: str  
-
-
-
-@tool(description="Generate a business and product output from the research")  
-def business_product_output_tool(  
-    business_name: str, 
-    business_description: str, 
-    business_products: List[ProductOutput], 
-    business_website: str, 
-
-) -> BusinessOutput:  
-
-    return BusinessOutput( 
-        business_name=business_name, 
-        business_description=business_description, 
-        business_products=business_products, 
-        business_website=business_website, 
-    )
-
-
-@tool(description="Generate a person output from the research")   
-def person_output_tool(  
-    person_name: str, 
-    person_bio: str, 
-    person_business_affiliations: List[PersonBusinessAffiliation], 
-) -> Command:  
-    person_output = PersonOutput( 
-        person_name=person_name, 
-        person_bio=person_bio, 
-        person_business_affiliations=person_business_affiliations, 
-    )  
-
-
-    return Command( 
-        update={ 
-            "structured_outputs": [person_output] 
-
-        }
-    )
-
-
-
-@tool(description="Generate a case study output from the research")    
-def case_study_output_tool( 
-    case_study_name: str, 
-    case_study_summary: str, 
-    case_study_citations: List[str], 
-    case_study_notes: str, 
-) -> CaseStudyOutput:  
-    return CaseStudyOutput( 
-        case_study_name=case_study_name, 
-        case_study_summary=case_study_summary, 
-        case_study_citations=case_study_citations, 
-        case_study_notes=case_study_notes, 
-    ) 
-
-
+# ============================================================================
+# RESEARCH OUTPUT NODE (Updated to read from files)
+# ============================================================================
 
 research_result_model = ChatOpenAI( 
     model="gpt-5.1",  
     temperature=0.0, 
     output_version="responses/v1",
     max_retries=2,
-    
 )
 
 
 async def research_output_node(state: ResearchState) -> ResearchState:
-    """Produce a DirectionResearchResult via structured LLM call."""
+    """
+    Produce a DirectionResearchResult by aggregating file-based summaries
+    and research notes via structured LLM call.
+    """
     direction = state["direction"]
     episode_context = state.get("episode_context", "") or "(none)"
-    notes = state.get("research_notes", []) or []
+    file_refs = state.get("file_refs", []) or []
     citations = state.get("citations", []) or []
+    notes = state.get("research_notes", []) or []
+
+    # Aggregate intermediate summaries from files
+    aggregated_content = ""
+    
+    if file_refs:
+        intermediate_summaries = []
+        for file_path in file_refs:
+            try:
+                content = await read_file(file_path)
+                intermediate_summaries.append(f"--- File: {file_path} ---\n{content}")
+            except FileNotFoundError:
+                # File not found, skip (notes should have backup)
+                continue
+            except Exception as e:
+                # Log but continue
+                continue
+        
+        if intermediate_summaries:
+            aggregated_content = "=== INTERMEDIATE RESEARCH SUMMARIES (from files) ===\n\n"
+            aggregated_content += "\n\n".join(intermediate_summaries)
+            aggregated_content += "\n\n"
+    
+    # Add research_notes (which may include compact summaries as backup)
+    if notes:
+        aggregated_content += "=== RESEARCH NOTES ===\n\n"
+        aggregated_content += "\n\n---\n\n".join(notes)
+    
+    # If nothing was collected, note that
+    if not aggregated_content.strip():
+        aggregated_content = "(no research notes or summaries collected)"
 
     prompt = RESEARCH_RESULT_PROMPT.format(
         topic=direction.topic,
         description=direction.description,
         overview=direction.overview,
-        research_type=direction.research_type,
+        include_scientific_literature="YES" if direction.include_scientific_literature else "NO",
         depth=direction.depth,
         priority=direction.priority,
         episode_context=episode_context,
-        research_notes="\n\n".join(notes) if notes else "(no notes collected)",
+        research_notes=aggregated_content,
         citations="\n".join(citations) if citations else "(no citations collected)",
     )
 
@@ -713,12 +753,14 @@ async def research_output_node(state: ResearchState) -> ResearchState:
     }
 
 
-
-
+# ============================================================================
+# ROUTING FUNCTIONS
+# ============================================================================
 
 def should_continue_research(
     state: ResearchState,
 ) -> Literal["tool_node", "research_output_node"]:
+    """Route based on tool calls and step budget."""
     messages = state.get("messages", [])
     if not messages:
         return "research_output_node"
@@ -733,125 +775,114 @@ def should_continue_research(
     return "research_output_node"  
     
 
-structured_output_tools = [business_product_output_tool, person_output_tool, case_study_output_tool]    
+# ============================================================================
+# ENTITY EXTRACTION MODEL
+# ============================================================================
 
-structured_output_tools_by_name = {tool.name: tool for tool in structured_output_tools}     
+entity_extraction_model = ChatOpenAI(
+    model="gpt-4o",
+    temperature=0.0,
+    max_retries=2,
+)
 
 
-async def call_structured_output_model(state: ResearchState) -> ResearchState:
-    """Call the model that decides which structured-output tools to use."""
+# ============================================================================
+# SINGLE-PASS ENTITY EXTRACTION NODE
+# ============================================================================
+
+async def extract_structured_entities(state: ResearchState) -> ResearchState:
+    """
+    Single-pass entity extraction using structured output.
+    
+    Extracts businesses, products, people, compounds, and case studies
+    from the research results in one deterministic call.
+    """
     direction = state["direction"]
     result = state.get("result")
-    notes = state.get("research_notes", []) or []
     citations = state.get("citations", []) or []
-
-    extensive_summary_text = (
-        result.extensive_summary if result and result.extensive_summary else "(no summary)"
+    
+    # Build the extraction prompt
+    extensive_summary = (
+        result.extensive_summary if result and result.extensive_summary else "(no summary available)"
     )
-    key_findings_text = (
-        "\n".join(result.key_findings) if result and result.key_findings else "(none)"
+    key_findings = (
+        "\n".join(f"- {f}" for f in result.key_findings) 
+        if result and result.key_findings 
+        else "(no key findings)"
     )
-    research_notes_text = "\n\n".join(notes) if notes else "(none)"
-    citations_text = "\n".join(citations) if citations else "(none)"
-
-    system_prompt = STRUCTURED_OUTPUT_PROMPT.format(
+    citations_text = "\n".join(citations) if citations else "(no citations collected)"
+    
+    prompt = ENTITY_EXTRACTION_PROMPT.format(
+        direction_id=direction.id,
         topic=direction.topic,
         description=direction.description,
         overview=direction.overview,
-        research_type=direction.research_type,
-        extensive_summary=extensive_summary_text,
-        key_findings=key_findings_text,
-        research_notes=research_notes_text,
+        extensive_summary=extensive_summary,
+        key_findings=key_findings,
         citations=citations_text,
     )
-
-    # Fresh conversation just for entity extraction
-    model_with_entity_tools = summary_model.bind_tools(structured_output_tools)
-
-    ai_msg = await model_with_entity_tools.ainvoke(
-        [SystemMessage(content=system_prompt)]
+    
+    # Use .with_structured_output() for deterministic extraction
+    extraction_model = entity_extraction_model.with_structured_output(
+        ResearchEntities,
+        method="json_schema",
+        strict=True,
     )
-
+    
+    try:
+        entities: ResearchEntities = await extraction_model.ainvoke(prompt)
+    except Exception as e:
+        # If extraction fails, return empty entities
+        print(f"Entity extraction failed: {e}")
+        entities = ResearchEntities()
+    
+    # Collect all extracted entities and ensure direction_id is set
+    all_outputs: List[ExtractedEntityBase] = []
+    
+    for business in entities.businesses:
+        if not business.direction_id or business.direction_id == "":
+            business.direction_id = direction.id
+        all_outputs.append(business)
+    
+    for product in entities.products:
+        if not product.direction_id or product.direction_id == "":
+            product.direction_id = direction.id
+        all_outputs.append(product)
+    
+    for person in entities.people:
+        if not person.direction_id or person.direction_id == "":
+            person.direction_id = direction.id
+        all_outputs.append(person)
+    
+    for compound in entities.compounds:
+        if not compound.direction_id or compound.direction_id == "":
+            compound.direction_id = direction.id
+        all_outputs.append(compound)
+    
+    for case_study in entities.case_studies:
+        if not case_study.direction_id or case_study.direction_id == "":
+            case_study.direction_id = direction.id
+        all_outputs.append(case_study)
+    
     return {
-        "messages": [ai_msg],  # now messages contains only this phase
+        "structured_outputs": all_outputs,
         "llm_calls": state.get("llm_calls", 0) + 1,
-    } 
-
-
-async def structured_output_tool_node(state: ResearchState) -> ResearchState:
-    """Run structured-output tools and accumulate their results in state."""
-    messages = state.get("messages", [])
-    if not messages:
-        return {"messages": []}
-
-    last_msg = messages[-1]
-    tool_calls = getattr(last_msg, "tool_calls", []) or []
-
-    if not tool_calls:
-        return {"messages": []}
-
-    structured_outputs = list(state.get("structured_outputs", []))
-    tool_msgs: List[ToolMessage] = []
-
-    for tc in tool_calls:
-        tool_name = tc.get("name")
-        args = tc.get("args") or {}
-        tool = structured_output_tools_by_name.get(tool_name)
-
-        if tool is None:
-            # just notify the model that the tool is missing
-            tool_msgs.append(
-                ToolMessage(
-                    content=f"Tool '{tool_name}' not found.",
-                    name=tool_name,
-                    tool_call_id=tc.get("id"),
-                )
-            )
-            continue
-
-        # call tool and get Pydantic model back
-        result_model = await tool.ainvoke(args)
-
-        # append to structured_outputs in state
-        structured_outputs.append(result_model)
-
-        # send JSON representation back to the LLM
-        tool_msgs.append(
-            ToolMessage(
-                content=result_model.json(),
-                name=tool_name,
-                tool_call_id=tc.get("id"),
-            )
-        )
-
-    return {
-        "messages": tool_msgs,
-        "structured_outputs": structured_outputs,
     }
 
 
-
-
-def should_continue_structured_output(
-    state: ResearchState,
-) -> Literal["structured_output_tool_node", "end_structured_output"]:
-    messages = state.get("messages", [])
-    if not messages:
-        return "end_structured_output"
-
-    last = messages[-1]
-    if getattr(last, "tool_calls", None):
-        return "structured_output_tool_node"
-
-    return "end_structured_output"
-
-
+# ============================================================================
+# BUILD THE GRAPH
+# ============================================================================
 
 research_subgraph_builder = StateGraph(ResearchState)
 
+# Research loop nodes
 research_subgraph_builder.add_node("call_model", call_model)
 research_subgraph_builder.add_node("tool_node", tool_node)
 research_subgraph_builder.add_node("research_output_node", research_output_node)
+
+# Entity extraction node (single-pass, no tool loop)
+research_subgraph_builder.add_node("extract_entities", extract_structured_entities)
 
 # Entry point
 research_subgraph_builder.set_entry_point("call_model")
@@ -869,31 +900,9 @@ research_subgraph_builder.add_conditional_edges(
 # After tools, go back to the LLM
 research_subgraph_builder.add_edge("tool_node", "call_model") 
 
-
-
-# Final node ends the subgraph
-research_subgraph_builder.add_node(
-    "call_structured_output_model", call_structured_output_model
-)
-research_subgraph_builder.add_node(
-    "structured_output_tool_node", structured_output_tool_node
-)
-
-# Instead of ending at research_output_node, go to the structured-output loop:
-research_subgraph_builder.add_edge("research_output_node", "call_structured_output_model")
-
-research_subgraph_builder.add_conditional_edges(
-    "call_structured_output_model",
-    should_continue_structured_output,
-    {
-        "structured_output_tool_node": "structured_output_tool_node",
-        "end_structured_output": END,
-    },
-)
-
-research_subgraph_builder.add_edge(
-    "structured_output_tool_node", "call_structured_output_model"
-)
+# After research output, extract entities then end
+research_subgraph_builder.add_edge("research_output_node", "extract_entities")
+research_subgraph_builder.add_edge("extract_entities", END)
 
 # Compile subgraph
 # research_subgraph = research_subgraph_builder.compile()
