@@ -19,7 +19,6 @@ async def tavily_search(
     Async wrapper around Tavily's search method.
 
     Args:
-        client: An initialized AsyncTavilyClient instance.
         query: Natural-language search query.
         max_results: Max number of results to return.
         search_depth: 'basic' (faster, fewer pages) or 'advanced' (more thorough).
@@ -29,7 +28,8 @@ async def tavily_search(
         include_raw_content: Whether to include raw page text content.
         include_domains: If set, focus search on these domains (whitelist).
         exclude_domains: If set, avoid these domains (blacklist).
-
+        start_date: Optional start date for search.
+        end_date: Optional end date for search.
     Returns:
         A dict with Tavily's response (answer, results, etc.).
     """

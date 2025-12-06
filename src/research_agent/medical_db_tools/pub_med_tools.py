@@ -461,7 +461,7 @@ Instructions:
    - pmid
    - doi
    - title
-   - url (constructed from the PMID if needed: https://pubmed.ncbi.nlm.nih.gov/{pmid}/)
+   - url (constructed from the PMID if needed: https://pubmed.ncbi.nlm.nih.gov/PMID_HERE/)
 
 Return your answer in the structured format requested by the calling code.
 

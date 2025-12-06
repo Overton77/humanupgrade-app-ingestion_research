@@ -235,4 +235,9 @@ langgraph.json
 # Local checkpoints
 checkpoints.db  
 
-.env 
+.env  
+
+
+research_outputs/ 
+
+agent_files/ 

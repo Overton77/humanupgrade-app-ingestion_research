@@ -458,8 +458,10 @@ async def one_full_transcript_graph_run(episode_page_url: str) -> None:
         pprint(final_state)
 
         # Also save full state to disk for inspection
-        OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-        state_path = OUTPUT_DIR / "final_state.json"
+        OUTPUT_DIR.mkdir(parents=True, exist_ok=True) 
+
+        final_state_id = str(uuid4())
+        state_path = OUTPUT_DIR / f"final_state_{final_state_id}.json"
 
         # Convert Pydantic models to dicts before dumping
         serializable_state: Dict[str, Any] = dict(final_state)
@@ -486,5 +488,5 @@ async def one_full_transcript_graph_run(episode_page_url: str) -> None:
 
 
 if __name__ == "__main__":
-    asyncio.run(one_full_transcript_graph_run())  
+    asyncio.run(one_full_transcript_graph_run("https://daveasprey.com/james-baber-toxic-mold-hidden-dangers-198/"))  
     # print(TRANSCRIPT_FILE.read_text())

@@ -1,5 +1,15 @@
 from typing import Any, Dict, List, Optional, Literal, Union 
-from firecrawl import AsyncFirecrawlApp
+from firecrawl import AsyncFirecrawlApp 
+from dotenv import load_dotenv  
+import os 
+import asyncio 
+
+
+load_dotenv() 
+
+firecrawl_api_key = os.getenv("FIRECRAWL_API_KEY")  
+async_firecrawl_app = AsyncFirecrawlApp(api_key=firecrawl_api_key)   
+
 
 
 async def firecrawl_scrape(
@@ -7,7 +17,7 @@ async def firecrawl_scrape(
     url: str,
     formats: Optional[List[Literal["markdown", "html", "raw", "screenshot"]]] = None,
     include_links: bool = False,
-    max_depth: int = 0,
+    max_depth: int = 1,
     include_images: bool = False,
 ) -> Dict[str, Any]:
     """
@@ -79,125 +89,175 @@ async def firecrawl_map(
 
 
 
+def _safe_getattr(obj: Any, attr: str, default: Any = None) -> Any:
+    """Safely get attribute from object or dict key."""
+    if hasattr(obj, attr):
+        return getattr(obj, attr, default)
+    elif isinstance(obj, dict):
+        return obj.get(attr, default)
+    return default
+
+
 def format_firecrawl_search_response(
-    response: Dict[str, Any] | List[Dict[str, Any]],
+    response: Any,
     *,
-    max_results: Optional[int] = None,
     max_content_chars: Optional[int] = None,
 ) -> str:
     """
-    Format Firecrawl search (or scrape) response into a string suitable for LLM summarization.
+    Format a Firecrawl scrape() response (Pydantic model) into a readable string.
 
-    Handles:
-      - SERP-only results: title, url, description
-      - Scraped results: markdown/html/rawHtml as content
-      - Optionally truncates long content
+    The response is a Pydantic model with attributes:
+      - markdown: str | None
+      - html: str | None  
+      - raw_html: str | None
+      - json: Any | None
+      - summary: str | None
+      - metadata: DocumentMetadata (with .title, .description, .url, etc.)
+      - links: list | None
+      - images: list | None
+      - screenshot: str | None
+      - warning: str | None
+
+    Args:
+        response: The Pydantic model returned by AsyncFirecrawlApp.scrape()
+        max_content_chars: Optional limit on content length
+
+    Returns:
+        A formatted string suitable for LLM consumption.
     """
-
-    # Normalize
-    if isinstance(response, dict) and "data" in response:
-        results = response["data"]
-    elif isinstance(response, list):
-        results = response
-    else:
-        raise ValueError("Unexpected Firecrawl response format")
-
-    if max_results is not None:
-        results = results[:max_results]
-
     lines: List[str] = []
-    lines.append("=== Firecrawl Search Results ===")
+    lines.append("=== Firecrawl Scrape Result ===")
 
-    if not results:
-        lines.append("(no results)")
+    # Extract metadata
+    metadata = _safe_getattr(response, "metadata")
+    
+    title = _safe_getattr(metadata, "title") if metadata else None
+    url = _safe_getattr(metadata, "url") if metadata else None
+    description = _safe_getattr(metadata, "description") if metadata else None
+    language = _safe_getattr(metadata, "language") if metadata else None
+
+    lines.append(f"Title: {title or '(no title)'}")
+    lines.append(f"URL: {url or '(no url)'}")
+    
+    if description:
+        lines.append(f"Description: {description}")
+    if language:
+        lines.append(f"Language: {language}")
+
+    # Get content - prioritize markdown, then html, then raw_html, then summary
+    content = (
+        _safe_getattr(response, "markdown") 
+        or _safe_getattr(response, "html") 
+        or _safe_getattr(response, "raw_html")
+        or _safe_getattr(response, "summary")
+        or ""
+    )
+
+    if content:
+        if max_content_chars and len(content) > max_content_chars:
+            content = content[:max_content_chars] + "\n...[truncated]"
+        lines.append("")
+        lines.append("Content:")
+        lines.append(content.strip())
     else:
-        for i, r in enumerate(results, start=1):
-            title = r.get("title") or "(no title)"
-            url = r.get("url") or r.get("metadata", {}).get("sourceURL") or "(no url)"
-            description = r.get("description")
-            # Try content: prioritize markdown, fallback to html or rawHtml
-            content = r.get("markdown") or r.get("html") or r.get("rawHtml") or ""
-            if max_content_chars and content and len(content) > max_content_chars:
-                content = content[:max_content_chars] + "\n...[truncated]"
+        lines.append("")
+        lines.append("Content: (none)")
 
-            lines.append(f"[Result {i}]")
-            lines.append(f"Title: {title}")
-            lines.append(f"URL: {url}")
-            if description:
-                lines.append(f"Description: {description}")
-            if content:
-                lines.append("Content:")
-                lines.append(content.strip())
-            else:
-                lines.append("Content: (none)")
+    # Include links if present
+    links = _safe_getattr(response, "links")
+    if links:
+        lines.append("")
+        lines.append(f"Links found: {len(links)}")
 
-            lines.append("")  # empty line between results
+    # Include warning if present
+    warning = _safe_getattr(response, "warning")
+    if warning:
+        lines.append("")
+        lines.append(f"Warning: {warning}")
 
     return "\n".join(lines).strip() 
 
 
 def format_firecrawl_map_response(
-    response: Dict[str, Any] | List[Dict[str, Any]],
+    response: Any,
     *,
     max_urls: Optional[int] = None,
 ) -> str:
     """
-    Format a Firecrawl `map()` response into a clean, readable string.
+    Format a Firecrawl map() response (Pydantic model) into a readable string.
 
-    Handles both:
-      - Full dict response: { success, data: [...] }
-      - Bare list of URL metadata objects
-
-    Each entry includes:
-        - url
-        - source (if present)
-        - depth (if present)
-        - statusCode (if present)
-        - error (if present)
+    The response is a Pydantic model with:
+      - links: List[LinkResult] where each LinkResult has .url, .title, .description
 
     Args:
-        response: The result of AsyncFirecrawlApp.map() or equivalent.
+        response: The Pydantic model returned by AsyncFirecrawlApp.map()
         max_urls: Optional cap on number of URLs to output.
 
     Returns:
         A formatted string of discovered URLs with metadata.
     """
-    # Normalize to list of items
-    if isinstance(response, dict) and "data" in response:
-        items = response["data"]
-    elif isinstance(response, list):
-        items = response
-    else:
-        raise ValueError(f"Unexpected Firecrawl map() response type: {type(response)!r}")
+    # Get links from the response - it's a Pydantic model with .links attribute
+    links = _safe_getattr(response, "links")
+    
+    # Fallback for dict-based responses
+    if links is None and isinstance(response, dict):
+        links = response.get("links") or response.get("data") or []
+    
+    if links is None:
+        links = []
 
     if max_urls is not None:
-        items = items[:max_urls]
+        links = links[:max_urls]
 
     lines: List[str] = []
     lines.append("=== Firecrawl URL Map Results ===")
+    lines.append(f"Total URLs found: {len(links)}")
+    lines.append("")
 
-    if not items:
+    if not links:
         lines.append("(no URLs discovered)")
         return "\n".join(lines)
 
-    for i, entry in enumerate(items, start=1):
-        url = entry.get("url", "(no url)")
-        source = entry.get("source")  # 'sitemap' | 'crawl' | ...
-        depth = entry.get("depth")
-        status = entry.get("statusCode")
-        error = entry.get("error")
+    for i, link in enumerate(links, start=1):
+        # LinkResult is a Pydantic model with .url, .title, .description
+        url = _safe_getattr(link, "url") or "(no url)"
+        title = _safe_getattr(link, "title")
+        description = _safe_getattr(link, "description")
 
-        lines.append(f"[URL {i}]")
-        lines.append(f"URL: {url}")
-        if source:
-            lines.append(f"Source: {source}")
-        if depth is not None:
-            lines.append(f"Depth: {depth}")
-        if status is not None:
-            lines.append(f"Status Code: {status}")
-        if error:
-            lines.append(f"Error: {error}")
-
+        lines.append(f"[{i}] {url}")
+        if title:
+            lines.append(f"    Title: {title}")
+        if description:
+            # Truncate long descriptions
+            desc = description[:200] + "..." if len(description) > 200 else description
+            lines.append(f"    Description: {desc}")
         lines.append("")  # spacing
 
-    return "\n".join(lines).strip()
+    return "\n".join(lines).strip() 
+
+
+if __name__ == "__main__": 
+    async def main():
+        print("=" * 60)
+        print("Testing firecrawl_scrape...")
+        print("=" * 60)
+        scrape_result = await firecrawl_scrape(
+            async_firecrawl_app, 
+            "example.com", 
+            formats=["markdown"]
+        )
+        formatted_scrape = format_firecrawl_scrape_response(scrape_result, max_content_chars=1000)
+        print(formatted_scrape)
+        
+        print("\n" + "=" * 60)
+        print("Testing firecrawl_map...")
+        print("=" * 60)
+        map_result = await firecrawl_map(
+            async_firecrawl_app, 
+            "https://daveasprey.com", 
+            limit=5
+        )
+        formatted_map = format_firecrawl_map_response(map_result)
+        print(formatted_map)
+        
+    asyncio.run(main())
