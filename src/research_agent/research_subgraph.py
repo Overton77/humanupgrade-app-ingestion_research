@@ -31,7 +31,8 @@ from research_agent.prompts.summary_prompts import TAVILY_SUMMARY_PROMPT, FIRECR
 from research_agent.prompts.research_prompts import (
     DEEP_RESEARCH_PROMPT, 
     TOOL_INSTRUCTIONS,
-    RESEARCH_RESULT_PROMPT,
+    RESEARCH_RESULT_PROMPT, 
+    DEEP_RESEARCH_CONTINUE_PROMPT,
 ) 
 from research_agent.prompts.structured_output_prompts import ENTITY_EXTRACTION_PROMPT
 from research_agent.output_models import (
@@ -39,11 +40,6 @@ from research_agent.output_models import (
     ResearchDirection,
     ResearchEntities,
     ExtractedEntityBase,
-    ProductOutput,
-    CompoundOutput,
-    BusinessOutput,
-    PersonOutput,
-    CaseStudyOutput,
 )
 
 # ============================================================================
@@ -785,19 +781,28 @@ def get_tool_instructions(direction: ResearchDirection) -> str:
     """
     return TOOL_INSTRUCTIONS.format(
         include_scientific_literature="YES" if direction.include_scientific_literature else "NO",
-        scientific_guidance=(
-            "PRIORITIZE PubMed for peer-reviewed evidence on mechanisms, interventions, and clinical outcomes. "
-            "Use it to verify scientific claims found on company/product websites."
-            if direction.include_scientific_literature
-            else "PubMed is available if you discover scientific claims that need verification, "
-            "but focus primarily on web research for this direction."
-        ),
+        scientific_guidance = (
+        "Because this research direction REQUIRES scientific literature, you should:\n"
+        "- Prioritize **PubMed** for clinical trials, observational findings, mechanisms, and case reports.\n"
+        "- Escalate to **PMC full-text** ONLY when the abstracts cannot answer mechanistic, methodological, "
+        "or interpretive questions.\n"
+        "- Cross-check scientific claims made on company or product websites.\n"
+        "- Ensure that final summaries integrate PubMed or PMC results when available.\n"
+        if direction.include_scientific_literature
+        else
+        "Scientific literature is optional for this direction. Use PubMed or PMC ONLY if you encounter claims "
+        "that require biomedical validation. Otherwise focus on web research, company sites, Wikipedia, and "
+        "Firecrawl scraping."
+)
     )
 
 
 # ============================================================================
 # GRAPH NODES
-# ============================================================================
+# ============================================================================ 
+
+# Figure out how to use memory injection and a compressed research prompt after the first and after (some n ) 
+# number of message iterations 
 
 async def call_model(state: ResearchState) -> ResearchState:
     """LLM decides what to do next for this research direction."""
@@ -820,8 +825,8 @@ async def call_model(state: ResearchState) -> ResearchState:
 
     tool_instructions = get_tool_instructions(direction)
 
-    system = SystemMessage(
-        content=DEEP_RESEARCH_PROMPT.format(
+
+    system = DEEP_RESEARCH_PROMPT.format(
             direction_id=direction.id,
             topic=direction.topic,
             description=direction.description,
@@ -834,8 +839,7 @@ async def call_model(state: ResearchState) -> ResearchState:
             tool_instructions=tool_instructions,
             current_date=get_current_date_string(),
         )
-    )
-
+   
     # existing conversation messages in this subgraph
     messages = list(state.get("messages", []))
     
@@ -875,7 +879,7 @@ async def call_model(state: ResearchState) -> ResearchState:
     }
 
 
-# Create the prebuilt ToolNode - this handles ToolRuntime injection automatically
+
 _prebuilt_tool_node = ToolNode(ALL_RESEARCH_TOOLS)
 
 

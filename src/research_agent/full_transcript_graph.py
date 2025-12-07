@@ -10,7 +10,8 @@ from langchain_core.prompts import PromptTemplate
 from dotenv import load_dotenv
 from pydantic import BaseModel, Field
 from langchain.agents import create_agent
-from langchain_openai import ChatOpenAI
+from langchain_openai import ChatOpenAI 
+from langgraph.store.postgres.aio import AsyncPostgresStore 
 from langchain_core.prompts import PromptTemplate
 from langgraph.graph import StateGraph, START, END 
 from langgraph.graph.state import CompiledStateGraph 
@@ -437,11 +438,15 @@ async def one_full_transcript_graph_run(episode_page_url: str) -> None:
     pg_url = f"postgresql://postgres:{pg_password}@localhost:5432/{pg_db_name}"
     
     # Use AsyncPostgresSaver as an async context manager
-    async with AsyncPostgresSaver.from_conn_string(pg_url) as checkpointer:
+    async with ( AsyncPostgresSaver.from_conn_string(pg_url) as checkpointer, 
+                 AsyncPostgresStore.from_conn_string(pg_url) as store,
+    
+    ):
         await checkpointer.setup()
+        await store.setup()
         
         # Recompile the graph with the checkpointer for persistence
-        app_with_checkpointer = graph.compile(checkpointer=checkpointer)
+        app_with_checkpointer = graph.compile(checkpointer=checkpointer, store=store)
 
         config = {
             "configurable": {

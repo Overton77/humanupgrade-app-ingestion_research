@@ -7,7 +7,8 @@ from dotenv import load_dotenv
 from langchain.tools import tool, ToolRuntime 
 from pydantic import BaseModel, Field  
 from langchain.agents import create_agent  
-from langchain_openai import ChatOpenAI 
+from langchain_openai import ChatOpenAI  
+from research_agent.prompts.summary_prompts import PUBMED_SUMMARY_PROMPT, PMC_SUMMARY_PROMPT
 
 load_dotenv()
 
@@ -28,15 +29,42 @@ pubmed_summary_model = ChatOpenAI(
 )
 
 
+async def close_http_session() -> None: 
+    """ 
+    Cleanly close the shared aiohttp session, if it exists. 
+    Call this on application shutdown or at the end of a one-off script  
+
+    """ 
+
+    global _http_session 
+
+    if _http_session is not None and not _http_session.closed: 
+        await _http_session.close() 
+    _http_session = None   
+
+
+
+
 async def get_http_session() -> aiohttp.ClientSession:
     """
     Return a shared aiohttp.ClientSession, creating it if necessary.
     Call this from tools or other async functions that need HTTP.
     """
     global _http_session
-    if _http_session is None or _http_session.closed:
-        _http_session = aiohttp.ClientSession()
+    if _http_session is None or _http_session.closed: 
+        timeout = aiohttp.ClientTimeout(total=20) 
+        connector = aiohttp.TCPConnector( 
+            limit=10,  # max concurrent connections 
+            ttl_dns_cache=300, 
+        )
+        _http_session = aiohttp.ClientSession( 
+            timeout=timeout, 
+            connector=connector, 
+            raise_for_status=False, # let caller handle errors
+        )
+
     return _http_session
+
 
 
 async def _eutils_get(
@@ -48,7 +76,6 @@ async def _eutils_get(
     async with session.get(url, params=params, timeout=30) as resp:
         resp.raise_for_status()
         return await resp.text()  # caller can decide to parse JSON or XML
-
 
 # ---------------------------------------------------------------------------
 # RAW PUBMED/PMC HELPERS
@@ -424,6 +451,51 @@ async def pubmed_search_summarizable_chunk(
     )
 
 
+async def pmc_fulltext_summarizable_chunk(
+    session: aiohttp.ClientSession,
+    term: str,
+    *,
+    max_results: int = 3,
+    max_chars: int = 12000,
+) -> str:
+    """
+    End-to-end helper: PMC search -> fulltext XML -> plain-text fulltext,
+    formatted as a single string ready for LLM summarization.
+
+    This is analogous to `pubmed_search_summarizable_chunk`, but uses:
+      - pmc_esearch
+      - format_pmc_esearch
+      - pmc_efetch_fulltext_xml
+      - format_pmc_efetch_fulltext_xml
+    """
+    # 1) Search in PMC
+    es = await pmc_esearch(session, term, retmax=max_results)
+    es_formatted = format_pmc_esearch(es, max_ids=max_results)
+
+    pmc_ids = (es.get("esearchresult", {}).get("idlist") or [])[:max_results]
+    if not pmc_ids:
+        # No IDs: just return the search summary (still useful context)
+        return es_formatted
+
+    # 2) Fulltext XML
+    xml_text = await pmc_efetch_fulltext_xml(session, pmc_ids)
+
+    # 3) Plain-text fulltext, truncated for safety
+    fulltext_formatted = format_pmc_efetch_fulltext_xml(
+        pmc_ids,
+        xml_text,
+        max_chars=max_chars,
+    )
+
+    # Final chunk to feed into the summarization LLM
+    return "\n\n".join(
+        [
+            es_formatted,
+            "",
+            fulltext_formatted,
+        ]
+    )
+
 # ---------------------------------------------------------------------------
 # STRUCTURED OUTPUT + SUMMARIZER MODEL (INSIDE TOOL)
 # ---------------------------------------------------------------------------
@@ -445,30 +517,7 @@ class PubMedResultsSummary(BaseModel):
     citations: List[PubMedCitation]
 
 
-PUBMED_SUMMARY_PROMPT = """
-You are summarizing biomedical literature results from PubMed.
 
-You are given:
-- Search context (counts and PMIDs)
-- Article metadata (titles, journals, dates, authors, DOIs)
-- Abstract text
-
-Instructions:
-1. Provide a concise summary (2–4 paragraphs) focused on what is most relevant
-   to clinicians, longevity researchers, and health practitioners.
-2. Extract 3–8 key findings as short bullet-point strings.
-3. Extract a list of citations with, when available:
-   - pmid
-   - doi
-   - title
-   - url (constructed from the PMID if needed: https://pubmed.ncbi.nlm.nih.gov/PMID_HERE/)
-
-Return your answer in the structured format requested by the calling code.
-
-SEARCH RESULTS AND ABSTRACTS:
-------------------------------
-{search_results}
-"""
 
 
 async def summarize_pubmed_results(   
@@ -496,6 +545,31 @@ async def summarize_pubmed_results(
     # create_agent pattern: structured payload under "structured_response"
     return agent_response["structured_response"]
 
+
+async def summarize_pmc_results(
+    fulltext_block: str,
+    prompt_template: str = PMC_SUMMARY_PROMPT,
+) -> PubMedResultsSummary:
+    """
+    Summarize PMC fulltext block into a PubMedResultsSummary-compatible object.
+
+    Args:
+        fulltext_block: String produced by `pmc_fulltext_summarizable_chunk`.
+        prompt_template: Prompt with a `{search_results}` placeholder.
+
+    Returns:
+        PubMedResultsSummary: summary, key findings, citations.
+    """  
+
+    agent_instructions = prompt_template.format(search_results=fulltext_block)
+    summary_agent = create_agent(
+        pubmed_summary_model,
+        response_format=PubMedResultsSummary,
+    )
+    agent_response = await summary_agent.ainvoke(
+        {"messages": [{"role": "user", "content": agent_instructions}]}
+    )
+    return agent_response["structured_response"]
 
 def format_pubmed_summary_results(summary: PubMedResultsSummary) -> str:
     """
@@ -528,6 +602,43 @@ def format_pubmed_summary_results(summary: PubMedResultsSummary) -> str:
     return "\n".join(lines).strip()
 
 
+def format_pmc_summary_results(result: PubMedResultsSummary) -> str:
+    """
+    Convert PMC summary object into a human-readable string for the tool result.
+    """
+    lines: List[str] = []
+
+    lines.append("=== PMC Full-Text Evidence Summary ===")
+    lines.append("")
+    lines.append(result.summary.strip())
+    lines.append("")
+    lines.append("Key findings:")
+    if result.key_findings:
+        for f in result.key_findings:
+            lines.append(f"- {f}")
+    else:
+        lines.append("- (no key findings extracted)")
+    lines.append("")
+    lines.append("Citations:")
+    if result.citations:
+        for c in result.citations:
+            parts = []
+            if c.title:
+                parts.append(c.title)
+            if c.doi:
+                parts.append(f"DOI: {c.doi}")
+            if c.pmid:
+                parts.append(f"PMID: {c.pmid}")
+            if c.url:
+                parts.append(c.url)
+            if not parts:
+                parts.append("(citation info missing)")
+            lines.append("- " + " | ".join(parts))
+    else:
+        lines.append("- (no citations extracted)")
+
+    return "\n".join(lines).strip()
+
 # ---------------------------------------------------------------------------
 # LANGCHAIN TOOL: PUBMED LITERATURE SEARCH
 # ---------------------------------------------------------------------------
@@ -553,7 +664,6 @@ async def pubmed_literature_search_tool(
       * Clinical outcomes for specific populations or case types.
 
     Args:
-        runtime (ToolRuntime): Tool runtime containing shared state for the agent.
         query (str): Natural-language PubMed query
             (e.g., "spermidine longevity trial",
             "NRF2 activator human study",
@@ -598,4 +708,76 @@ async def pubmed_literature_search_tool(
     runtime.state["research_notes"] = notes_state
 
     # 4) Return formatted string for the tool result message
-    return format_pubmed_summary_results(pubmed_summary)
+    return format_pubmed_summary_results(pubmed_summary)  
+
+
+
+@tool(
+    description=(
+        "Search PubMed Central (PMC) for full-text biomedical articles on a topic "
+        "and return a summarized, citation-rich report based on the full text."
+    ),
+    parse_docstring=False,
+)
+async def pmc_fulltext_literature_tool(
+    runtime: ToolRuntime,
+    query: str,
+    max_results: int = 3,
+    max_chars: int = 12000,
+) -> str:
+    """
+    Search PMC for full-text biomedical literature and produce a structured summary.
+
+    Use this when you need deeper, full-text evidence, especially for:
+      * Detailed mechanistic explanations.
+      * Nuanced discussion of methods, limitations, or subgroup effects.
+      * Articles that are open-access and available via PubMed Central (PMC).
+
+    Args:
+        query (str): Natural-language PMC query
+            (e.g., "spermidine autophagy mechanism",
+            "metformin longevity randomized trial",
+            "CAR T cell metabolic reprogramming").
+        max_results (int, optional): Maximum number of PMC articles to consider.
+            Defaults to 3 (full text can be large).
+        max_chars (int, optional): Maximum number of characters of fulltext to
+            keep after formatting. Defaults to 12000.
+
+    Returns:
+        str: A human-readable string summarizing the main findings and
+        including key citations.
+    """
+    # 1) increment steps_taken safely
+    steps = runtime.state.get("steps_taken", 0) + 1
+    runtime.state["steps_taken"] = steps
+
+    # 2) Get shared HTTP session
+    session = await get_http_session()
+
+    # 3) Raw combined PMC fulltext block
+    raw_block = await pmc_fulltext_summarizable_chunk(
+        session,
+        term=query,
+        max_results=max_results,
+        max_chars=max_chars,
+    )
+
+    # 4) Summarize via LLM into structured output
+    pmc_summary = await summarize_pmc_results(raw_block, PMC_SUMMARY_PROMPT)
+
+    # 5) Update citations + research_notes in runtime state (reusing PubMed schema)
+    citations_state = runtime.state.get("citations") or []
+    for c in pmc_summary.citations:
+        if c.url:
+            citations_state.append(c.url)
+        elif c.pmid:
+            # fallback: construct PubMed URL if a PMID was inferred
+            citations_state.append(f"https://pubmed.ncbi.nlm.nih.gov/{c.pmid}/")
+    runtime.state["citations"] = citations_state
+
+    notes_state = runtime.state.get("research_notes") or []
+    notes_state.append(pmc_summary.summary)
+    runtime.state["research_notes"] = notes_state
+
+    # 6) Return formatted string for the tool result message
+    return format_pmc_summary_results(pmc_summary)

@@ -54,7 +54,7 @@ Product: {guest_product}
 
 REQUIREMENTS
 ------------
-1. ALWAYS include at least ONE research direction focused on the GUEST as a person.
+1. ALWAYS include at least ONE research direction focused on the GUEST.
    - This "guest-centric" direction should investigate who they are, their expertise,
      their track record, and how they fit into the longevity/human performance ecosystem.
    - If they're a scientist, doctor, or researcher: set include_scientific_literature=True

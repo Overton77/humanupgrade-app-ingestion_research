@@ -240,4 +240,6 @@ checkpoints.db
 
 research_outputs/ 
 
-agent_files/ 
+agent_files/  
+
+personal_docs/ 

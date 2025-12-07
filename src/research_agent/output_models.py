@@ -315,7 +315,7 @@ class ResearchDirection(BaseModel):
     )
     
     max_steps: int = Field(
-        default=8,
+        default=10,
         description="Maximum number of tool calls allowed for this direction"
     )
 
