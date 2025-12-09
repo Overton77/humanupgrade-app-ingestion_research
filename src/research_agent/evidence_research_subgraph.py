@@ -47,7 +47,7 @@ from research_agent.output_models import (
 # ============================================================================
 
 # Configure logger for the research subgraph
-logger = logging.getLogger("entity_intel_subgraph")
+logger = logging.getLogger("research_subgraph")
 logger.setLevel(logging.DEBUG)
 
 # Console handler with colored output
@@ -64,9 +64,9 @@ if not logger.handlers:
     logger.addHandler(console_handler)
 
 # Base output directory for research artifacts
-ENTITY_INTEL_OUTPUT_DIR = "entity_intel_outputs" 
+RESEARCH_OUTPUT_DIR = "research_outputs" 
 
-
+openai_web_search = {"type": "web_search"} 
 
 
 # ============================================================================

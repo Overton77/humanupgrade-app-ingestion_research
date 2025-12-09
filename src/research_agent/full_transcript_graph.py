@@ -4,7 +4,7 @@ import asyncio
 import json
 from uuid import uuid4
 from pathlib import Path
-from typing import Optional, List, Dict, Any, TypedDict, cast  
+from typing import Optional, Tuple, List, Dict, Any, TypedDict, Literal, cast  
 from langchain_core.prompts import PromptTemplate 
 
 from dotenv import load_dotenv
@@ -15,13 +15,16 @@ from langgraph.store.postgres.aio import AsyncPostgresStore
 from langchain_core.prompts import PromptTemplate
 from langgraph.graph import StateGraph, START, END 
 from langgraph.graph.state import CompiledStateGraph 
-from langchain_core.runnables import RunnableConfig   
+from langchain_core.runnables import RunnableConfig    
+from langgraph.store.base import BaseStore 
 from graphql_client.async_base_client import AsyncBaseClient   
 from urllib.parse import urlparse     
-from research_agent.research_subgraph import research_subgraph_builder, DirectionResearchResult, ResearchState   
+from research_agent.entity_intel_subgraph import entity_intel_subgraph_builder, EntityIntelResearchState    
 from research_agent.prompts.research_directions_prompts import RESEARCH_DIRECTIONS_SYSTEM_PROMPT, RESEARCH_DIRECTIONS_USER_PROMPT 
 from research_agent.retrieval.async_mongo_client import get_episode, EpisodeDoc 
-from research_agent.retrieval.async_s3_client import get_transcript_text_from_s3_url 
+from research_agent.retrieval.async_s3_client import get_transcript_text_from_s3_url   
+
+from langmem import create_memory_store_manager 
 
 import aiofiles
 
@@ -35,14 +38,17 @@ from research_agent.output_models import (
     ResearchDirection, 
     GuestInfoModel,
     ExtractedEntityBase,
-    SummaryOnlyOutput,
+    SummaryAndAttributionOutput,
+    AttributionQuote,
+    ResearchDirectionType, 
+    EntitiesIntelResearchResult,  
+    EvidenceResearchResult 
 ) 
 from research_agent.prompts.prompts import (
     SUMMARY_SYSTEM_PROMPT, 
     summary_only_prompt,
     GUEST_EXTRACTION_SYSTEM_PROMPT,
     guest_extraction_prompt,
-    summary_prompt,  # kept for backwards compatibility
 )
 
 
@@ -60,7 +66,11 @@ graphql_url = os.getenv("GRAPHQL_LOCAL_URL")  # e.g., "http://localhost:4000/gra
 tavily_api_key = os.getenv("TAVILY_API_KEY")
 firecrawl_api_key = os.getenv("FIRECRAWL_API_KEY") 
 
-ncbi_api_key = os.getenv("NCBI_API_KEY") 
+ncbi_api_key = os.getenv("NCBI_API_KEY")  
+
+pg_password = os.getenv("POSTGRES_PASSWORD")  
+pg_db_name = os.getenv("POSTGRES_DB")   
+pg_url = f"postgresql://postgres:{pg_password}@localhost:5432/{pg_db_name}"
 
 
 # Load in Langsmith Versioned Prompts here  
@@ -100,12 +110,19 @@ os.environ["OPENAI_API_KEY"] = os.getenv("OPENAI_API_KEY")
 # -----------------------------------------------------------------------------
 
 summary_model = ChatOpenAI(
-    model="gpt-5-nano",
+    model="gpt-5",
     reasoning_effort="medium",
     temperature=0.0,
     output_version="responses/v1",
     max_retries=2,
-)
+) 
+
+guest_extraction_model = ChatOpenAI(
+    model="gpt-4.1",
+    temperature=0.0,
+    output_version="responses/v1",
+    max_retries=2,
+) 
 
 web_search_model = ChatOpenAI(
     model="gpt-5-nano",
@@ -131,11 +148,15 @@ class TranscriptGraph(TypedDict, total=False):
     webpage_summary: str
     full_transcript: str 
     initial_transcript_output: TranscriptSummaryOutput  
+    attribution_quotes: List[AttributionQuote]
     research_directions: List[ResearchDirection]
 
-    # outputs of the per-direction subgraphs
-    direction_results: List[DirectionResearchResult]
-    direction_structured_outputs: List[ExtractedEntityBase]
+    # outputs of the per-direction subgraphs 
+    entity_intel_results: List[EntitiesIntelResearchResult] 
+    evidence_results: List[EvidenceResearchResult] # Configure later on with exact 
+
+    entity_intel_structured_outputs: List[BaseModel] # Configure later on with exact 
+    evidence_structured_outputs: List[BaseModel] # Configure later on with exact   
 
    
 
@@ -163,6 +184,120 @@ async def write_summary_outputs_without_docs(
     print(f"Finished writing summary outputs for episode {episode_number}")
 
 
+def select_subgraph_for_direction(
+    direction: ResearchDirection,
+) -> Literal["evidence", "entity"]:
+    """
+    Decide which compiled subgraph to use for this ResearchDirection.
+    """
+    dt = direction.direction_type
+
+    if dt in {
+        ResearchDirectionType.CLAIM_VALIDATION,
+        ResearchDirectionType.MECHANISM_EXPLANATION,
+        ResearchDirectionType.RISK_BENEFIT_PROFILE,
+        ResearchDirectionType.COMPARATIVE_EFFECTIVENESS,
+    }:
+        return "evidence"
+
+    if dt == ResearchDirectionType.ENTITIES_DUE_DILIGENCE:
+        return "entity"
+
+    # Fallback: treat unknown types as evidence-oriented
+    return "evidence" 
+
+MAX_PARALLEL_DIRECTIONS=2   
+
+evidence_research_graph = ["research_graph"] 
+entity_intel_graph = ["entity_intel_graph"]  
+
+
+# Wrong  
+
+def create_initial_subgraph_state( 
+    subgraph_type: Literal["evidence", "entity"], 
+    direction: ResearchDirection,
+    episode_context: str, 
+):  
+
+
+    if subgraph_type == "entity": 
+        return EntityIntelResearchState( 
+            messages=[], 
+            llm_calls=0, 
+            tool_calls=0, 
+            direction=direction,
+            episode_context=episode_context,
+            research_notes=[],
+            citations=[],
+            file_refs=[],
+            steps_taken=0,
+            structured_outputs=[], 
+            result=None, 
+        ) 
+    else: 
+        return EntityIntelResearchState( 
+            messages=[], 
+            llm_calls=0, 
+            tool_calls=0, 
+            direction=direction,
+            episode_context=episode_context,
+            research_notes=[],
+            citations=[],
+            file_refs=[], 
+            steps_taken=0,
+            structured_outputs=[], 
+            result=None, 
+        )
+
+async def run_single_direction(
+    direction: ResearchDirection,
+    episode_context: str,
+    semaphore: asyncio.Semaphore,
+) -> Tuple[DirectionResearchResult | None, list[ExtractedEntityBase]]:
+    """
+    Run the appropriate subgraph (evidence or entity) for a single ResearchDirection
+    and return (result, structured_outputs).
+    """
+    async with semaphore:
+        # Choose which subgraph to use
+        subgraph_kind = select_subgraph_for_direction(direction)
+        if subgraph_kind == "evidence":
+            subgraph = evidence_research_subgraph 
+            # create evidence type state 
+        else:
+            subgraph = entity_intel_subgraph 
+            # Create entity intel type state  
+
+        # Initial child state for that subgraph 
+        # intialize initial child state as either 
+        initial_child_state: ResearchState = {
+            "messages": [],
+            "llm_calls": 0,
+            "tool_calls": 0,
+            "direction": direction,
+            "episode_context": episode_context,
+            "research_notes": [],
+            "citations": [],
+            "file_refs": [],
+            "steps_taken": 0,
+            "structured_outputs": [],
+        }
+
+        child_final: ResearchState = cast(
+            ResearchState,
+            await subgraph.ainvoke(initial_child_state),
+        )
+
+        result: DirectionResearchResult | None = None
+        if "result" in child_final and child_final["result"] is not None:
+            result = child_final["result"]
+
+        structured_outputs: list[ExtractedEntityBase] = []
+        if "structured_outputs" in child_final and child_final["structured_outputs"]:
+            structured_outputs = list(child_final["structured_outputs"])
+
+        return result, structured_outputs
 
 
 # -----------------------------------------------------------------------------
@@ -186,10 +321,7 @@ async def summarize_transcript(state: TranscriptGraph) -> TranscriptGraph:
         raise Exception("webpage_summary and full_transcript are required for this graph")
 
     # Format prompts for both agents
-    formatted_summary_prompt = summary_only_prompt.format(
-        webpage_summary=webpage_summary,
-        full_transcript=full_transcript,
-    )
+  
     
     formatted_guest_prompt = guest_extraction_prompt.format(
         webpage_summary=webpage_summary,
@@ -199,34 +331,50 @@ async def summarize_transcript(state: TranscriptGraph) -> TranscriptGraph:
     summary_agent = create_agent(
         summary_model,
         system_prompt=SUMMARY_SYSTEM_PROMPT,
-        response_format=SummaryOnlyOutput,
+        response_format=SummaryAndAttributionOutput,
     )
     
     guest_agent = create_agent(
-        summary_model,
+        guest_extraction_model,
         system_prompt=GUEST_EXTRACTION_SYSTEM_PROMPT,
         response_format=GuestInfoModel,
+    )  
+
+    guest_response = await guest_agent.ainvoke(
+        {"messages": [{"role": "user", "content": formatted_guest_prompt}]}
+    ) 
+
+    guest_output: GuestInfoModel = guest_response["structured_response"] 
+
+    formatted_summary_prompt = summary_only_prompt.format(
+        webpage_summary=webpage_summary,
+        full_transcript=full_transcript,
+        guest_name=guest_output.name,
+        guest_description=guest_output.description,
+        guest_company=guest_output.company or "(not specified)",
+        guest_product=guest_output.product or "(not specified)",
     )
 
-    # Run both agents in parallel
-    summary_task = summary_agent.ainvoke(
+   
+    summary_response = await summary_agent.ainvoke(
         {"messages": [{"role": "user", "content": formatted_summary_prompt}]}
-    )
-    guest_task = guest_agent.ainvoke(
-        {"messages": [{"role": "user", "content": formatted_guest_prompt}]}
-    )
+    ) 
+
+    summary_output: SummaryAndAttributionOutput = summary_response["structured_response"]
+   
     
-    # Await both concurrently
-    summary_response, guest_response = await asyncio.gather(summary_task, guest_task)
+    
+    
 
     # Extract structured responses
-    summary_output: SummaryOnlyOutput = summary_response["structured_response"]
+    summary_output: SummaryAndAttributionOutput = summary_response["structured_response"]
     guest_output: GuestInfoModel = guest_response["structured_response"]
 
     # Combine into the final TranscriptSummaryOutput
     transcript_output = TranscriptSummaryOutput(
         summary=summary_output.summary,
-        guest_information=guest_output,
+        guest_information=summary_output.enhanced_guest_information,
+        attribution_quotes=summary_output.attribution_quotes,
     )
 
     # Write outputs to disk
@@ -264,15 +412,28 @@ async def generate_research_directions(state: TranscriptGraph) -> TranscriptGrap
     guest_name = guest_info.name
     guest_description = guest_info.description
     guest_company = guest_info.company or "(not specified)"
-    guest_product = guest_info.product or "(not specified)"
+    guest_product = guest_info.product if len(guest_info.product)  else "(not specified)"  
+
+    attribution_quotes = initial_output.attribution_quotes   
+
+    attribution_quotes_text = "\n".join([f" Speaker: {quote.speaker} - Quote: {quote.quote} -Paraphrased Statement: {quote.statement} - Verbatim: {quote.verbatim}" for quote in attribution_quotes])
+
+
+
 
     # Build the user instructions
     user_instructions = RESEARCH_DIRECTIONS_USER_PROMPT.format(
-        episode_summary=episode_summary,
+        episode_summary=episode_summary, 
+        retrieved_memories="",  
         guest_name=guest_name,
         guest_description=guest_description,
-        guest_company=guest_company,
-        guest_product=guest_product,
+        guest_company=guest_company if guest_company is not None else "(not specified)",
+        guest_product="\n".join([product for product in guest_product]) if guest_product is not None else "(not specified)",
+        expertise_areas="\n".join([area for area in guest_info.expertise_areas]) if guest_info.expertise_areas is not None else "(not specified)",
+        motivation_or_origin_story=guest_info.motivation_or_origin_story if guest_info.motivation_or_origin_story is not None else "(not specified)",
+        notable_health_history=guest_info.notable_health_history if guest_info.notable_health_history is not None else "(not specified)",
+        key_contributions="\n".join([contribution for contribution in guest_info.key_contributions]) if guest_info.key_contributions is not None else "(not specified)",
+        attribution_quotes=attribution_quotes_text,
     )
 
     # Create the agent that returns ResearchDirectionOutput
@@ -306,13 +467,12 @@ research_subgraph: "CompiledStateGraph" = research_subgraph_builder.compile()
 
 async def run_research_directions(state: TranscriptGraph) -> TranscriptGraph:
     """
-    For each ResearchDirection in the episode, run the research_subgraph and
-    aggregate the results back onto the TranscriptGraph state.
+    For each ResearchDirection in the episode, run the appropriate subgraph
+    (EvidenceResearchSubgraph or EntityIntelSubgraph) and aggregate results.
+    All directions are processed in parallel with bounded concurrency.
     """
     directions: List[ResearchDirection] = state.get("research_directions", []) or []
-
     if not directions:
-        # Nothing to do; return state unchanged
         return {
             "direction_results": [],
             "direction_structured_outputs": [],
@@ -320,42 +480,28 @@ async def run_research_directions(state: TranscriptGraph) -> TranscriptGraph:
 
     episode_context = ""
     if state.get("initial_transcript_output") is not None:
-        # whatever your summary field is called:
-        episode_context = getattr(
-            state["initial_transcript_output"], "summary", ""
-        ) or ""
+        episode_context = getattr(state["initial_transcript_output"], "summary", "") or ""
 
-    all_direction_results: List[DirectionResearchResult] = []
-    all_structured_outputs: List[ExtractedEntityBase] = []
+    semaphore = asyncio.Semaphore(MAX_PARALLEL_DIRECTIONS)
 
-    # Run subgraph once per direction (sequentially).
-    # You can later add bounded concurrency here with asyncio.gather if needed.
-    for direction in directions:
-        initial_child_state: ResearchState = {
-            "messages": [],
-            "llm_calls": 0,
-            "tool_calls": 0,
-            "direction": direction,
-            "episode_context": episode_context,
-            "research_notes": [],
-            "citations": [],
-            "file_refs": [],  # For file-based context offloading
-            "steps_taken": 0,
-            "structured_outputs": [],
-        }
+    tasks = [
+        run_single_direction(direction, episode_context, semaphore)
+        for direction in directions
+    ]
 
-        child_final: ResearchState = cast(
-            ResearchState,
-            await research_subgraph.ainvoke(initial_child_state),
-        )
+    # Run all directions concurrently (bounded by semaphore)
+    results: list[Tuple[DirectionResearchResult | None, list[ExtractedEntityBase]]] = (
+        await asyncio.gather(*tasks)
+    )
 
-        # pull out the master result for this direction
-        if "result" in child_final and child_final["result"] is not None:
-            all_direction_results.append(child_final["result"])
+    all_direction_results: list[DirectionResearchResult] = []
+    all_structured_outputs: list[ExtractedEntityBase] = []
 
-        # merge any entities created
-        if "structured_outputs" in child_final and child_final["structured_outputs"]:
-            all_structured_outputs.extend(child_final["structured_outputs"])
+    for direction_result, structured in results:
+        if direction_result is not None:
+            all_direction_results.append(direction_result)
+        if structured:
+            all_structured_outputs.extend(structured)
 
     return {
         "direction_results": all_direction_results,
@@ -370,7 +516,11 @@ async def run_research_directions(state: TranscriptGraph) -> TranscriptGraph:
 
 # -----------------------------------------------------------------------------
 # Build the Graph
-# -----------------------------------------------------------------------------
+# ----------------------------------------------------------------------------- 
+
+
+
+
 
 graph = StateGraph(TranscriptGraph)
 
@@ -402,7 +552,32 @@ app: CompiledStateGraph = graph.compile()
 # } 
 
 
+async def create_store() -> BaseStore:
+    store = await AsyncPostgresStore.from_conn_string(
+        pg_url,
+        index={
+            "dims": 1536,
+            "embed": "openai:text-embedding-3-small",
+        },
+    )
+    await store.setup()
+    return store
 
+def create_memory_manager():
+    """
+    Returns a LangMem memory manager (Runnable) that:
+      - reads/writes to the configured BaseStore
+      - extracts/updates ResearchMemory entries
+    """
+    # you can also pass your existing `research_model` here instead of a string
+    manager = create_memory_store_manager(
+        model="openai:gpt-5-nano", 
+        namespace=("memories", "transcript_graph"),
+        enable_inserts=True,
+        enable_updates=True,
+        enable_deletes=True,
+    )
+    return manager
 
 
 # -----------------------------------------------------------------------------
@@ -433,25 +608,24 @@ async def one_full_transcript_graph_run(episode_page_url: str) -> None:
     }
 
     
-    pg_password = os.getenv("POSTGRES_PASSWORD")  
-    pg_db_name = os.getenv("POSTGRES_DB")   
-    pg_url = f"postgresql://postgres:{pg_password}@localhost:5432/{pg_db_name}"
+
     
     # Use AsyncPostgresSaver as an async context manager
     async with ( AsyncPostgresSaver.from_conn_string(pg_url) as checkpointer, 
-                 AsyncPostgresStore.from_conn_string(pg_url) as store,
     
     ):
         await checkpointer.setup()
-        await store.setup()
         
-        # Recompile the graph with the checkpointer for persistence
+        store = await create_store()
+        # Recompile the graph with the checkpointer for persistence 
+
         app_with_checkpointer = graph.compile(checkpointer=checkpointer, store=store)
 
         config = {
             "configurable": {
                 "thread_id": str(uuid4()),
-                "checkpoint_ns": "transcript_graph",
+                "checkpoint_ns": "transcript_graph", 
+                "episode_id": episode_meta["episode_page_url"],
             }
         } 
 

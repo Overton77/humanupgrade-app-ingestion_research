@@ -17,6 +17,7 @@ dependencies = [
     "langgraph>=1.0.4",
     "langgraph-checkpoint-postgres>=3.0.1",
     "langgraph-checkpoint-sqlite>=3.0.0",
+    "langmem>=0.0.30",
     "langsmith>=0.4.49",
     "pydantic>=2.0.0",
     "pymongo>=4.10",

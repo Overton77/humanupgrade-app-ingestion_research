@@ -1,7 +1,8 @@
 from langgraph.graph import StateGraph, START, END  
 from langgraph.prebuilt import ToolNode, InjectedState  
 from typing_extensions import TypedDict, Annotated  
-from typing import List, Dict, Any, Optional, Sequence, Literal, Union 
+from typing import List, Dict, Any, Optional, Sequence, Literal, Union
+from enum import Enum 
 from langchain_core.messages import AnyMessage, BaseMessage, ToolMessage, SystemMessage, HumanMessage, filter_messages   
 from langchain_openai import ChatOpenAI  
 from pydantic import BaseModel, Field  
@@ -28,18 +29,25 @@ from datetime import datetime
 from langchain_community.tools import WikipediaQueryRun  
 from langchain_community.utilities import WikipediaAPIWrapper   
 from research_agent.prompts.summary_prompts import TAVILY_SUMMARY_PROMPT, FIRECRAWL_SCRAPE_PROMPT  
-from research_agent.prompts.research_prompts import (
-    DEEP_RESEARCH_PROMPT, 
-    TOOL_INSTRUCTIONS,
-    RESEARCH_RESULT_PROMPT, 
-    DEEP_RESEARCH_CONTINUE_PROMPT,
+from research_agent.prompts.entity_researcher_prompts import (
+    ENTITY_INTEL_RESEARCH_PROMPT,
+    ENTITY_INTEL_TOOL_INSTRUCTIONS,
+    ENTITY_INTEL_REMINDER_PROMPT,
+    ENTITY_INTEL_RESEARCH_RESULT_PROMPT,
 ) 
 from research_agent.prompts.structured_output_prompts import ENTITY_EXTRACTION_PROMPT
 from research_agent.output_models import (
     DirectionResearchResult, 
     ResearchDirection,
     ResearchEntities,
-    ExtractedEntityBase,
+    EntitiesIntelResearchResult, 
+    GeneralCitation, 
+    EntityIntelSummary,  
+    EntityType, 
+    TavilyCitation, 
+    FirecrawlCitation, 
+    TavilyResultsSummary,
+    FirecrawlResultsSummary 
 )
 
 # ============================================================================
@@ -66,6 +74,13 @@ if not logger.handlers:
 # Base output directory for research artifacts
 ENTITY_INTEL_OUTPUT_DIR = "entity_intel_outputs" 
 
+
+def get_current_date_string() -> str:
+    """
+    Returns a clean, human-readable date string for prompts.
+    Example: 'December 5, 2025'
+    """
+    return datetime.now().strftime("%B %d, %Y") 
 
 
 
@@ -109,7 +124,7 @@ async def save_json_artifact(
         filename += f"_{suffix}"
     filename += ".json"
     
-    filepath = os.path.join(RESEARCH_OUTPUT_DIR, direction_id, filename)
+    filepath = os.path.join(ENTITY_INTEL_OUTPUT_DIR, direction_id, filename)
     
     await ensure_directory_exists(filepath)
     
@@ -160,7 +175,7 @@ async def save_text_artifact(
         filename += f"_{suffix}"
     filename += ".txt"
     
-    filepath = os.path.join(RESEARCH_OUTPUT_DIR, direction_id, filename)
+    filepath = os.path.join(ENTITY_INTEL_OUTPUT_DIR, direction_id, filename)
     
     await ensure_directory_exists(filepath)
     
@@ -194,63 +209,6 @@ wikipedia_api_wrapper = WikipediaAPIWrapper(
 
 wiki_tool = WikipediaQueryRun(api_wrapper=wikipedia_api_wrapper)   
 
-
-def get_current_date_string() -> str:
-    """
-    Returns a clean, human-readable date string for prompts.
-    Example: 'December 5, 2025'
-    """
-    return datetime.now().strftime("%B %d, %Y") 
-
-
-# ============================================================================
-# INTERMEDIATE SUMMARY MODEL (for file-based context offloading)
-# ============================================================================
-
-class IntermediateSummary(BaseModel):
-    """A checkpoint summary written during research for context offloading."""
-    summary_id: str = Field(default_factory=lambda: str(uuid.uuid4())[:8])
-    topic_focus: str = Field(..., description="What aspect of research this summary covers")
-    synthesis: str = Field(..., description="Synthesized findings so far")
-    confidence: float = Field(..., ge=0.0, le=1.0, description="Confidence in findings (0-1)")
-    open_questions: List[str] = Field(default_factory=list, description="Questions still to investigate")
-    key_sources: List[str] = Field(default_factory=list, description="Most important citations for this summary")
-
-
-# ============================================================================
-# RESEARCH STATE
-# ============================================================================
-
-class ResearchState(TypedDict, total=False):  
-    # Core tool-loop plumbing
-    messages: Annotated[Sequence[BaseMessage], operator.add]
-    llm_calls: int
-    tool_calls: int
-
-    # Context / config for this direction
-    direction: ResearchDirection
-    episode_context: str          # short summary of episode, guest, etc.
-
-    # Accumulated research data
-    research_notes: Annotated[List[str], operator.add]     # human-readable notes from each step
-    citations: Annotated[List[str], operator.add]          # URLs / DOIs  
-
-    # File-based context offloading
-    file_refs: Annotated[List[str], operator.add]          # paths to intermediate summary files
-
-    final_summary: str 
-    steps_taken: int 
-
-    structured_outputs: Annotated[List[BaseModel], operator.add]   
-
-    # Final structured result
-    result: DirectionResearchResult
-
-
-# ============================================================================
-# LLM MODELS
-# ============================================================================
-
 research_model = ChatOpenAI(
     model="gpt-5-mini", 
     reasoning={ 
@@ -279,34 +237,39 @@ structured_output_model = ChatOpenAI(
 )
 
 
-# ============================================================================
-# CITATION MODELS
-# ============================================================================
-
-class TavilyCitation(BaseModel): 
-    url: str = Field(..., description="The URL of the source")  
-    title: str = Field(..., description="The title of the source")   
-    published_date: Optional[str] = Field(None, description="The published date of the source")   
-    score: Optional[float] = Field(None, description="The score of the source")    
-
-class FirecrawlCitation(BaseModel): 
-    url: str = Field(..., description="The URL of the source")  
-    title: str = Field(..., description="The title of the source")    
-    description: Optional[str] = Field(None, description="The description of the source")   
 
 
-class TavilyResultsSummary(BaseModel):  
-    summary: str = Field(..., description="An extensive  summary of the search results")   
-    citations: List[TavilyCitation] = Field(..., description="The citations of the search results")   
-
-class FirecrawlResultsSummary(BaseModel):  
-    summary: str = Field(..., description="A faithful summary of the markdown representation of the content")
-    citations: List[FirecrawlCitation] = Field(..., description="A summary of the markdown of the content")  
 
 
 # ============================================================================
-# SUMMARIZATION HELPERS
+# RESEARCH STATE
 # ============================================================================
+
+class EntityIntelResearchState(TypedDict, total=False):  
+    # Core tool-loop plumbing
+    messages: Annotated[Sequence[BaseMessage], operator.add]
+    llm_calls: int
+    tool_calls: int
+
+    # Context / config for this direction
+    direction: ResearchDirection
+    episode_context: str          # short summary of episode, guest, etc.
+
+    # Accumulated research data
+    research_notes: Annotated[List[str], operator.add]     # human-readable notes from each step
+    citations: Annotated[List[str], operator.add]          # URLs / DOIs  
+
+    # File-based context offloading
+    file_refs: Annotated[List[str], operator.add]          # paths to intermediate summary files
+
+    final_summary: str 
+    steps_taken: int 
+
+    structured_outputs: Annotated[List[BaseModel], operator.add]   
+
+    # Final structured result
+    result: EntitiesIntelResearchResult
+
 
 async def summarize_tavily_web_search(search_results: str, direction_id: str = "unknown") -> TavilyResultsSummary:  
     logger.info(f"📝 Summarizing Tavily search results (input length: {len(search_results)} chars)")
@@ -657,123 +620,103 @@ async def tavily_web_search_tool(
 
 
 # ============================================================================
-# WRITE RESEARCH SUMMARY TOOL (Incremental Synthesis + Context Offloading)
+# WRITE ENTITY INTEL SUMMARY TOOL (Entity Profiling + Context Offloading)
 # ============================================================================
 
 @tool(
-    description="Write an intermediate research summary to consolidate findings before continuing. "
-                "Use this after gathering substantial information on a sub-topic.",
+    description="Write a lightweight entity intelligence summary. "
+                "Use this after gathering key information about a Person, Business, Product, or Compound.",
     parse_docstring=False,
 )
-async def write_research_summary_tool(
+async def write_entity_intel_summary_tool(
     runtime: ToolRuntime,
-    topic_focus: str,
-    synthesis: str,
-    confidence: float,
-    open_questions: List[str],
-    key_sources: List[str],
+    entity_type: Literal["person", "business", "product", "compound", "other"],
+    entity_name: str,
+    synthesis_summary: str,
+    key_source_citations: Optional[List[GeneralCitation]] = None,
+    open_questions: Optional[List[str]] = None,
+    onsite_efficacy_claims: Optional[List[str]] = None,
+    related_entities: Optional[List[str]] = None,
 ) -> str:
     """
-    Consolidate research findings into an intermediate summary file.
-    
-    Call this tool when you have gathered enough information on a specific
-    aspect and want to:
-    1. Free up context by offloading findings to a file
-    2. Create a checkpoint before investigating other aspects
-    3. Organize your research into coherent themes
-    
-    Args:
-        topic_focus (str): What specific aspect this summary covers 
-            (e.g., "product mechanism", "clinical evidence", "company background").
-        synthesis (str): Your synthesized understanding of the findings.
-            Should be 2-4 paragraphs that capture the key insights.
-        confidence (float): 0.0-1.0 confidence score for these findings.
-            - 0.0-0.3: Low confidence (limited/contradictory sources)
-            - 0.4-0.6: Medium confidence (some evidence, gaps remain)
-            - 0.7-1.0: High confidence (strong evidence, multiple sources agree)
-        open_questions (List[str]): Questions that remain unanswered.
-            These help guide further research if needed.
-        key_sources (List[str]): Most important URLs/DOIs supporting this summary.
-            Include 2-5 of the most authoritative sources.
-    
+    Create a lightweight checkpoint summary for an entity profile.
+
+    Arguments:
+        entity_type: The type of entity being profiled 
+                     ("person", "business", "product", "compound", or "other").
+        entity_name: Primary name of the entity.
+        synthesis_summary: A short (3–5 sentence) synthesized summary describing 
+                           what has been learned about the entity so far.
+        key_sources: A short list of authoritative URLs used in building the profile.
+        open_questions: Remaining questions or gaps still requiring investigation.
+        onsite_efficacy_claims: Claims found on official sites about mechanisms, 
+                                benefits, or efficacy that may need scientific verification.
+        related_entities: Names or identifiers of related entities discovered 
+                          during the profiling process.
+
     Returns:
-        str: Confirmation with the file path where summary was stored.
+        A confirmation string including the file path where the summary was stored.
     """
+
     direction = runtime.state.get("direction")
     direction_id = direction.id if direction else "unknown"
-    
-    logger.info(f"📄 WRITE SUMMARY: '{topic_focus}' (confidence: {confidence:.2f})")
-    logger.info(f"    Open questions: {len(open_questions)}, Key sources: {len(key_sources)}")
-    
-    # Create the IntermediateSummary model
-    summary = IntermediateSummary(
-        topic_focus=topic_focus,
-        synthesis=synthesis,
-        confidence=confidence,
-        open_questions=open_questions,
-        key_sources=key_sources,
-    )
-    
-    # Write to file system (under research/<direction_id>/)
-    filename = f"research/{direction_id}/summary_{summary.summary_id}.json"
-    await write_file(filename, summary.model_dump_json(indent=2))
-    
-    # Also save to our research_outputs directory with full context
-    await save_json_artifact(
-        summary,
-        direction_id,
-        "intermediate_summary",
-        suffix=topic_focus[:30].replace(" ", "_"),
-    )
-    
-    # Track file reference in state for later aggregation
-    file_refs = runtime.state.get("file_refs", [])
-    if file_refs is None:
-        file_refs = []
-    file_refs.append(filename)
-    runtime.state["file_refs"] = file_refs
-    
-    # Also add a compact version to research_notes for backward compatibility
-    # and in case files aren't accessible
-    compact_note = (
-        f"[SUMMARY: {topic_focus}]\n"
-        f"Confidence: {confidence}\n\n"
-        f"{synthesis}\n\n"
-        f"Open Questions: {'; '.join(open_questions) if open_questions else 'None'}\n"
-        f"Key Sources: {', '.join(key_sources[:3]) if key_sources else 'None cited'}"
-    )
-    research_notes = runtime.state.get("research_notes", [])
-    if research_notes is None:
-        research_notes = []
-    research_notes.append(compact_note)
-    runtime.state["research_notes"] = research_notes
-    
-    logger.info(f"✅ WRITE SUMMARY complete: saved to {filename}")
-    
-    return (
-        f"✓ Summary written to {filename}\n"
-        f"  Topic: {topic_focus}\n"
-        f"  Confidence: {confidence}\n"
-        f"  Open questions: {len(open_questions)}\n\n"
-        f"You can now continue researching other aspects or stop if you have enough information."
+
+    summary = EntityIntelSummary(
+        entity_type=EntityType(entity_type),
+        entity_name=entity_name,
+        synthesis_summary=synthesis_summary.strip(),
+        key_source_citations=key_source_citations or [],
+        open_questions=open_questions or [],
+        onsite_efficacy_claims=onsite_efficacy_claims or [],
+        related_entities=related_entities or [],
     )
 
+    filename = f"research/{direction_id}/entity_{entity_type}_{summary.summary_id}.json"
+    await write_file(filename, summary.model_dump_json(indent=2))
+
+    # Also record in state
+    file_refs = runtime.state.get("file_refs", []) or []
+    file_refs.append(filename)
+    runtime.state["file_refs"] = file_refs
+
+    # Write a compact note for in-context reflection
+    compact_note = (
+        f"[ENTITY SUMMARY: {entity_name} ({entity_type})]\n"
+        f"Summary: {synthesis_summary[:300]}...\n"
+        f"Sources: {', '.join(summary.key_sources[:3]) or 'None'}\n"
+        f"Claims: {', '.join(onsite_efficacy_claims[:3]) or 'None'}\n"
+        f"Open Questions: {', '.join(summary.open_questions[:3]) or 'None'}\n"
+        f"Related: {', '.join(summary.related_entities[:3]) or 'None'}\n"
+    )  
+
+    research_notes = runtime.state.get("research_notes", []) or []
+    research_notes.append(compact_note)
+    runtime.state["research_notes"] = research_notes
+
+
+    return (
+        f"✓ Entity summary saved for '{entity_name}'\n"
+        f"  File: {filename}\n"
+        f"  Key Sources: {len(summary.key_sources)}\n"
+        f"  Efficacy Claims: {len(summary.onsite_efficacy_claims)}\n"
+        f"  Open Questions: {len(summary.open_questions)}"
+    )
 
 # ============================================================================
 # ALL TOOLS - Agent has access to everything
 # ============================================================================
 
-# All research tools available to the agent
-ALL_RESEARCH_TOOLS = [
+# All research tools available to the entity intel agent
+ENTITY_INTEL_TOOLS = [
     tavily_web_search_tool,
     firecrawl_scrape_tool,
     firecrawl_map_tool,
     wiki_tool,
     pubmed_literature_search_tool,
-    write_research_summary_tool,
+    write_entity_intel_summary_tool,
 ]
 
-tools_by_name = {t.name: t for t in ALL_RESEARCH_TOOLS}
+tools_by_name = {t.name: t for t in ENTITY_INTEL_TOOLS}
 
 
 def get_tool_instructions(direction: ResearchDirection) -> str:
@@ -781,36 +724,47 @@ def get_tool_instructions(direction: ResearchDirection) -> str:
     Get tool instructions based on the research direction.
     Uses include_scientific_literature flag to guide tool prioritization.
     """
-    return TOOL_INSTRUCTIONS.format(
-        include_scientific_literature="YES" if direction.include_scientific_literature else "NO",
-        scientific_guidance = (
-        "Because this research direction REQUIRES scientific literature, you should:\n"
-        "- Prioritize **PubMed** for clinical trials, observational findings, mechanisms, and case reports.\n"
-        "- Escalate to **PMC full-text** ONLY when the abstracts cannot answer mechanistic, methodological, "
-        "or interpretive questions.\n"
-        "- Cross-check scientific claims made on company or product websites.\n"
-        "- Ensure that final summaries integrate PubMed or PMC results when available.\n"
-        if direction.include_scientific_literature
-        else
-        "Scientific literature is optional for this direction. Use PubMed or PMC ONLY if you encounter claims "
-        "that require biomedical validation. Otherwise focus on web research, company sites, Wikipedia, and "
-        "Firecrawl scraping."
-)
-    )
+    return ENTITY_INTEL_TOOL_INSTRUCTIONS
+
+
+def format_list_for_prompt(items: List[str], bullet: str = "-", empty_msg: str = "(none)") -> str:
+    """
+    Format a list of strings into a nicely formatted string for prompts.
+    
+    Args:
+        items: List of strings to format
+        bullet: Bullet character to use (default: "-")
+        empty_msg: Message to return if list is empty
+    
+    Returns:
+        Formatted string with one item per line
+    """
+    if not items:
+        return empty_msg
+    return "\n".join(f"{bullet} {item}" for item in items)  
 
 
 # ============================================================================
 # GRAPH NODES
 # ============================================================================ 
 
-# Figure out how to use memory injection and a compressed research prompt after the first and after (some n ) 
-# number of message iterations 
+# ============================================================================
+# ENTITY INTEL CALL MODEL NODE
+# ============================================================================
+# Uses ENTITY_INTEL_RESEARCH_PROMPT on first call (llm_calls == 0)
+# Switches to ENTITY_INTEL_REMINDER_PROMPT after first call (llm_calls > 0)
 
-async def call_model(state: ResearchState) -> ResearchState:
-    """LLM decides what to do next for this research direction."""
+async def call_model(state: EntityIntelResearchState) -> EntityIntelResearchState:
+    """
+    LLM decides what to do next for this entity intel research direction.
+    
+    Uses the full ENTITY_INTEL_RESEARCH_PROMPT on the first call,
+    then switches to the more compact ENTITY_INTEL_REMINDER_PROMPT 
+    for subsequent calls to save context window space.
+    """
     direction = state["direction"] 
     direction_id = direction.id
-    episode_context = state.get("episode_context", "")
+    episode_context = state.get("episode_context", "") or "(no episode context provided)"
     notes = state.get("research_notes", [])
     llm_calls = state.get("llm_calls", 0)
     steps_taken = state.get("steps_taken", 0)
@@ -818,31 +772,77 @@ async def call_model(state: ResearchState) -> ResearchState:
     logger.info(f"")
     logger.info(f"{'='*60}")
     logger.info(f"🤖 CALL MODEL [{direction_id}] - LLM Call #{llm_calls + 1}")
-    logger.info(f"    Topic: {direction.topic[:60]}{'...' if len(direction.topic) > 60 else ''}")
+    logger.info(f"    Title: {direction.title[:60]}{'...' if len(direction.title) > 60 else ''}")
     logger.info(f"    Steps: {steps_taken}/{direction.max_steps}, Notes: {len(notes)}")
     logger.info(f"{'='*60}")
 
-    # Agent gets ALL tools - no silos
-    model_with_tools = research_model.bind_tools(ALL_RESEARCH_TOOLS) 
+    # Agent gets entity intel tools
+    model_with_tools = research_model.bind_tools(ENTITY_INTEL_TOOLS) 
 
     tool_instructions = get_tool_instructions(direction)
 
+    # Format lists for prompt insertion
+    research_questions_str = format_list_for_prompt(
+        direction.research_questions, 
+        bullet="•", 
+        empty_msg="(no specific questions provided)"
+    )
+    primary_entities_str = format_list_for_prompt(
+        direction.primary_entities, 
+        bullet="•", 
+        empty_msg="(no primary entities specified)"
+    )
+    claimed_by_str = format_list_for_prompt(
+        direction.claimed_by, 
+        bullet="•", 
+        empty_msg="(none)"
+    )
+    key_outcomes_str = format_list_for_prompt(
+        direction.key_outcomes_of_interest, 
+        bullet="•", 
+        empty_msg="(none)"
+    )
+    key_mechanisms_str = format_list_for_prompt(
+        direction.key_mechanisms_to_examine, 
+        bullet="•", 
+        empty_msg="(none)"
+    )
 
-    system = DEEP_RESEARCH_PROMPT.format(
+    # Choose prompt based on whether this is the first call or a follow-up
+    if llm_calls == 0:
+        # First call: Use full ENTITY_INTEL_RESEARCH_PROMPT with complete context
+        logger.info(f"    Using: ENTITY_INTEL_RESEARCH_PROMPT (first call)")
+        system = ENTITY_INTEL_RESEARCH_PROMPT.format(
+            current_date=get_current_date_string(),
             direction_id=direction.id,
-            topic=direction.topic,
-            description=direction.description,
-            overview=direction.overview,
-            include_scientific_literature="YES" if direction.include_scientific_literature else "NO",
-            depth=direction.depth,
+            episode_id=direction.episode_id,
+            direction_title=direction.title,
+            direction_type=direction.direction_type.value,
+            research_questions=research_questions_str,
+            primary_entities=primary_entities_str,
+            claim_text=direction.claim_text or "(no specific claim)",
+            claimed_by=claimed_by_str,
+            key_outcomes_of_interest=key_outcomes_str,
+            key_mechanisms_to_examine=key_mechanisms_str,
             priority=direction.priority,
             max_steps=direction.max_steps,
-            query_seed=direction.topic,
+            episode_context=episode_context,
             tool_instructions=tool_instructions,
+        )
+    else:
+        # Follow-up calls: Use compact ENTITY_INTEL_REMINDER_PROMPT
+        logger.info(f"    Using: ENTITY_INTEL_REMINDER_PROMPT (follow-up call #{llm_calls + 1})")
+        system = ENTITY_INTEL_REMINDER_PROMPT.format(
             current_date=get_current_date_string(),
+            direction_id=direction.id,
+            direction_type=direction.direction_type.value,
+            research_questions=research_questions_str,
+            primary_entities=primary_entities_str,
+            claim_text=direction.claim_text or "(no specific claim)",
+            max_steps=direction.max_steps,
         )
    
-    # existing conversation messages in this subgraph
+    # Existing conversation messages in this subgraph
     messages = list(state.get("messages", []))
     
     logger.debug(f"    Messages in context: {len(messages)}")
@@ -869,6 +869,7 @@ async def call_model(state: ResearchState) -> ResearchState:
             "role": "assistant",
             "content": ai_msg.content,
             "tool_calls": [{"name": tc.get("name"), "args": tc.get("args")} for tc in tool_calls] if tool_calls else [],
+            "prompt_type": "research" if llm_calls == 0 else "reminder",
         },
         direction_id,
         "llm_response",
@@ -882,10 +883,10 @@ async def call_model(state: ResearchState) -> ResearchState:
 
 
 
-_prebuilt_tool_node = ToolNode(ALL_RESEARCH_TOOLS)
+_prebuilt_tool_node = ToolNode(ENTITY_INTEL_TOOLS)
 
 
-async def tool_node(state: ResearchState) -> ResearchState:
+async def tool_node(state: EntityIntelResearchState) -> EntityIntelResearchState:
     """
     Execute tool calls requested by the last AI message.
     
@@ -903,15 +904,15 @@ async def tool_node(state: ResearchState) -> ResearchState:
     logger.info(f"")
     logger.info(f"⚙️  TOOL NODE [{direction_id}] - Step {steps_taken + 1}/{max_steps}")
 
-    # Safety: if we've hit max_steps, tell the model to summarize instead
+    # Safety: if we've hit max_steps, tell the model to finalize
     if steps_taken >= max_steps:
         logger.warning(f"⚠️  MAX STEPS REACHED ({max_steps}). Requesting model to finalize.")
         summary_msg = SystemMessage(
             content=(
                 "You have reached the maximum number of tool steps "
-                "for this research direction. Please stop calling tools, "
-                "write a final summary using write_research_summary_tool if you haven't, "
-                "and prepare to finalize."
+                "for this entity intel research direction. Please stop calling tools, "
+                "write a final entity profile using write_entity_intel_summary_tool if you haven't, "
+                "and prepare to finalize your entity profiles."
             )
         )
         return {
@@ -978,7 +979,7 @@ research_result_model = ChatOpenAI(
 )
 
 
-async def research_output_node(state: ResearchState) -> ResearchState:
+async def research_output_node(state: EntityIntelResearchState) -> EntityIntelResearchState:
     """
     Produce a DirectionResearchResult by aggregating file-based summaries
     and research notes via structured LLM call.
@@ -988,7 +989,17 @@ async def research_output_node(state: ResearchState) -> ResearchState:
     episode_context = state.get("episode_context", "") or "(none)"
     file_refs = state.get("file_refs", []) or []
     citations = state.get("citations", []) or []
-    notes = state.get("research_notes", []) or []
+    notes = state.get("research_notes", []) or []  
+
+    original_research_questions = direction.research_questions or [] 
+
+    original_research_primary_entities = direction.primary_entities or []   
+
+    original_key_outcomes_of_interest = direction.key_outcomes_of_interest or []   
+
+    original_key_mechanisms_to_examine = direction.key_mechanisms_to_examine or []   
+
+
     
     logger.info(f"")
     logger.info(f"{'='*60}")
@@ -1040,16 +1051,20 @@ async def research_output_node(state: ResearchState) -> ResearchState:
         "aggregated_research_content",
     )
 
-    prompt = RESEARCH_RESULT_PROMPT.format(
-        topic=direction.topic,
-        description=direction.description,
-        overview=direction.overview,
-        include_scientific_literature="YES" if direction.include_scientific_literature else "NO",
-        depth=direction.depth,
-        priority=direction.priority,
-        episode_context=episode_context,
-        research_notes=aggregated_content,
-        citations="\n".join(citations) if citations else "(no citations collected)",
+    prompt = ENTITY_INTEL_RESEARCH_RESULT_PROMPT.format(
+        original_research_questions="\n".join(
+            f"- {q}" for q in original_research_questions
+        ) or "None specified.",
+        original_research_primary_entities="\n".join(
+            f"- {e}" for e in original_research_primary_entities
+        ) or "None specified.",
+        original_key_outcomes_of_interest="\n".join(
+            f"- {o}" for o in original_key_outcomes_of_interest
+        ) or "None specified.",
+        original_key_mechanisms_to_examine="\n".join(
+            f"- {m}" for m in original_key_mechanisms_to_examine
+        ) or "None specified.",
+        research_notes=aggregated_content, 
     )
 
     logger.info(f"    Generating structured research result...")
@@ -1057,39 +1072,39 @@ async def research_output_node(state: ResearchState) -> ResearchState:
     # Use strong model with structured output
     result_agent = create_agent(
         research_result_model,
-        response_format=DirectionResearchResult,
+        response_format=EntitiesIntelResearchResult,
     )
 
     agent_response = await result_agent.ainvoke(
         {"messages": [{"role": "user", "content": prompt}]}
     )
 
-    direction_result: DirectionResearchResult = agent_response["structured_response"]
+    entities_intel_result: EntitiesIntelResearchResult = agent_response["structured_response"]
 
     # Ensure we don't lose citations from state if the model omits them
-    if not direction_result.citations:
-        direction_result.citations = citations
+    if not entities_intel_result.citations:
+        entities_intel_result.citations = citations
 
     # We still know the direction_id here; set it if the model left it blank
-    if not direction_result.direction_id:
-        direction_result.direction_id = direction.id
+    if not entities_intel_result.direction_id:
+        entities_intel_result.direction_id = direction.id
     
     # Log result summary
     logger.info(f"✅ RESEARCH OUTPUT complete:")
-    logger.info(f"    Summary length: {len(direction_result.extensive_summary) if direction_result.extensive_summary else 0} chars")
-    logger.info(f"    Key findings: {len(direction_result.key_findings) if direction_result.key_findings else 0}")
-    logger.info(f"    Confidence: {direction_result.confidence_score if hasattr(direction_result, 'confidence_score') else 'N/A'}")
+    logger.info(f"    Summary length: {len(entities_intel_result.extensive_summary) if entities_intel_result.extensive_summary else 0} chars")
+    logger.info(f"    Key findings: {len(entities_intel_result.key_findings) if entities_intel_result.key_findings else 0}")
+    logger.info(f"    Confidence: {entities_intel_result.confidence_score if hasattr(entities_intel_result, 'confidence_score') else 'N/A'}")
     
     # Save the final research result
     await save_json_artifact(
-        direction_result,
+        entities_intel_result,
         direction_id,
-        "research_result_final",
+        "entities_intel_result_final",
     )
 
     # Only update the parts we intend to change; LangGraph will merge this into state.
     return {
-        "result": direction_result,
+        "result": entities_intel_result,
     }
 
 
@@ -1097,15 +1112,15 @@ async def research_output_node(state: ResearchState) -> ResearchState:
 # ROUTING FUNCTIONS
 # ============================================================================
 
-def should_continue_research(
-    state: ResearchState,
-) -> Literal["tool_node", "research_output_node"]:
-    """Route based on tool calls and step budget."""
+def should_continue_entity_intel(
+    state: EntityIntelResearchState,
+) -> Literal["tool_node", "entity_intel_output_node"]:
+    """Route based on tool calls and step budget for entity intel research."""
     direction_id = state["direction"].id
     messages = state.get("messages", [])
     if not messages:
-        logger.info(f"🔀 ROUTING [{direction_id}]: No messages → research_output_node")
-        return "research_output_node"
+        logger.info(f"🔀 ROUTING [{direction_id}]: No messages → entity_intel_output_node")
+        return "entity_intel_output_node"
 
     last_message = messages[-1]
     steps_taken = state.get("steps_taken", 0)
@@ -1119,11 +1134,11 @@ def should_continue_research(
         return "tool_node"
     
     if has_tool_calls and not within_budget:
-        logger.info(f"🔀 ROUTING [{direction_id}]: Tool calls present but budget exhausted ({steps_taken}/{max_steps}) → research_output_node")
+        logger.info(f"🔀 ROUTING [{direction_id}]: Tool calls present but budget exhausted ({steps_taken}/{max_steps}) → entity_intel_output_node")
     else:
-        logger.info(f"🔀 ROUTING [{direction_id}]: No tool calls → research_output_node")
+        logger.info(f"🔀 ROUTING [{direction_id}]: No tool calls → entity_intel_output_node")
 
-    return "research_output_node"  
+    return "entity_intel_output_node"  
     
 
 # ============================================================================
@@ -1141,7 +1156,7 @@ entity_extraction_model = ChatOpenAI(
 # SINGLE-PASS ENTITY EXTRACTION NODE
 # ============================================================================
 
-async def extract_structured_entities(state: ResearchState) -> ResearchState:
+async def extract_structured_entities(state: EntityIntelResearchState) -> EntityIntelResearchState:
     """
     Single-pass entity extraction using structured output.
     
@@ -1151,7 +1166,10 @@ async def extract_structured_entities(state: ResearchState) -> ResearchState:
     direction = state["direction"]
     direction_id = direction.id
     result = state.get("result")
-    citations = state.get("citations", []) or []
+    key_source_citations = result.key_source_citations or [] 
+
+    entity_intel_ids = result.entity_intel_ids or []   
+
     
     logger.info(f"")
     logger.info(f"{'='*60}")
@@ -1168,31 +1186,32 @@ async def extract_structured_entities(state: ResearchState) -> ResearchState:
         if result and result.key_findings 
         else "(no key findings)"
     )
-    citations_text = "\n".join(citations) if citations else "(no citations collected)"
+    citations_text = "\n".join(key_source_citations) if key_source_citations else "(no citations collected)"
     
     logger.info(f"    Input summary length: {len(extensive_summary)} chars")
     logger.info(f"    Key findings count: {len(result.key_findings) if result and result.key_findings else 0}")
     
     prompt = ENTITY_EXTRACTION_PROMPT.format(
-        direction_id=direction.id,
-        topic=direction.topic,
-        description=direction.description,
-        overview=direction.overview,
         extensive_summary=extensive_summary,
         key_findings=key_findings,
         citations=citations_text,
+        entity_intel_ids="\n".join(f"- {e}" for e in entity_intel_ids) or "(none identified)",
+)
+
+    entity_extraction_agent = create_agent( 
+        entity_extraction_model, 
+        response_format=ResearchEntities,  
     )
     
     # Use .with_structured_output() for deterministic extraction
-    extraction_model = entity_extraction_model.with_structured_output(
-        ResearchEntities,
-        method="json_schema",
-        strict=True,
-    )
     
     try:
         logger.info(f"    Extracting entities...")
-        entities: ResearchEntities = await extraction_model.ainvoke(prompt)
+        response_data = await entity_extraction_agent.ainvoke([ 
+            {"role": "system", "content": prompt}
+        ]) 
+
+        entities: ResearchEntities = response_data["structured_response"]  
     except Exception as e:
         # If extraction fails, return empty entities
         logger.error(f"❌ Entity extraction failed: {e}")
@@ -1204,7 +1223,7 @@ async def extract_structured_entities(state: ResearchState) -> ResearchState:
         entities = ResearchEntities()
     
     # Collect all extracted entities and ensure direction_id is set
-    all_outputs: List[ExtractedEntityBase] = []
+    all_outputs: List[BaseModel] = []
     
     for business in entities.businesses:
         if not business.direction_id or business.direction_id == "":
@@ -1260,38 +1279,38 @@ async def extract_structured_entities(state: ResearchState) -> ResearchState:
 
 
 # ============================================================================
-# BUILD THE GRAPH
+# BUILD THE ENTITY INTEL SUBGRAPH
 # ============================================================================
 
-research_subgraph_builder = StateGraph(ResearchState)
+entity_intel_subgraph_builder = StateGraph(EntityIntelResearchState)
 
-# Research loop nodes
-research_subgraph_builder.add_node("call_model", call_model)
-research_subgraph_builder.add_node("tool_node", tool_node)
-research_subgraph_builder.add_node("research_output_node", research_output_node)
+# Entity intel research loop nodes
+entity_intel_subgraph_builder.add_node("call_model", call_model)
+entity_intel_subgraph_builder.add_node("tool_node", tool_node)
+entity_intel_subgraph_builder.add_node("entity_intel_output_node", research_output_node)
 
 # Entity extraction node (single-pass, no tool loop)
-research_subgraph_builder.add_node("extract_entities", extract_structured_entities)
+entity_intel_subgraph_builder.add_node("extract_entities", extract_structured_entities)
 
 # Entry point
-research_subgraph_builder.set_entry_point("call_model")
+entity_intel_subgraph_builder.set_entry_point("call_model")
 
 # LLM node conditionally goes to tool loop or to final output
-research_subgraph_builder.add_conditional_edges(
+entity_intel_subgraph_builder.add_conditional_edges(
     "call_model",
-    should_continue_research,
+    should_continue_entity_intel,
     {
         "tool_node": "tool_node",
-        "research_output_node": "research_output_node",
+        "entity_intel_output_node": "entity_intel_output_node",
     },
 )
 
 # After tools, go back to the LLM
-research_subgraph_builder.add_edge("tool_node", "call_model") 
+entity_intel_subgraph_builder.add_edge("tool_node", "call_model") 
 
-# After research output, extract entities then end
-research_subgraph_builder.add_edge("research_output_node", "extract_entities")
-research_subgraph_builder.add_edge("extract_entities", END)
+# After entity intel output, extract entities then end
+entity_intel_subgraph_builder.add_edge("entity_intel_output_node", "extract_entities")
+entity_intel_subgraph_builder.add_edge("extract_entities", END)
 
 # Compile subgraph
-# research_subgraph = research_subgraph_builder.compile()
+# entity_intel_subgraph = entity_intel_subgraph_builder.compile()
