@@ -28,18 +28,45 @@ from datetime import datetime
 from langchain_community.tools import WikipediaQueryRun  
 from langchain_community.utilities import WikipediaAPIWrapper   
 from research_agent.prompts.summary_prompts import TAVILY_SUMMARY_PROMPT, FIRECRAWL_SCRAPE_PROMPT  
-from research_agent.prompts.research_prompts import (
-    DEEP_RESEARCH_PROMPT, 
-    TOOL_INSTRUCTIONS,
-    RESEARCH_RESULT_PROMPT, 
-    DEEP_RESEARCH_CONTINUE_PROMPT,
-) 
-from research_agent.prompts.structured_output_prompts import ENTITY_EXTRACTION_PROMPT
+from research_agent.prompts.evidence_researcher_prompts import (
+    EVIDENCE_TOOL_INSTRUCTIONS,
+    EVIDENCE_RESEARCH_PROMPT,
+    EVIDENCE_RESEARCH_REMINDER_PROMPT,
+    CLAIM_VALIDATION_STRATEGY,
+    MECHANISM_EXPLANATION_STRATEGY,
+    RISK_BENEFIT_STRATEGY,
+    COMPARATIVE_EFFECTIVENESS_STRATEGY,
+    CLAIM_VALIDATION_REMINDER,
+    MECHANISM_EXPLANATION_REMINDER,
+    RISK_BENEFIT_REMINDER,
+    COMPARATIVE_EFFECTIVENESS_REMINDER,
+    EVIDENCE_RESULT_PROMPT,
+    ADVICE_SNIPPET_PROMPT,
+    EXTRACT_CLAIM_VALIDATION_PROMPT,
+    EXTRACT_MECHANISM_EXPLANATION_PROMPT,
+    EXTRACT_RISK_BENEFIT_PROMPT,
+    EXTRACT_COMPARATIVE_ANALYSIS_PROMPT,
+    EvidenceIntermediateSummary,
+)
 from research_agent.output_models import (
-    DirectionResearchResult, 
-    ResearchDirection,
-    ResearchEntities,
-    ExtractedEntityBase,
+    ResearchDirection, 
+    ResearchDirectionType, 
+    TavilyResultsSummary,
+    FirecrawlResultsSummary, 
+    
+) 
+
+from research_agent.graph_states.evidence_research_subgraph import (
+    EvidenceResearchResult,
+    ClaimValidation,
+    MechanismPathway,
+    MechanismExplanation,
+    Benefit,
+    Risk,
+    RiskBenefitProfile,
+    ComparativeAnalysis,
+    EvidenceItem,
+    AdviceSnippet,
 )
 
 # ============================================================================
@@ -47,7 +74,7 @@ from research_agent.output_models import (
 # ============================================================================
 
 # Configure logger for the research subgraph
-logger = logging.getLogger("research_subgraph")
+logger = logging.getLogger("evidence_research_subgraph")
 logger.setLevel(logging.DEBUG)
 
 # Console handler with colored output
@@ -64,7 +91,7 @@ if not logger.handlers:
     logger.addHandler(console_handler)
 
 # Base output directory for research artifacts
-RESEARCH_OUTPUT_DIR = "research_outputs" 
+EVIDENCE_RESEARCH_OUTPUT_DIR = "evidence_research_outputs" 
 
 openai_web_search = {"type": "web_search"} 
 
@@ -109,7 +136,7 @@ async def save_json_artifact(
         filename += f"_{suffix}"
     filename += ".json"
     
-    filepath = os.path.join(RESEARCH_OUTPUT_DIR, direction_id, filename)
+    filepath = os.path.join(EVIDENCE_RESEARCH_OUTPUT_DIR, direction_id, filename)
     
     await ensure_directory_exists(filepath)
     
@@ -160,7 +187,7 @@ async def save_text_artifact(
         filename += f"_{suffix}"
     filename += ".txt"
     
-    filepath = os.path.join(RESEARCH_OUTPUT_DIR, direction_id, filename)
+    filepath = os.path.join(EVIDENCE_RESEARCH_OUTPUT_DIR, direction_id, filename)
     
     await ensure_directory_exists(filepath)
     
@@ -207,21 +234,53 @@ def get_current_date_string() -> str:
 # INTERMEDIATE SUMMARY MODEL (for file-based context offloading)
 # ============================================================================
 
-class IntermediateSummary(BaseModel):
-    """A checkpoint summary written during research for context offloading."""
+class EvidenceIntermediateSummary(BaseModel):
+    """Enhanced intermediate summary for evidence research."""
     summary_id: str = Field(default_factory=lambda: str(uuid.uuid4())[:8])
+    direction_id: str
+    direction_type: ResearchDirectionType
+    
     topic_focus: str = Field(..., description="What aspect of research this summary covers")
     synthesis: str = Field(..., description="Synthesized findings so far")
-    confidence: float = Field(..., ge=0.0, le=1.0, description="Confidence in findings (0-1)")
-    open_questions: List[str] = Field(default_factory=list, description="Questions still to investigate")
-    key_sources: List[str] = Field(default_factory=list, description="Most important citations for this summary")
-
+    confidence: float = Field(..., ge=0.0, le=1.0)
+    
+    # Evidence-specific fields
+    evidence_items_collected: List[EvidenceItem] = Field(default_factory=list)
+    
+    # Type-specific progress tracking
+    claim_validation_progress: Optional[Dict[str, Any]] = Field(
+        None,
+        description="For CLAIM_VALIDATION: current verdict, supporting/contradicting evidence counts"
+    )
+    
+    mechanism_explanation_progress: Optional[Dict[str, Any]] = Field(
+        None,
+        description="For MECHANISM_EXPLANATION: pathway steps identified so far"
+    )
+    
+    risk_benefit_progress: Optional[Dict[str, Any]] = Field(
+        None,
+        description="For RISK_BENEFIT_PROFILE: benefits and risks tallied"
+    )
+    
+    comparative_progress: Optional[Dict[str, Any]] = Field(
+        None,
+        description="For COMPARATIVE_EFFECTIVENESS: comparators identified"
+    )
+    
+    open_questions: List[str] = Field(default_factory=list)
+    key_sources: List[str] = Field(default_factory=list)
+    
+    next_steps_recommended: List[str] = Field(
+        default_factory=list,
+        description="What the agent should investigate next"
+    )
 
 # ============================================================================
 # RESEARCH STATE
 # ============================================================================
 
-class ResearchState(TypedDict, total=False):  
+class EvidenceResearchState(TypedDict, total=False):  
     # Core tool-loop plumbing
     messages: Annotated[Sequence[BaseMessage], operator.add]
     llm_calls: int
@@ -234,17 +293,26 @@ class ResearchState(TypedDict, total=False):
     # Accumulated research data
     research_notes: Annotated[List[str], operator.add]     # human-readable notes from each step
     citations: Annotated[List[str], operator.add]          # URLs / DOIs  
+    evidence_items: Annotated[List[EvidenceItem], operator.add]  # structured evidence items
 
     # File-based context offloading
     file_refs: Annotated[List[str], operator.add]          # paths to intermediate summary files
 
-    final_summary: str 
+    # Progress tracking counters
     steps_taken: int 
+    summaries_written: int  # count of intermediate summaries
+
+    # Type-specific progress tracking (appended as research progresses)
+    # Each entry in the list is a progress snapshot from write_evidence_summary_tool
+    claim_validation_progress: Annotated[List[Dict[str, Any]], operator.add]  # verdict evolution, evidence counts
+    mechanism_explanation_progress: Annotated[List[Dict[str, Any]], operator.add]  # pathway steps, molecules
+    risk_benefit_progress: Annotated[List[Dict[str, Any]], operator.add]  # benefits/risks tallied
+    comparative_progress: Annotated[List[Dict[str, Any]], operator.add]  # comparators, rankings
 
     structured_outputs: Annotated[List[BaseModel], operator.add]   
 
     # Final structured result
-    result: DirectionResearchResult
+    result: EvidenceResearchResult
 
 
 # ============================================================================
@@ -279,34 +347,6 @@ structured_output_model = ChatOpenAI(
 )
 
 
-# ============================================================================
-# CITATION MODELS
-# ============================================================================
-
-class TavilyCitation(BaseModel): 
-    url: str = Field(..., description="The URL of the source")  
-    title: str = Field(..., description="The title of the source")   
-    published_date: Optional[str] = Field(None, description="The published date of the source")   
-    score: Optional[float] = Field(None, description="The score of the source")    
-
-class FirecrawlCitation(BaseModel): 
-    url: str = Field(..., description="The URL of the source")  
-    title: str = Field(..., description="The title of the source")    
-    description: Optional[str] = Field(None, description="The description of the source")   
-
-
-class TavilyResultsSummary(BaseModel):  
-    summary: str = Field(..., description="An extensive  summary of the search results")   
-    citations: List[TavilyCitation] = Field(..., description="The citations of the search results")   
-
-class FirecrawlResultsSummary(BaseModel):  
-    summary: str = Field(..., description="A faithful summary of the markdown representation of the content")
-    citations: List[FirecrawlCitation] = Field(..., description="A summary of the markdown of the content")  
-
-
-# ============================================================================
-# SUMMARIZATION HELPERS
-# ============================================================================
 
 async def summarize_tavily_web_search(search_results: str, direction_id: str = "unknown") -> TavilyResultsSummary:  
     logger.info(f"📝 Summarizing Tavily search results (input length: {len(search_results)} chars)")
@@ -657,90 +697,164 @@ async def tavily_web_search_tool(
 
 
 # ============================================================================
-# WRITE RESEARCH SUMMARY TOOL (Incremental Synthesis + Context Offloading)
+# WRITE EVIDENCE SUMMARY TOOL (Incremental Synthesis + Progress Tracking)
 # ============================================================================
 
 @tool(
-    description="Write an intermediate research summary to consolidate findings before continuing. "
-                "Use this after gathering substantial information on a sub-topic.",
+    description=(
+        "Write an intermediate evidence summary to consolidate findings and track progress. "
+        "Use this after gathering substantial evidence (5-7 studies or sources) on a sub-topic."
+    ),
     parse_docstring=False,
 )
-async def write_research_summary_tool(
+async def write_evidence_summary_tool(
     runtime: ToolRuntime,
     topic_focus: str,
     synthesis: str,
     confidence: float,
     open_questions: List[str],
     key_sources: List[str],
+    progress_update: Optional[Dict[str, Any]] = None,
+    next_steps_recommended: Optional[List[str]] = None,
 ) -> str:
     """
-    Consolidate research findings into an intermediate summary file.
+    Consolidate evidence research findings into an intermediate summary with progress tracking.
     
-    Call this tool when you have gathered enough information on a specific
-    aspect and want to:
+    Call this tool when you have gathered enough evidence on a specific aspect and want to:
     1. Free up context by offloading findings to a file
-    2. Create a checkpoint before investigating other aspects
-    3. Organize your research into coherent themes
+    2. Create a checkpoint with type-specific progress tracking
+    3. Guide next research steps
     
     Args:
         topic_focus (str): What specific aspect this summary covers 
-            (e.g., "product mechanism", "clinical evidence", "company background").
-        synthesis (str): Your synthesized understanding of the findings.
-            Should be 2-4 paragraphs that capture the key insights.
+            (e.g., "supporting evidence for claim", "mechanism pathway mapping", 
+            "benefit-risk balance for elderly").
+        synthesis (str): Your synthesized understanding (2-4 paragraphs).
+            Integrate evidence strength, limitations, and key insights.
         confidence (float): 0.0-1.0 confidence score for these findings.
-            - 0.0-0.3: Low confidence (limited/contradictory sources)
-            - 0.4-0.6: Medium confidence (some evidence, gaps remain)
-            - 0.7-1.0: High confidence (strong evidence, multiple sources agree)
+            - 0.0-0.3: Low (limited/contradictory sources)
+            - 0.4-0.6: Medium (some evidence, gaps remain)
+            - 0.7-1.0: High (strong evidence, multiple sources agree)
         open_questions (List[str]): Questions that remain unanswered.
-            These help guide further research if needed.
-        key_sources (List[str]): Most important URLs/DOIs supporting this summary.
-            Include 2-5 of the most authoritative sources.
+        key_sources (List[str]): Most important PMIDs/DOIs/URLs (2-5 sources).
+        progress_update (Optional[Dict[str, Any]]): Type-specific progress data.
+            For CLAIM_VALIDATION: {"verdict_leaning": "partially_supported", 
+                                   "supporting_count": 5, "contradicting_count": 2}
+            For MECHANISM_EXPLANATION: {"pathway_steps_mapped": 4, 
+                                       "molecules_identified": ["Nrf2", "SOD"]}
+            For RISK_BENEFIT: {"benefits_count": 4, "risks_count": 3, 
+                              "assessment_leaning": "favorable"}
+            For COMPARATIVE: {"comparators_found": ["intervention_a", "intervention_b"], 
+                            "ranking_emerging": ["primary", "a", "b"]}
+        next_steps_recommended (Optional[List[str]]): What to investigate next.
     
     Returns:
         str: Confirmation with the file path where summary was stored.
     """
     direction = runtime.state.get("direction")
     direction_id = direction.id if direction else "unknown"
+    direction_type = direction.direction_type if direction else None
     
-    logger.info(f"📄 WRITE SUMMARY: '{topic_focus}' (confidence: {confidence:.2f})")
+    logger.info(f"📄 WRITE EVIDENCE SUMMARY: '{topic_focus}' (confidence: {confidence:.2f})")
+    logger.info(f"    Type: {direction_type.value if direction_type else 'unknown'}")
     logger.info(f"    Open questions: {len(open_questions)}, Key sources: {len(key_sources)}")
     
-    # Create the IntermediateSummary model
-    summary = IntermediateSummary(
+    # Create the EvidenceIntermediateSummary model
+    summary = EvidenceIntermediateSummary(
+        direction_id=direction_id,
+        direction_type=direction_type.value if direction_type else "unknown",
         topic_focus=topic_focus,
         synthesis=synthesis,
         confidence=confidence,
         open_questions=open_questions,
         key_sources=key_sources,
+        next_steps_recommended=next_steps_recommended or [],
     )
     
+    # Set type-specific progress based on direction_type
+    if direction_type and progress_update:
+        if direction_type == ResearchDirectionType.CLAIM_VALIDATION:
+            summary.claim_validation_progress = progress_update
+        elif direction_type == ResearchDirectionType.MECHANISM_EXPLANATION:
+            summary.mechanism_explanation_progress = progress_update
+        elif direction_type == ResearchDirectionType.RISK_BENEFIT_PROFILE:
+            summary.risk_benefit_progress = progress_update
+        elif direction_type == ResearchDirectionType.COMPARATIVE_EFFECTIVENESS:
+            summary.comparative_progress = progress_update
+    
     # Write to file system (under research/<direction_id>/)
-    filename = f"research/{direction_id}/summary_{summary.summary_id}.json"
+    filename = f"research/{direction_id}/evidence_summary_{summary.summary_id}.json"
     await write_file(filename, summary.model_dump_json(indent=2))
     
-    # Also save to our research_outputs directory with full context
+    # Also save to research_outputs directory
     await save_json_artifact(
         summary,
         direction_id,
-        "intermediate_summary",
+        "evidence_intermediate_summary",
         suffix=topic_focus[:30].replace(" ", "_"),
     )
     
-    # Track file reference in state for later aggregation
+    # Track file reference in state
     file_refs = runtime.state.get("file_refs", [])
     if file_refs is None:
         file_refs = []
     file_refs.append(filename)
     runtime.state["file_refs"] = file_refs
     
-    # Also add a compact version to research_notes for backward compatibility
-    # and in case files aren't accessible
+    # Update summaries_written counter
+    summaries_written = runtime.state.get("summaries_written", 0)
+    runtime.state["summaries_written"] = summaries_written + 1
+    
+    # UPDATE TYPE-SPECIFIC PROGRESS IN STATE (APPEND, NOT OVERWRITE)
+    if direction_type and progress_update:
+        if direction_type == ResearchDirectionType.CLAIM_VALIDATION:
+            # Get current progress list and append new update
+            claim_progress = runtime.state.get("claim_validation_progress", [])
+            if claim_progress is None:
+                claim_progress = []
+            claim_progress.append(progress_update)
+            runtime.state["claim_validation_progress"] = claim_progress
+            logger.info(f"    Appended to claim_validation_progress (total entries: {len(claim_progress)})")
+            
+        elif direction_type == ResearchDirectionType.MECHANISM_EXPLANATION:
+            # Get current progress list and append new update
+            mechanism_progress = runtime.state.get("mechanism_explanation_progress", [])
+            if mechanism_progress is None:
+                mechanism_progress = []
+            mechanism_progress.append(progress_update)
+            runtime.state["mechanism_explanation_progress"] = mechanism_progress
+            logger.info(f"    Appended to mechanism_explanation_progress (total entries: {len(mechanism_progress)})")
+            
+        elif direction_type == ResearchDirectionType.RISK_BENEFIT_PROFILE:
+            # Get current progress list and append new update
+            risk_benefit_prog = runtime.state.get("risk_benefit_progress", [])
+            if risk_benefit_prog is None:
+                risk_benefit_prog = []
+            risk_benefit_prog.append(progress_update)
+            runtime.state["risk_benefit_progress"] = risk_benefit_prog
+            logger.info(f"    Appended to risk_benefit_progress (total entries: {len(risk_benefit_prog)})")
+            
+        elif direction_type == ResearchDirectionType.COMPARATIVE_EFFECTIVENESS:
+            # Get current progress list and append new update
+            comparative_prog = runtime.state.get("comparative_progress", [])
+            if comparative_prog is None:
+                comparative_prog = []
+            comparative_prog.append(progress_update)
+            runtime.state["comparative_progress"] = comparative_prog
+            logger.info(f"    Appended to comparative_progress (total entries: {len(comparative_prog)})")
+    
+    # Also add compact version to research_notes
+    progress_str = f"\nProgress Update: {progress_update}" if progress_update else ""
+    next_steps_str = f"\nNext Steps: {'; '.join(next_steps_recommended)}" if next_steps_recommended else ""
+    
     compact_note = (
-        f"[SUMMARY: {topic_focus}]\n"
+        f"[EVIDENCE SUMMARY: {topic_focus}]\n"
         f"Confidence: {confidence}\n\n"
         f"{synthesis}\n\n"
         f"Open Questions: {'; '.join(open_questions) if open_questions else 'None'}\n"
         f"Key Sources: {', '.join(key_sources[:3]) if key_sources else 'None cited'}"
+        f"{progress_str}"
+        f"{next_steps_str}"
     )
     research_notes = runtime.state.get("research_notes", [])
     if research_notes is None:
@@ -748,14 +862,15 @@ async def write_research_summary_tool(
     research_notes.append(compact_note)
     runtime.state["research_notes"] = research_notes
     
-    logger.info(f"✅ WRITE SUMMARY complete: saved to {filename}")
+    logger.info(f"✅ WRITE EVIDENCE SUMMARY complete: saved to {filename}")
     
     return (
-        f"✓ Summary written to {filename}\n"
+        f"✓ Evidence summary written to {filename}\n"
         f"  Topic: {topic_focus}\n"
         f"  Confidence: {confidence}\n"
-        f"  Open questions: {len(open_questions)}\n\n"
-        f"You can now continue researching other aspects or stop if you have enough information."
+        f"  Open questions: {len(open_questions)}\n"
+        f"  Progress tracked: {bool(progress_update)}\n\n"
+        f"Continue researching other aspects or stop if you have sufficient evidence."
     )
 
 
@@ -763,40 +878,48 @@ async def write_research_summary_tool(
 # ALL TOOLS - Agent has access to everything
 # ============================================================================
 
-# All research tools available to the agent
-ALL_RESEARCH_TOOLS = [
+# All evidence research tools available to the agent
+ALL_EVIDENCE_RESEARCH_TOOLS = [
     tavily_web_search_tool,
     firecrawl_scrape_tool,
-    firecrawl_map_tool,
+    firecrawl_map_tool,  
     wiki_tool,
     pubmed_literature_search_tool,
-    write_research_summary_tool,
+    write_evidence_summary_tool,
 ]
 
-tools_by_name = {t.name: t for t in ALL_RESEARCH_TOOLS}
+tools_by_name = {t.name: t for t in ALL_EVIDENCE_RESEARCH_TOOLS}
 
 
-def get_tool_instructions(direction: ResearchDirection) -> str:
+def get_evidence_tool_instructions() -> str:
     """
-    Get tool instructions based on the research direction.
-    Uses include_scientific_literature flag to guide tool prioritization.
+    Get evidence-specific tool instructions based on the research direction.
     """
-    return TOOL_INSTRUCTIONS.format(
-        include_scientific_literature="YES" if direction.include_scientific_literature else "NO",
-        scientific_guidance = (
-        "Because this research direction REQUIRES scientific literature, you should:\n"
-        "- Prioritize **PubMed** for clinical trials, observational findings, mechanisms, and case reports.\n"
-        "- Escalate to **PMC full-text** ONLY when the abstracts cannot answer mechanistic, methodological, "
-        "or interpretive questions.\n"
-        "- Cross-check scientific claims made on company or product websites.\n"
-        "- Ensure that final summaries integrate PubMed or PMC results when available.\n"
-        if direction.include_scientific_literature
-        else
-        "Scientific literature is optional for this direction. Use PubMed or PMC ONLY if you encounter claims "
-        "that require biomedical validation. Otherwise focus on web research, company sites, Wikipedia, and "
-        "Firecrawl scraping."
-)
-    )
+    
+    
+    return EVIDENCE_TOOL_INSTRUCTIONS
+
+
+def get_direction_type_strategy(direction_type: ResearchDirectionType) -> str:
+    """Get the strategy text based on direction type."""
+    strategy_map = {
+        ResearchDirectionType.CLAIM_VALIDATION: CLAIM_VALIDATION_STRATEGY,
+        ResearchDirectionType.MECHANISM_EXPLANATION: MECHANISM_EXPLANATION_STRATEGY,
+        ResearchDirectionType.RISK_BENEFIT_PROFILE: RISK_BENEFIT_STRATEGY,
+        ResearchDirectionType.COMPARATIVE_EFFECTIVENESS: COMPARATIVE_EFFECTIVENESS_STRATEGY,
+    }
+    return strategy_map.get(direction_type, "")
+
+
+def get_direction_type_reminder(direction_type: ResearchDirectionType) -> str:
+    """Get the reminder text based on direction type."""
+    reminder_map = {
+        ResearchDirectionType.CLAIM_VALIDATION: CLAIM_VALIDATION_REMINDER,
+        ResearchDirectionType.MECHANISM_EXPLANATION: MECHANISM_EXPLANATION_REMINDER,
+        ResearchDirectionType.RISK_BENEFIT_PROFILE: RISK_BENEFIT_REMINDER,
+        ResearchDirectionType.COMPARATIVE_EFFECTIVENESS: COMPARATIVE_EFFECTIVENESS_REMINDER,
+    }
+    return reminder_map.get(direction_type, "")
 
 
 # ============================================================================
@@ -806,41 +929,74 @@ def get_tool_instructions(direction: ResearchDirection) -> str:
 # Figure out how to use memory injection and a compressed research prompt after the first and after (some n ) 
 # number of message iterations 
 
-async def call_model(state: ResearchState) -> ResearchState:
-    """LLM decides what to do next for this research direction."""
+async def call_evidence_model(state: EvidenceResearchState) -> EvidenceResearchState:
+    """
+    LLM decides what to do next for this evidence research direction.
+    Uses evidence-specific prompts with type-specific strategies.
+    """
     direction = state["direction"] 
     direction_id = direction.id
+    direction_type = direction.direction_type
     episode_context = state.get("episode_context", "")
     notes = state.get("research_notes", [])
     llm_calls = state.get("llm_calls", 0)
     steps_taken = state.get("steps_taken", 0)
+    summaries_written = state.get("summaries_written", 0)
+    citations_count = len(state.get("citations", []))
     
     logger.info(f"")
     logger.info(f"{'='*60}")
-    logger.info(f"🤖 CALL MODEL [{direction_id}] - LLM Call #{llm_calls + 1}")
-    logger.info(f"    Topic: {direction.topic[:60]}{'...' if len(direction.topic) > 60 else ''}")
-    logger.info(f"    Steps: {steps_taken}/{direction.max_steps}, Notes: {len(notes)}")
+    logger.info(f"🤖 CALL EVIDENCE MODEL [{direction_id}] - LLM Call #{llm_calls + 1}")
+    logger.info(f"    Type: {direction_type.value}")
+    logger.info(f"    Title: {direction.title[:60]}{'...' if len(direction.title) > 60 else ''}")
+    logger.info(f"    Steps: {steps_taken}/{direction.max_steps}, Summaries: {summaries_written}, Citations: {citations_count}")
     logger.info(f"{'='*60}")
 
-    # Agent gets ALL tools - no silos
-    model_with_tools = research_model.bind_tools(ALL_RESEARCH_TOOLS) 
+    # Agent gets ALL evidence research tools
+    model_with_tools = research_model.bind_tools(ALL_EVIDENCE_RESEARCH_TOOLS) 
 
-    tool_instructions = get_tool_instructions(direction)
+    tool_instructions = get_evidence_tool_instructions()
+    direction_type_strategy = get_direction_type_strategy(direction_type)
 
-
-    system = DEEP_RESEARCH_PROMPT.format(
+    # Use comprehensive prompt on first call, reminder on subsequent calls
+    if llm_calls == 0:
+        # First call - use comprehensive EVIDENCE_RESEARCH_PROMPT
+        system = EVIDENCE_RESEARCH_PROMPT.format(
             direction_id=direction.id,
-            topic=direction.topic,
-            description=direction.description,
-            overview=direction.overview,
-            include_scientific_literature="YES" if direction.include_scientific_literature else "NO",
-            depth=direction.depth,
+            direction_title=direction.title,
+            direction_type=direction_type.value,
+            research_questions="\n".join(f"- {q}" for q in direction.research_questions),
+            primary_entities=", ".join(direction.primary_entities) if direction.primary_entities else "None",
+            claim_text=direction.claim_text or "N/A",
+            claimed_by=", ".join(direction.claimed_by) if direction.claimed_by else "N/A",
+            key_outcomes_of_interest=", ".join(direction.key_outcomes_of_interest) if direction.key_outcomes_of_interest else "N/A",
+            key_mechanisms_to_examine=", ".join(direction.key_mechanisms_to_examine) if direction.key_mechanisms_to_examine else "N/A",
             priority=direction.priority,
             max_steps=direction.max_steps,
-            query_seed=direction.topic,
+            episode_context=episode_context or "(no context provided)",
             tool_instructions=tool_instructions,
+            direction_type_strategy=direction_type_strategy,
             current_date=get_current_date_string(),
         )
+        logger.debug(f"    Using COMPREHENSIVE evidence research prompt")
+    else:
+        # Subsequent calls - use compressed EVIDENCE_RESEARCH_REMINDER_PROMPT
+        direction_type_reminder = get_direction_type_reminder(direction_type)
+        
+        system = EVIDENCE_RESEARCH_REMINDER_PROMPT.format(
+            direction_type=direction_type.value,
+            current_date=get_current_date_string(),
+            direction_id=direction.id,
+            research_questions="\n".join(f"- {q}" for q in direction.research_questions),
+            primary_entities=", ".join(direction.primary_entities) if direction.primary_entities else "None",
+            claim_text=direction.claim_text or "N/A",
+            steps_taken=steps_taken,
+            max_steps=direction.max_steps,
+            summaries_count=summaries_written,
+            citations_count=citations_count,
+            direction_type_reminder=direction_type_reminder,
+        )
+        logger.debug(f"    Using REMINDER evidence research prompt")
    
     # existing conversation messages in this subgraph
     messages = list(state.get("messages", []))
@@ -882,12 +1038,12 @@ async def call_model(state: ResearchState) -> ResearchState:
 
 
 
-_prebuilt_tool_node = ToolNode(ALL_RESEARCH_TOOLS)
+_prebuilt_evidence_tool_node = ToolNode(ALL_EVIDENCE_RESEARCH_TOOLS)
 
 
-async def tool_node(state: ResearchState) -> ResearchState:
+async def evidence_tool_node(state: EvidenceResearchState) -> EvidenceResearchState:
     """
-    Execute tool calls requested by the last AI message.
+    Execute evidence research tool calls requested by the last AI message.
     
     Uses the prebuilt ToolNode which properly injects ToolRuntime into tools,
     with additional logic for step counting and max_steps enforcement.
@@ -901,17 +1057,17 @@ async def tool_node(state: ResearchState) -> ResearchState:
     steps_taken = state.get("steps_taken", 0)
     
     logger.info(f"")
-    logger.info(f"⚙️  TOOL NODE [{direction_id}] - Step {steps_taken + 1}/{max_steps}")
+    logger.info(f"⚙️  EVIDENCE TOOL NODE [{direction_id}] - Step {steps_taken + 1}/{max_steps}")
 
-    # Safety: if we've hit max_steps, tell the model to summarize instead
+    # Safety: if we've hit max_steps, tell the model to finalize
     if steps_taken >= max_steps:
         logger.warning(f"⚠️  MAX STEPS REACHED ({max_steps}). Requesting model to finalize.")
         summary_msg = SystemMessage(
             content=(
                 "You have reached the maximum number of tool steps "
-                "for this research direction. Please stop calling tools, "
-                "write a final summary using write_research_summary_tool if you haven't, "
-                "and prepare to finalize."
+                "for this evidence research direction. Please stop calling tools, "
+                "write a final evidence summary using write_evidence_summary_tool if you haven't, "
+                "and prepare to finalize your research."
             )
         )
         return {
@@ -929,7 +1085,7 @@ async def tool_node(state: ResearchState) -> ResearchState:
     # The ToolNode.ainvoke() receives the full state and properly injects
     # the runtime into tools that have ToolRuntime parameters
     try:
-        tool_result = await _prebuilt_tool_node.ainvoke(state)
+        tool_result = await _prebuilt_evidence_tool_node.ainvoke(state)
         
         # Log tool results
         result_messages = tool_result.get("messages", [])
@@ -945,10 +1101,10 @@ async def tool_node(state: ResearchState) -> ResearchState:
                     f"tool_result_{msg.name}",
                 )
         
-        logger.info(f"✅ TOOL NODE complete: {len(result_messages)} result(s)")
+        logger.info(f"✅ EVIDENCE TOOL NODE complete: {len(result_messages)} result(s)")
         
     except Exception as e:
-        logger.error(f"❌ TOOL NODE ERROR: {e}")
+        logger.error(f"❌ EVIDENCE TOOL NODE ERROR: {e}")
         # Save error info
         await save_json_artifact(
             {"error": str(e), "tool_calls": [tc.get("name") for tc in tool_calls]},
@@ -967,33 +1123,87 @@ async def tool_node(state: ResearchState) -> ResearchState:
     
 
 # ============================================================================
-# RESEARCH OUTPUT NODE (Updated to read from files)
+# EVIDENCE OUTPUT NODE (Evidence-specific result generation)
 # ============================================================================
 
-research_result_model = ChatOpenAI( 
+evidence_result_model = ChatOpenAI( 
     model="gpt-5.1",  
     temperature=0.0, 
     output_version="responses/v1",
     max_retries=2,
 )
 
+advice_snippet_model = ChatOpenAI(
+    model="gpt-5-mini",
+    temperature=0.0,
+    output_version="responses/v1",
+    max_retries=2,
+)
 
-async def research_output_node(state: ResearchState) -> ResearchState:
+
+async def generate_advice_snippets(
+    evidence_result: EvidenceResearchResult,
+    direction: ResearchDirection,
+) -> List[AdviceSnippet]:
     """
-    Produce a DirectionResearchResult by aggregating file-based summaries
-    and research notes via structured LLM call.
+    Generate actionable advice snippets from the evidence research result.
+    """
+    logger.info(f"    Generating advice snippets...")
+    
+    evidence_result_summary = {
+        "short_answer": evidence_result.short_answer,
+        "long_answer": evidence_result.long_answer,
+        "evidence_strength": evidence_result.evidence_strength,
+        "key_points": evidence_result.key_points,
+    }
+    
+    direction_context = {
+        "title": direction.title,
+        "direction_type": direction.direction_type.value,
+        "primary_entities": direction.primary_entities,
+        "claim_text": direction.claim_text,
+    }
+    
+    prompt = ADVICE_SNIPPET_PROMPT.format(
+        evidence_result=json.dumps(evidence_result_summary, indent=2),
+        direction_context=json.dumps(direction_context, indent=2),
+    )
+    
+    try:
+        advice_agent = create_agent(
+            advice_snippet_model,
+            response_format=List[AdviceSnippet],
+        )
+        
+        response = await advice_agent.ainvoke(
+            {"messages": [{"role": "user", "content": prompt}]}
+        )
+        
+        snippets = response["structured_response"]
+        logger.info(f"    ✓ Generated {len(snippets)} advice snippets")
+        return snippets
+    except Exception as e:
+        logger.error(f"    ✗ Failed to generate advice snippets: {e}")
+        return []
+
+
+async def evidence_output_node(state: EvidenceResearchState) -> EvidenceResearchState:
+    """
+    Produce an EvidenceResearchResult by aggregating file-based summaries
+    and research notes, then generate advice snippets.
     """
     direction = state["direction"]
     direction_id = direction.id
-    episode_context = state.get("episode_context", "") or "(none)"
+    direction_type = direction.direction_type
     file_refs = state.get("file_refs", []) or []
     citations = state.get("citations", []) or []
     notes = state.get("research_notes", []) or []
     
     logger.info(f"")
     logger.info(f"{'='*60}")
-    logger.info(f"📊 RESEARCH OUTPUT NODE [{direction_id}]")
-    logger.info(f"    Topic: {direction.topic[:60]}{'...' if len(direction.topic) > 60 else ''}")
+    logger.info(f"📊 EVIDENCE OUTPUT NODE [{direction_id}]")
+    logger.info(f"    Type: {direction_type.value}")
+    logger.info(f"    Title: {direction.title[:60]}{'...' if len(direction.title) > 60 else ''}")
     logger.info(f"    Aggregating: {len(file_refs)} file refs, {len(notes)} notes, {len(citations)} citations")
     logger.info(f"{'='*60}")
 
@@ -1009,15 +1219,13 @@ async def research_output_node(state: ResearchState) -> ResearchState:
                 logger.debug(f"    Loaded file: {file_path}")
             except FileNotFoundError:
                 logger.warning(f"    File not found: {file_path}")
-                # File not found, skip (notes should have backup)
                 continue
             except Exception as e:
                 logger.warning(f"    Error reading {file_path}: {e}")
-                # Log but continue
                 continue
         
         if intermediate_summaries:
-            aggregated_content = "=== INTERMEDIATE RESEARCH SUMMARIES (from files) ===\n\n"
+            aggregated_content = "=== INTERMEDIATE EVIDENCE SUMMARIES (from files) ===\n\n"
             aggregated_content += "\n\n".join(intermediate_summaries)
             aggregated_content += "\n\n"
     
@@ -1037,59 +1245,61 @@ async def research_output_node(state: ResearchState) -> ResearchState:
     await save_text_artifact(
         aggregated_content,
         direction_id,
-        "aggregated_research_content",
+        "aggregated_evidence_content",
     )
 
-    prompt = RESEARCH_RESULT_PROMPT.format(
-        topic=direction.topic,
-        description=direction.description,
-        overview=direction.overview,
-        include_scientific_literature="YES" if direction.include_scientific_literature else "NO",
-        depth=direction.depth,
-        priority=direction.priority,
-        episode_context=episode_context,
-        research_notes=aggregated_content,
+    # Build the evidence result prompt
+    prompt = EVIDENCE_RESULT_PROMPT.format(
+        direction_id=direction.id,
+        direction_type=direction_type.value,
+        direction_title=direction.title,
+        research_questions="\n".join(f"- {q}" for q in direction.research_questions),
+        claim_text=direction.claim_text or "N/A",
+        aggregated_research_content=aggregated_content,
         citations="\n".join(citations) if citations else "(no citations collected)",
     )
 
-    logger.info(f"    Generating structured research result...")
+    logger.info(f"    Generating structured evidence result...")
 
     # Use strong model with structured output
-    result_agent = create_agent(
-        research_result_model,
-        response_format=DirectionResearchResult,
+    evidence_agent = create_agent(
+        evidence_result_model,
+        response_format=EvidenceResearchResult,
     )
 
-    agent_response = await result_agent.ainvoke(
+    agent_response = await evidence_agent.ainvoke(
         {"messages": [{"role": "user", "content": prompt}]}
     )
 
-    direction_result: DirectionResearchResult = agent_response["structured_response"]
+    evidence_result: EvidenceResearchResult = agent_response["structured_response"]
 
-    # Ensure we don't lose citations from state if the model omits them
-    if not direction_result.citations:
-        direction_result.citations = citations
-
-    # We still know the direction_id here; set it if the model left it blank
-    if not direction_result.direction_id:
-        direction_result.direction_id = direction.id
+    # Ensure direction_id is set
+    if not evidence_result.direction_id:
+        evidence_result.direction_id = direction.id
+    
+    # Generate advice snippets
+    advice_snippets = await generate_advice_snippets(evidence_result, direction)
+    evidence_result.advice_snippets = advice_snippets
     
     # Log result summary
-    logger.info(f"✅ RESEARCH OUTPUT complete:")
-    logger.info(f"    Summary length: {len(direction_result.extensive_summary) if direction_result.extensive_summary else 0} chars")
-    logger.info(f"    Key findings: {len(direction_result.key_findings) if direction_result.key_findings else 0}")
-    logger.info(f"    Confidence: {direction_result.confidence_score if hasattr(direction_result, 'confidence_score') else 'N/A'}")
+    logger.info(f"✅ EVIDENCE OUTPUT complete:")
+    logger.info(f"    Short answer length: {len(evidence_result.short_answer) if evidence_result.short_answer else 0} chars")
+    logger.info(f"    Long answer length: {len(evidence_result.long_answer) if evidence_result.long_answer else 0} chars")
+    logger.info(f"    Key points: {len(evidence_result.key_points) if evidence_result.key_points else 0}")
+    logger.info(f"    Evidence items: {len(evidence_result.evidence_items) if evidence_result.evidence_items else 0}")
+    logger.info(f"    Advice snippets: {len(evidence_result.advice_snippets) if evidence_result.advice_snippets else 0}")
+    logger.info(f"    Evidence strength: {evidence_result.evidence_strength}")
     
-    # Save the final research result
+    # Save the final evidence result
     await save_json_artifact(
-        direction_result,
+        evidence_result,
         direction_id,
-        "research_result_final",
+        "evidence_result_final",
     )
 
     # Only update the parts we intend to change; LangGraph will merge this into state.
     return {
-        "result": direction_result,
+        "result": evidence_result,
     }
 
 
@@ -1097,15 +1307,15 @@ async def research_output_node(state: ResearchState) -> ResearchState:
 # ROUTING FUNCTIONS
 # ============================================================================
 
-def should_continue_research(
-    state: ResearchState,
-) -> Literal["tool_node", "research_output_node"]:
-    """Route based on tool calls and step budget."""
+def should_continue_evidence_research(
+    state: EvidenceResearchState,
+) -> Literal["evidence_tool_node", "evidence_output_node"]:
+    """Route based on tool calls and step budget for evidence research."""
     direction_id = state["direction"].id
     messages = state.get("messages", [])
     if not messages:
-        logger.info(f"🔀 ROUTING [{direction_id}]: No messages → research_output_node")
-        return "research_output_node"
+        logger.info(f"🔀 ROUTING [{direction_id}]: No messages → evidence_output_node")
+        return "evidence_output_node"
 
     last_message = messages[-1]
     steps_taken = state.get("steps_taken", 0)
@@ -1115,183 +1325,361 @@ def should_continue_research(
     within_budget = steps_taken < max_steps
 
     if has_tool_calls and within_budget:
-        logger.info(f"🔀 ROUTING [{direction_id}]: Tool calls present, step {steps_taken}/{max_steps} → tool_node")
-        return "tool_node"
+        logger.info(f"🔀 ROUTING [{direction_id}]: Tool calls present, step {steps_taken}/{max_steps} → evidence_tool_node")
+        return "evidence_tool_node"
     
     if has_tool_calls and not within_budget:
-        logger.info(f"🔀 ROUTING [{direction_id}]: Tool calls present but budget exhausted ({steps_taken}/{max_steps}) → research_output_node")
+        logger.info(f"🔀 ROUTING [{direction_id}]: Tool calls but budget exhausted ({steps_taken}/{max_steps}) → evidence_output_node")
     else:
-        logger.info(f"🔀 ROUTING [{direction_id}]: No tool calls → research_output_node")
+        logger.info(f"🔀 ROUTING [{direction_id}]: No tool calls → evidence_output_node")
 
-    return "research_output_node"  
+    return "evidence_output_node"  
     
 
 # ============================================================================
-# ENTITY EXTRACTION MODEL
+# TYPE-SPECIFIC EXTRACTION MODEL
 # ============================================================================
 
-entity_extraction_model = ChatOpenAI(
+type_specific_extraction_model = ChatOpenAI(
     model="gpt-5-mini",
+    reasoning={
+        "effort": "medium",
+    },
     temperature=0.0,
     max_retries=2,
 )
 
 
 # ============================================================================
-# SINGLE-PASS ENTITY EXTRACTION NODE
+# TYPE-SPECIFIC EXTRACTION HELPER FUNCTIONS
 # ============================================================================
 
-async def extract_structured_entities(state: ResearchState) -> ResearchState:
-    """
-    Single-pass entity extraction using structured output.
-    
-    Extracts businesses, products, people, compounds, and case studies
-    from the research results in one deterministic call.
-    """
-    direction = state["direction"]
+async def extract_claim_validation(
+    direction: ResearchDirection,
+    evidence_result: EvidenceResearchResult,
+    state: EvidenceResearchState,
+) -> ClaimValidation:
+    """Extract ClaimValidation structured output."""
     direction_id = direction.id
-    result = state.get("result")
-    citations = state.get("citations", []) or []
+    logger.info(f"    Extracting ClaimValidation...")
     
-    logger.info(f"")
-    logger.info(f"{'='*60}")
-    logger.info(f"🏷️  ENTITY EXTRACTION [{direction_id}]")
-    logger.info(f"    Topic: {direction.topic[:60]}{'...' if len(direction.topic) > 60 else ''}")
-    logger.info(f"{'='*60}")
+    # Gather context
+    research_notes = "\n\n".join(state.get("research_notes", []))
+    evidence_result_summary = {
+        "short_answer": evidence_result.short_answer,
+        "long_answer": evidence_result.long_answer,
+        "evidence_strength": evidence_result.evidence_strength,
+        "key_points": evidence_result.key_points,
+        "evidence_items": [
+            {
+                "title": ei.study_title,
+                "finding": ei.key_finding,
+                "design": ei.design,
+            }
+            for ei in evidence_result.evidence_items[:10]  # Limit to avoid token overflow
+        ] if evidence_result.evidence_items else [],
+    }
     
-    # Build the extraction prompt
-    extensive_summary = (
-        result.extensive_summary if result and result.extensive_summary else "(no summary available)"
-    )
-    key_findings = (
-        "\n".join(f"- {f}" for f in result.key_findings) 
-        if result and result.key_findings 
-        else "(no key findings)"
-    )
-    citations_text = "\n".join(citations) if citations else "(no citations collected)"
-    
-    logger.info(f"    Input summary length: {len(extensive_summary)} chars")
-    logger.info(f"    Key findings count: {len(result.key_findings) if result and result.key_findings else 0}")
-    
-    prompt = ENTITY_EXTRACTION_PROMPT.format(
+    prompt = EXTRACT_CLAIM_VALIDATION_PROMPT.format(
         direction_id=direction.id,
-        topic=direction.topic,
-        description=direction.description,
-        overview=direction.overview,
-        extensive_summary=extensive_summary,
-        key_findings=key_findings,
-        citations=citations_text,
+        claim_text=direction.claim_text or "N/A",
+        claimed_by=", ".join(direction.claimed_by) if direction.claimed_by else "N/A",
+        evidence_result_summary=json.dumps(evidence_result_summary, indent=2),
+        research_notes=research_notes[:5000],  # Limit to avoid token overflow
     )
     
-    # Use .with_structured_output() for deterministic extraction
-    extraction_model = entity_extraction_model.with_structured_output(
-        ResearchEntities,
+    extraction_model = type_specific_extraction_model.with_structured_output(
+        ClaimValidation,
         method="json_schema",
         strict=True,
     )
     
     try:
-        logger.info(f"    Extracting entities...")
-        entities: ResearchEntities = await extraction_model.ainvoke(prompt)
+        claim_validation = await extraction_model.ainvoke(prompt)
+        logger.info(f"    ✓ ClaimValidation extracted: verdict={claim_validation.verdict}")
+        return claim_validation
     except Exception as e:
-        # If extraction fails, return empty entities
-        logger.error(f"❌ Entity extraction failed: {e}")
-        await save_json_artifact(
-            {"error": str(e)},
-            direction_id,
-            "entity_extraction_error",
+        logger.error(f"    ✗ ClaimValidation extraction failed: {e}")
+        # Return minimal valid object
+        return ClaimValidation(
+            direction_id=direction_id,
+            claim_text=direction.claim_text or "Unknown claim",
+            verdict="insufficient_evidence",
+            evidence_strength="unknown",
+            nuance_explanation="Extraction failed, unable to validate claim.",
+            confidence_score=0.0,
         )
-        entities = ResearchEntities()
+
+
+async def extract_mechanism_explanation(
+    direction: ResearchDirection,
+    evidence_result: EvidenceResearchResult,
+    state: EvidenceResearchState,
+) -> MechanismExplanation:
+    """Extract MechanismExplanation structured output."""
+    direction_id = direction.id
+    logger.info(f"    Extracting MechanismExplanation...")
     
-    # Collect all extracted entities and ensure direction_id is set
-    all_outputs: List[ExtractedEntityBase] = []
+    research_notes = "\n\n".join(state.get("research_notes", []))
+    evidence_result_summary = {
+        "short_answer": evidence_result.short_answer,
+        "long_answer": evidence_result.long_answer,
+        "key_points": evidence_result.key_points,
+    }
     
-    for business in entities.businesses:
-        if not business.direction_id or business.direction_id == "":
-            business.direction_id = direction.id
-        all_outputs.append(business)
-    
-    for product in entities.products:
-        if not product.direction_id or product.direction_id == "":
-            product.direction_id = direction.id
-        all_outputs.append(product)
-    
-    for person in entities.people:
-        if not person.direction_id or person.direction_id == "":
-            person.direction_id = direction.id
-        all_outputs.append(person)
-    
-    for compound in entities.compounds:
-        if not compound.direction_id or compound.direction_id == "":
-            compound.direction_id = direction.id
-        all_outputs.append(compound)
-    
-    for case_study in entities.case_studies:
-        if not case_study.direction_id or case_study.direction_id == "":
-            case_study.direction_id = direction.id
-        all_outputs.append(case_study)
-    
-    # Log extraction results
-    logger.info(f"✅ ENTITY EXTRACTION complete:")
-    logger.info(f"    Businesses: {len(entities.businesses)}")
-    logger.info(f"    Products: {len(entities.products)}")
-    logger.info(f"    People: {len(entities.people)}")
-    logger.info(f"    Compounds: {len(entities.compounds)}")
-    logger.info(f"    Case Studies: {len(entities.case_studies)}")
-    logger.info(f"    TOTAL ENTITIES: {len(all_outputs)}")
-    
-    # Save extracted entities
-    await save_json_artifact(
-        {
-            "businesses": [b.model_dump() if hasattr(b, 'model_dump') else str(b) for b in entities.businesses],
-            "products": [p.model_dump() if hasattr(p, 'model_dump') else str(p) for p in entities.products],
-            "people": [p.model_dump() if hasattr(p, 'model_dump') else str(p) for p in entities.people],
-            "compounds": [c.model_dump() if hasattr(c, 'model_dump') else str(c) for c in entities.compounds],
-            "case_studies": [cs.model_dump() if hasattr(cs, 'model_dump') else str(cs) for cs in entities.case_studies],
-        },
-        direction_id,
-        "extracted_entities",
+    prompt = EXTRACT_MECHANISM_EXPLANATION_PROMPT.format(
+        direction_id=direction.id,
+        key_mechanisms=", ".join(direction.key_mechanisms_to_examine) if direction.key_mechanisms_to_examine else "N/A",
+        key_outcomes=", ".join(direction.key_outcomes_of_interest) if direction.key_outcomes_of_interest else "N/A",
+        evidence_result_summary=json.dumps(evidence_result_summary, indent=2),
+        research_notes=research_notes[:5000],
     )
     
+    extraction_model = type_specific_extraction_model.with_structured_output(
+        MechanismExplanation,
+        method="json_schema",
+        strict=True,
+    )
+    
+    try:
+        mechanism = await extraction_model.ainvoke(prompt)
+        logger.info(f"    ✓ MechanismExplanation extracted: {len(mechanism.pathway_steps)} pathway steps")
+        return mechanism
+    except Exception as e:
+        logger.error(f"    ✗ MechanismExplanation extraction failed: {e}")
+        return MechanismExplanation(
+            direction_id=direction_id,
+            mechanism_name="Unknown mechanism",
+            intervention="Unknown intervention",
+            target_outcome="Unknown outcome",
+            overall_plausibility="unknown",
+            evidence_strength="unknown",
+            animal_vs_human="Extraction failed, unable to determine.",
+        )
+
+
+async def extract_risk_benefit_profile(
+    direction: ResearchDirection,
+    evidence_result: EvidenceResearchResult,
+    state: EvidenceResearchState,
+) -> RiskBenefitProfile:
+    """Extract RiskBenefitProfile structured output."""
+    direction_id = direction.id
+    logger.info(f"    Extracting RiskBenefitProfile...")
+    
+    research_notes = "\n\n".join(state.get("research_notes", []))
+    evidence_result_summary = {
+        "short_answer": evidence_result.short_answer,
+        "long_answer": evidence_result.long_answer,
+        "key_points": evidence_result.key_points,
+    }
+    
+    # Infer intervention name from primary entities or title
+    intervention_name = direction.primary_entities[0] if direction.primary_entities else direction.title
+    
+    prompt = EXTRACT_RISK_BENEFIT_PROMPT.format(
+        direction_id=direction.id,
+        intervention_name=intervention_name,
+        key_outcomes=", ".join(direction.key_outcomes_of_interest) if direction.key_outcomes_of_interest else "N/A",
+        evidence_result_summary=json.dumps(evidence_result_summary, indent=2),
+        research_notes=research_notes[:5000],
+    )
+    
+    extraction_model = type_specific_extraction_model.with_structured_output(
+        RiskBenefitProfile,
+        method="json_schema",
+        strict=True,
+    )
+    
+    try:
+        risk_benefit = await extraction_model.ainvoke(prompt)
+        logger.info(f"    ✓ RiskBenefitProfile extracted: {len(risk_benefit.benefits)} benefits, {len(risk_benefit.risks)} risks")
+        return risk_benefit
+    except Exception as e:
+        logger.error(f"    ✗ RiskBenefitProfile extraction failed: {e}")
+        return RiskBenefitProfile(
+            direction_id=direction_id,
+            intervention_name=intervention_name,
+            intended_use="Unknown",
+            overall_assessment="insufficient_data",
+            assessment_rationale="Extraction failed, unable to assess risk-benefit profile.",
+            evidence_quality_overall="unknown",
+        )
+
+
+async def extract_comparative_analysis(
+    direction: ResearchDirection,
+    evidence_result: EvidenceResearchResult,
+    state: EvidenceResearchState,
+) -> ComparativeAnalysis:
+    """Extract ComparativeAnalysis structured output."""
+    direction_id = direction.id
+    logger.info(f"    Extracting ComparativeAnalysis...")
+    
+    research_notes = "\n\n".join(state.get("research_notes", []))
+    evidence_result_summary = {
+        "short_answer": evidence_result.short_answer,
+        "long_answer": evidence_result.long_answer,
+        "key_points": evidence_result.key_points,
+    }
+    
+    # Infer primary intervention from primary entities or title
+    primary_intervention = direction.primary_entities[0] if direction.primary_entities else direction.title
+    
+    prompt = EXTRACT_COMPARATIVE_ANALYSIS_PROMPT.format(
+        direction_id=direction.id,
+        primary_intervention=primary_intervention,
+        key_outcomes=", ".join(direction.key_outcomes_of_interest) if direction.key_outcomes_of_interest else "N/A",
+        evidence_result_summary=json.dumps(evidence_result_summary, indent=2),
+        research_notes=research_notes[:5000],
+    )
+    
+    extraction_model = type_specific_extraction_model.with_structured_output(
+        ComparativeAnalysis,
+        method="json_schema",
+        strict=True,
+    )
+    
+    try:
+        comparative = await extraction_model.ainvoke(prompt)
+        logger.info(f"    ✓ ComparativeAnalysis extracted: {len(comparative.comparators)} comparators")
+        return comparative
+    except Exception as e:
+        logger.error(f"    ✗ ComparativeAnalysis extraction failed: {e}")
+        return ComparativeAnalysis(
+            direction_id=direction_id,
+            primary_intervention=primary_intervention,
+            ranking_rationale="Extraction failed, unable to perform comparative analysis.",
+            evidence_quality="unknown",
+        )
+
+
+# ============================================================================
+# TYPE-SPECIFIC STRUCTURED EXTRACTION NODE
+# ============================================================================
+
+async def extract_type_specific_structures(state: EvidenceResearchState) -> EvidenceResearchState:
+    """
+    Extract type-specific structured outputs based on direction_type.
+    
+    Extracts ClaimValidation, MechanismExplanation, RiskBenefitProfile,
+    or ComparativeAnalysis depending on the research direction type.
+    """
+    direction = state["direction"]
+    direction_id = direction.id
+    direction_type = direction.direction_type
+    evidence_result = state.get("result")
+    
+    logger.info(f"")
+    logger.info(f"{'='*60}")
+    logger.info(f"🏷️  TYPE-SPECIFIC EXTRACTION [{direction_id}]")
+    logger.info(f"    Type: {direction_type.value}")
+    logger.info(f"    Title: {direction.title[:60]}{'...' if len(direction.title) > 60 else ''}")
+    logger.info(f"{'='*60}")
+    
+    if not evidence_result:
+        logger.warning(f"    No evidence result available for extraction!")
+        return {
+            "llm_calls": state.get("llm_calls", 0) + 1,
+        }
+    
+    structured_outputs: List[BaseModel] = []
+    
+    # Route to appropriate extraction function based on direction_type
+    if direction_type == ResearchDirectionType.CLAIM_VALIDATION:
+        claim_validation = await extract_claim_validation(direction, evidence_result, state)
+        structured_outputs.append(claim_validation)
+        
+        # Save individual output
+        await save_json_artifact(
+            claim_validation,
+            direction_id,
+            "claim_validation_final",
+        )
+        
+    elif direction_type == ResearchDirectionType.MECHANISM_EXPLANATION:
+        mechanism = await extract_mechanism_explanation(direction, evidence_result, state)
+        structured_outputs.append(mechanism)
+        
+        # Save individual output
+        await save_json_artifact(
+            mechanism,
+            direction_id,
+            "mechanism_explanation_final",
+        )
+        
+    elif direction_type == ResearchDirectionType.RISK_BENEFIT_PROFILE:
+        risk_benefit = await extract_risk_benefit_profile(direction, evidence_result, state)
+        structured_outputs.append(risk_benefit)
+        
+        # Save individual output
+        await save_json_artifact(
+            risk_benefit,
+            direction_id,
+            "risk_benefit_profile_final",
+        )
+        
+    elif direction_type == ResearchDirectionType.COMPARATIVE_EFFECTIVENESS:
+        comparative = await extract_comparative_analysis(direction, evidence_result, state)
+        structured_outputs.append(comparative)
+        
+        # Save individual output
+        await save_json_artifact(
+            comparative,
+            direction_id,
+            "comparative_analysis_final",
+        )
+    
+    else:
+        logger.warning(f"    Unknown direction_type: {direction_type}")
+    
+    # Log extraction summary
+    logger.info(f"✅ TYPE-SPECIFIC EXTRACTION complete:")
+    logger.info(f"    Extracted {len(structured_outputs)} structured output(s)")
+    for output in structured_outputs:
+        logger.info(f"    - {type(output).__name__}")
+    
     return {
-        "structured_outputs": all_outputs,
+        "structured_outputs": structured_outputs,
         "llm_calls": state.get("llm_calls", 0) + 1,
     }
 
-
 # ============================================================================
-# BUILD THE GRAPH
+# BUILD THE EVIDENCE RESEARCH SUBGRAPH
 # ============================================================================
 
-research_subgraph_builder = StateGraph(ResearchState)
+evidence_research_subgraph_builder = StateGraph(EvidenceResearchState)
 
-# Research loop nodes
-research_subgraph_builder.add_node("call_model", call_model)
-research_subgraph_builder.add_node("tool_node", tool_node)
-research_subgraph_builder.add_node("research_output_node", research_output_node)
+# Evidence research loop nodes
+evidence_research_subgraph_builder.add_node("call_evidence_model", call_evidence_model)
+evidence_research_subgraph_builder.add_node("evidence_tool_node", evidence_tool_node)
+evidence_research_subgraph_builder.add_node("evidence_output_node", evidence_output_node)
+evidence_research_subgraph_builder.add_node("extract_type_specific_structures", extract_type_specific_structures)
 
-# Entity extraction node (single-pass, no tool loop)
-research_subgraph_builder.add_node("extract_entities", extract_structured_entities)
-
-# Entry point
-research_subgraph_builder.set_entry_point("call_model")
+# Entry point - start with the evidence model
+evidence_research_subgraph_builder.set_entry_point("call_evidence_model")
 
 # LLM node conditionally goes to tool loop or to final output
-research_subgraph_builder.add_conditional_edges(
-    "call_model",
-    should_continue_research,
+evidence_research_subgraph_builder.add_conditional_edges(
+    "call_evidence_model",
+    should_continue_evidence_research,
     {
-        "tool_node": "tool_node",
-        "research_output_node": "research_output_node",
+        "evidence_tool_node": "evidence_tool_node",
+        "evidence_output_node": "evidence_output_node",
     },
 )
 
 # After tools, go back to the LLM
-research_subgraph_builder.add_edge("tool_node", "call_model") 
+evidence_research_subgraph_builder.add_edge("evidence_tool_node", "call_evidence_model")
 
-# After research output, extract entities then end
-research_subgraph_builder.add_edge("research_output_node", "extract_entities")
-research_subgraph_builder.add_edge("extract_entities", END)
+# After evidence output, extract type-specific structures then end
+evidence_research_subgraph_builder.add_edge("evidence_output_node", "extract_type_specific_structures")
+evidence_research_subgraph_builder.add_edge("extract_type_specific_structures", END)
 
-# Compile subgraph
-# research_subgraph = research_subgraph_builder.compile()
+# Compile evidence research subgraph
+# evidence_research_subgraph = evidence_research_subgraph_builder.compile()
+
+# logger.info("✅ Evidence Research Subgraph compiled successfully!")
+# logger.info(f"    Nodes: {list(evidence_research_subgraph.nodes.keys())}")
+# logger.info(f"    Entry point: call_evidence_model")
+# logger.info(f"    Exit point: extract_type_specific_structures → END")

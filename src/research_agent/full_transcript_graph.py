@@ -4,7 +4,9 @@ import asyncio
 import json
 from uuid import uuid4
 from pathlib import Path
-from typing import Optional, Tuple, List, Dict, Any, TypedDict, Literal, cast  
+from typing import Optional, Union, Tuple, List, Dict, Any, TypedDict, Literal, cast   
+import operator 
+from typing_extensions import Annotated 
 from langchain_core.prompts import PromptTemplate 
 
 from dotenv import load_dotenv
@@ -20,6 +22,7 @@ from langgraph.store.base import BaseStore
 from graphql_client.async_base_client import AsyncBaseClient   
 from urllib.parse import urlparse     
 from research_agent.entity_intel_subgraph import entity_intel_subgraph_builder, EntityIntelResearchState    
+from research_agent.evidence_research_subgraph import evidence_research_subgraph_builder, EvidenceResearchState    
 from research_agent.prompts.research_directions_prompts import RESEARCH_DIRECTIONS_SYSTEM_PROMPT, RESEARCH_DIRECTIONS_USER_PROMPT 
 from research_agent.retrieval.async_mongo_client import get_episode, EpisodeDoc 
 from research_agent.retrieval.async_s3_client import get_transcript_text_from_s3_url   
@@ -43,7 +46,9 @@ from research_agent.output_models import (
     ResearchDirectionType, 
     EntitiesIntelResearchResult,  
     EvidenceResearchResult 
-) 
+)  
+
+from research_agent.graph_states.evidence_research_subgraph import EvidenceResearchResult
 from research_agent.prompts.prompts import (
     SUMMARY_SYSTEM_PROMPT, 
     summary_only_prompt,
@@ -141,24 +146,51 @@ general_model = ChatOpenAI(
 openai_search_tool = {"type": "web_search"}  # passed into create_agent tools 
 
 
-
+DirectionResearchResult = Union[EvidenceResearchResult, EntitiesIntelResearchResult] 
 
 class TranscriptGraph(TypedDict, total=False):
+    # Core episode context
     episode_meta: Dict[str, Any]
     webpage_summary: str
-    full_transcript: str 
-    initial_transcript_output: TranscriptSummaryOutput  
+    full_transcript: str
+    initial_transcript_output: TranscriptSummaryOutput
     attribution_quotes: List[AttributionQuote]
     research_directions: List[ResearchDirection]
 
-    # outputs of the per-direction subgraphs 
-    entity_intel_results: List[EntitiesIntelResearchResult] 
-    evidence_results: List[EvidenceResearchResult] # Configure later on with exact 
+    evidence_direction_results: Annotated[
+        List[EvidenceResearchResult],
+        operator.add
+    ]
 
-    entity_intel_structured_outputs: List[BaseModel] # Configure later on with exact 
-    evidence_structured_outputs: List[BaseModel] # Configure later on with exact   
+    # Entity-intel-only direction-level results
+    entity_direction_results: Annotated[
+        List[EntitiesIntelResearchResult],
+        operator.add
+    ]
 
-   
+    # Evidence-only structured outputs (e.g., EvidenceItem, progress snapshots, etc.)
+    evidence_structured_outputs: Annotated[
+        List[BaseModel],   # or List[EvidenceItem] if you want to be strict
+        operator.add
+    ]
+
+    # Entity-intel-only structured outputs (e.g., ExtractedEntityBase)
+    entity_structured_outputs: Annotated[
+        List[BaseModel],   # or List[ExtractedEntityBase] if you want to be strict
+        operator.add
+    ]
+
+    # Combined direction-level results across ALL directions
+    direction_results: Annotated[
+        List[DirectionResearchResult],  # Union[EvidenceResearchResult, EntitiesIntelResearchResult]
+        operator.add
+    ]
+
+    # Combined structured outputs across ALL directions
+    direction_structured_outputs: Annotated[
+        List[BaseModel],
+        operator.add
+    ]
 
 
 # -----------------------------------------------------------------------------
@@ -236,69 +268,92 @@ def create_initial_subgraph_state(
             result=None, 
         ) 
     else: 
-        return EntityIntelResearchState( 
+        return EvidenceResearchState( 
             messages=[], 
             llm_calls=0, 
             tool_calls=0, 
             direction=direction,
             episode_context=episode_context,
-            research_notes=[],
+            research_notes=[], 
+            evidence_items=[],
             citations=[],
             file_refs=[], 
-            steps_taken=0,
+            steps_taken=0, 
+            summaries_written=0,
+            claim_validation_progress=[],
+            mechanism_explanation_progress=[],
+            risk_benefit_progress=[],
+            comparative_progress=[],
             structured_outputs=[], 
             result=None, 
         )
+
+
+class SingleDirectionRunResult(TypedDict):
+    kind: Literal["evidence", "entity"]
+    direction: ResearchDirection
+    result: DirectionResearchResult | None   
+    structured_outputs: List[BaseModel]      # will down-cast later as needed
+
 
 async def run_single_direction(
     direction: ResearchDirection,
     episode_context: str,
     semaphore: asyncio.Semaphore,
-) -> Tuple[DirectionResearchResult | None, list[ExtractedEntityBase]]:
+) -> SingleDirectionRunResult:
     """
-    Run the appropriate subgraph (evidence or entity) for a single ResearchDirection
-    and return (result, structured_outputs).
+    Run the appropriate subgraph (evidence or entity) for a single ResearchDirection.
+    Returns a tagged result so the caller knows which subgraph produced it.
     """
     async with semaphore:
-        # Choose which subgraph to use
         subgraph_kind = select_subgraph_for_direction(direction)
+
         if subgraph_kind == "evidence":
-            subgraph = evidence_research_subgraph 
-            # create evidence type state 
+            # Evidence-specific subgraph + state
+            subgraph = evidence_research_subgraph_builder.compile()
+            initial_child_state: EvidenceResearchState = create_initial_subgraph_state(
+                subgraph_type="evidence",
+                direction=direction,
+                episode_context=episode_context,
+            )
+
+            # mypy/pyright can't infer the generic here, so we cast to the specific state type
+            child_final = cast(
+                EvidenceResearchState,
+                await subgraph.ainvoke(initial_child_state),
+            )
+
         else:
-            subgraph = entity_intel_subgraph 
-            # Create entity intel type state  
+            # Entity-intel-specific subgraph + state
+            subgraph = entity_intel_subgraph_builder.compile()
+            initial_child_state: EntityIntelResearchState = create_initial_subgraph_state(
+                subgraph_type="entity",
+                direction=direction,
+                episode_context=episode_context,
+            )
 
-        # Initial child state for that subgraph 
-        # intialize initial child state as either 
-        initial_child_state: ResearchState = {
-            "messages": [],
-            "llm_calls": 0,
-            "tool_calls": 0,
-            "direction": direction,
-            "episode_context": episode_context,
-            "research_notes": [],
-            "citations": [],
-            "file_refs": [],
-            "steps_taken": 0,
-            "structured_outputs": [],
-        }
+            child_final = cast(
+                EntityIntelResearchState,
+                await subgraph.ainvoke(initial_child_state),
+            )
 
-        child_final: ResearchState = cast(
-            ResearchState,
-            await subgraph.ainvoke(initial_child_state),
-        )
-
+        # Extract result (may be None if the graph never set it)
         result: DirectionResearchResult | None = None
         if "result" in child_final and child_final["result"] is not None:
-            result = child_final["result"]
+            # At runtime this is either EvidenceResearchResult or EntitiesIntelResearchResult
+            result = child_final["result"]  # type: ignore[assignment]
 
-        structured_outputs: list[ExtractedEntityBase] = []
+        # Extract any structured outputs accumulated along the way
+        structured_outputs: List[BaseModel] = []
         if "structured_outputs" in child_final and child_final["structured_outputs"]:
-            structured_outputs = list(child_final["structured_outputs"])
+            structured_outputs = list(child_final["structured_outputs"])  # type: ignore[list-item]
 
-        return result, structured_outputs
-
+        return SingleDirectionRunResult(
+            kind=subgraph_kind,
+            direction=direction,
+            result=result,
+            structured_outputs=structured_outputs,
+        )
 
 # -----------------------------------------------------------------------------
 # Graph Nodes
@@ -463,17 +518,23 @@ async def generate_research_directions(state: TranscriptGraph) -> TranscriptGrap
 
 
 
-research_subgraph: "CompiledStateGraph" = research_subgraph_builder.compile() 
 
 async def run_research_directions(state: TranscriptGraph) -> TranscriptGraph:
     """
     For each ResearchDirection in the episode, run the appropriate subgraph
     (EvidenceResearchSubgraph or EntityIntelSubgraph) and aggregate results.
     All directions are processed in parallel with bounded concurrency.
+
+    Returns subgraph-specific aggregates so downstream consumers can easily
+    distinguish evidence vs entity intel outputs.
     """
     directions: List[ResearchDirection] = state.get("research_directions", []) or []
     if not directions:
         return {
+            "evidence_direction_results": [],
+            "entity_direction_results": [],
+            "evidence_structured_outputs": [],
+            "entity_structured_outputs": [],
             "direction_results": [],
             "direction_structured_outputs": [],
         }
@@ -490,24 +551,59 @@ async def run_research_directions(state: TranscriptGraph) -> TranscriptGraph:
     ]
 
     # Run all directions concurrently (bounded by semaphore)
-    results: list[Tuple[DirectionResearchResult | None, list[ExtractedEntityBase]]] = (
-        await asyncio.gather(*tasks)
-    )
+    results: list[SingleDirectionRunResult] = await asyncio.gather(*tasks)
 
+    # Subgraph-specific buckets
+    evidence_direction_results: list[EvidenceResearchResult] = []
+    entity_direction_results: list[EntitiesIntelResearchResult] = []
+
+    evidence_structured_outputs: list[BaseModel] = []
+    entity_structured_outputs: list[ExtractedEntityBase] = []
+
+    # Optional combined views if you still want them
     all_direction_results: list[DirectionResearchResult] = []
-    all_structured_outputs: list[ExtractedEntityBase] = []
+    all_structured_outputs: list[BaseModel] = []
 
-    for direction_result, structured in results:
-        if direction_result is not None:
-            all_direction_results.append(direction_result)
+    for r in results:
+        kind = r["kind"]
+        result = r["result"]
+        structured = r["structured_outputs"]
+
+        # Combined
+        if result is not None:
+            all_direction_results.append(result)
         if structured:
             all_structured_outputs.extend(structured)
 
+        # Subgraph-specific
+        if kind == "evidence":
+            if result is not None:
+                evidence_direction_results.append(
+                    cast(EvidenceResearchResult, result)
+                )
+            if structured:
+                evidence_structured_outputs.extend(structured)
+        else:  # "entity"
+            if result is not None:
+                entity_direction_results.append(
+                    cast(EntitiesIntelResearchResult, result)
+                )
+            if structured:
+                # we know entity subgraph uses ExtractedEntityBase; cast accordingly
+                entity_structured_outputs.extend(
+                    cast(list[ExtractedEntityBase], structured)
+                )
+
     return {
+        # Subgraph-specific
+        "evidence_direction_results": evidence_direction_results,
+        "entity_direction_results": entity_direction_results,
+        "evidence_structured_outputs": evidence_structured_outputs,
+        "entity_structured_outputs": entity_structured_outputs,
+        # Optional combined views (keep if other parts of the graph expect them)
         "direction_results": all_direction_results,
         "direction_structured_outputs": all_structured_outputs,
     }
-
 
 
 # Guest Output should go to subgraph with wikipedia tool in addition to firecrawl and tavily or just go to another node in this graph 

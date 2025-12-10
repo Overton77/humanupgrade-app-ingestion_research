@@ -186,6 +186,24 @@ class ResearchEntities(BaseModel):
     )
 
 
+class EvidenceResearchEntities(BaseModel):
+    """
+    Container for all entities extracted from a single research direction.
+    
+    Used for single-pass structured extraction instead of tool loops.
+    """
+    case_studies: List[CaseStudyOutput] = Field(
+        default_factory=list,
+        description="Clinical evidence, studies, trials"
+    )  
+
+    compounds: List[CompoundOutput] = Field(
+        default_factory=list,
+        description="Bioactive compounds, supplements, molecules"
+    ) 
+
+
+
 # ============================================================================
 # TRANSCRIPT & GUEST MODELS (existing)
 # ============================================================================ 
@@ -419,11 +437,6 @@ class EntitiesIntelResearchResult(BaseModel):
 
 
 
-class EvidenceResearchResult(BaseModel):
-    direction_id: str
-    extensive_summary: str
-    key_findings: List[str]
-    citations: List[str]          
 
 class ResearchDirectionType(str, Enum):
     """
