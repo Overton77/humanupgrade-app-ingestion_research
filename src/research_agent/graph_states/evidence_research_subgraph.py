@@ -2,8 +2,24 @@ from typing import Optional, Literal, List
 from pydantic import BaseModel, Field 
 from datetime import datetime
 from enum import Enum 
-from research_agent.output_models import GeneralCitation, EvidenceStrength, EvidenceItem 
-import uuid 
+import uuid  
+
+
+class EvidenceStrength(str, Enum):
+    LOW = "low"
+    MODERATE = "moderate"
+    HIGH = "high"
+    UNKNOWN = "unknown" 
+
+
+class EvidenceItem(BaseModel):
+    study_title: str
+    citation: str              # e.g. "Author et al., Journal, Year"
+    link: Optional[str] = None # PubMed / DOI / etc.
+    population: Optional[str] = None
+    design: Optional[str] = None  # RCT, cohort, animal, in vitro
+    key_finding: str
+    relevance_to_claim: str
 
 class ClaimValidation(BaseModel):
     """Structured validation output for a claim."""
@@ -235,34 +251,6 @@ class ComparativeAnalysis(BaseModel):
     ) 
 
 
-
-
-
-
-
-
-
-
-
-    
-
-class EvidenceStrength(str):
-    LOW = "low"
-    MODERATE = "moderate"
-    HIGH = "high"
-    UNKNOWN = "unknown"
-
-
-class EvidenceItem(BaseModel):
-    study_title: str
-    citation: str              # e.g. "Author et al., Journal, Year"
-    link: Optional[str] = None # PubMed / DOI / etc.
-    population: Optional[str] = None
-    design: Optional[str] = None  # RCT, cohort, animal, in vitro
-    key_finding: str
-    relevance_to_claim: str
-
-
 class AdviceSnippet(BaseModel):
     id: str
     audience: str          # "general_adult", "men_over_40", etc.
@@ -270,6 +258,18 @@ class AdviceSnippet(BaseModel):
     nuance: str            # short explanation / caveats
     evidence_strength: EvidenceStrength
     related_entities: List[str]  # e.g. ["Spirulina", "ENERGYbits", "Longevity"]
+
+
+class AdviceSnippets(BaseModel):
+    advice_snippets: List[AdviceSnippet] 
+
+class EvidenceResearchOutput(BaseModel):  
+    short_answer: str      # 2–3 sentence answer
+    long_answer: str       # paragraph(s) for article-level content
+    evidence_strength: EvidenceStrength
+    key_points: List[str]  # bullets for UI
+    evidence_items: List[EvidenceItem]   
+
 
 class EvidenceResearchResult(BaseModel):
     direction_id: str      # links back to ResearchDirection.id

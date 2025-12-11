@@ -1,5 +1,5 @@
 from langgraph.graph import StateGraph, START, END  
-from langgraph.prebuilt import ToolNode, InjectedState  
+from langgraph.prebuilt import ToolNode 
 from typing_extensions import TypedDict, Annotated  
 from typing import List, Dict, Any, Optional, Sequence, Literal, Union
 from enum import Enum 
@@ -37,39 +37,22 @@ from research_agent.prompts.entity_researcher_prompts import (
 ) 
 from research_agent.prompts.structured_output_prompts import ENTITY_EXTRACTION_PROMPT
 from research_agent.output_models import (
-    DirectionResearchResult, 
     ResearchDirection,
     ResearchEntities,
     EntitiesIntelResearchResult, 
     GeneralCitation, 
     EntityIntelSummary,  
     EntityType, 
-    TavilyCitation, 
-    FirecrawlCitation, 
     TavilyResultsSummary,
-    FirecrawlResultsSummary 
-)
+    FirecrawlResultsSummary, 
+    EntityIntelResearchOutput
+) 
 
-# ============================================================================
-# LOGGING SETUP
-# ============================================================================
+from research_agent.common.logging_utils import get_logger  
 
-# Configure logger for the research subgraph
-logger = logging.getLogger("entity_intel_subgraph")
-logger.setLevel(logging.DEBUG)
+logger = get_logger(__name__)
 
-# Console handler with colored output
-console_handler = logging.StreamHandler()
-console_handler.setLevel(logging.INFO)
-console_format = logging.Formatter(
-    "%(asctime)s | %(levelname)-8s | %(message)s",
-    datefmt="%H:%M:%S"
-)
-console_handler.setFormatter(console_format)
 
-# Only add handler if not already added (prevents duplicate logs on reimport)
-if not logger.handlers:
-    logger.addHandler(console_handler)
 
 # Base output directory for research artifacts
 ENTITY_INTEL_OUTPUT_DIR = "entity_intel_outputs" 
@@ -271,7 +254,7 @@ class EntityIntelResearchState(TypedDict, total=False):
     result: EntitiesIntelResearchResult
 
 
-async def summarize_tavily_web_search(search_results: str, direction_id: str = "unknown") -> TavilyResultsSummary:  
+async def summarize_tavily_web_search(search_results: str, direction_id: str = uuid.uuid4()) -> TavilyResultsSummary:  
     logger.info(f"📝 Summarizing Tavily search results (input length: {len(search_results)} chars)")
     
     agent_instructions = TAVILY_SUMMARY_PROMPT.format(search_results=search_results) 
@@ -298,7 +281,7 @@ async def summarize_tavily_web_search(search_results: str, direction_id: str = "
     return summary
 
 
-async def summarize_firecrawl_scrape(search_results: str, direction_id: str = "unknown") -> FirecrawlResultsSummary:  
+async def summarize_firecrawl_scrape(search_results: str, direction_id: str = uuid.uuid4()) -> FirecrawlResultsSummary:  
     logger.info(f"📝 Summarizing Firecrawl scrape results (input length: {len(search_results)} chars)")
     
     agent_instructions = FIRECRAWL_SCRAPE_PROMPT.format(search_results=search_results) 
@@ -682,11 +665,11 @@ async def write_entity_intel_summary_tool(
     # Write a compact note for in-context reflection
     compact_note = (
         f"[ENTITY SUMMARY: {entity_name} ({entity_type})]\n"
-        f"Summary: {synthesis_summary[:300]}...\n"
-        f"Sources: {', '.join(summary.key_sources[:3]) or 'None'}\n"
-        f"Claims: {', '.join(onsite_efficacy_claims[:3]) or 'None'}\n"
-        f"Open Questions: {', '.join(summary.open_questions[:3]) or 'None'}\n"
-        f"Related: {', '.join(summary.related_entities[:3]) or 'None'}\n"
+        f"Summary: {synthesis_summary}...\n"
+        f"Sources: {', '.join([c.url for c in summary.key_source_citations[:8]]) if summary.key_source_citations else 'None'}\n"
+        f"Claims: {', '.join(onsite_efficacy_claims) or 'None'}\n"
+        f"Open Questions: {', '.join(summary.open_questions) or 'None'}\n"
+        f"Related: {', '.join(summary.related_entities) or 'None'}\n"
     )  
 
     research_notes = runtime.state.get("research_notes", []) or []
@@ -697,7 +680,7 @@ async def write_entity_intel_summary_tool(
     return (
         f"✓ Entity summary saved for '{entity_name}'\n"
         f"  File: {filename}\n"
-        f"  Key Sources: {len(summary.key_sources)}\n"
+        f"  Key Sources: {len(summary.key_source_citations)}\n"
         f"  Efficacy Claims: {len(summary.onsite_efficacy_claims)}\n"
         f"  Open Questions: {len(summary.open_questions)}"
     )
@@ -754,7 +737,7 @@ def format_list_for_prompt(items: List[str], bullet: str = "-", empty_msg: str =
 # Uses ENTITY_INTEL_RESEARCH_PROMPT on first call (llm_calls == 0)
 # Switches to ENTITY_INTEL_REMINDER_PROMPT after first call (llm_calls > 0)
 
-async def call_model(state: EntityIntelResearchState) -> EntityIntelResearchState:
+async def call_entity_intel_model(state: EntityIntelResearchState) -> EntityIntelResearchState:
     """
     LLM decides what to do next for this entity intel research direction.
     
@@ -1004,8 +987,6 @@ async def research_output_node(state: EntityIntelResearchState) -> EntityIntelRe
     logger.info(f"")
     logger.info(f"{'='*60}")
     logger.info(f"📊 RESEARCH OUTPUT NODE [{direction_id}]")
-    logger.info(f"    Topic: {direction.topic[:60]}{'...' if len(direction.topic) > 60 else ''}")
-    logger.info(f"    Aggregating: {len(file_refs)} file refs, {len(notes)} notes, {len(citations)} citations")
     logger.info(f"{'='*60}")
 
     # Aggregate intermediate summaries from files
@@ -1072,39 +1053,41 @@ async def research_output_node(state: EntityIntelResearchState) -> EntityIntelRe
     # Use strong model with structured output
     result_agent = create_agent(
         research_result_model,
-        response_format=EntitiesIntelResearchResult,
+        response_format=EntityIntelResearchOutput,
     )
 
     agent_response = await result_agent.ainvoke(
         {"messages": [{"role": "user", "content": prompt}]}
     )
 
-    entities_intel_result: EntitiesIntelResearchResult = agent_response["structured_response"]
+    entities_intel_result: EntityIntelResearchOutput = agent_response["structured_response"] 
 
-    # Ensure we don't lose citations from state if the model omits them
-    if not entities_intel_result.citations:
-        entities_intel_result.citations = citations
+    final_entity_intel_result: EntitiesIntelResearchResult = EntitiesIntelResearchResult(
+        direction_id=direction_id,
+        extensive_summary=entities_intel_result.extensive_summary,
+        entity_intel_ids=entities_intel_result.entity_intel_ids,
+        key_findings=entities_intel_result.key_findings,
+        key_source_citations=entities_intel_result.key_source_citations,
+    )
 
-    # We still know the direction_id here; set it if the model left it blank
-    if not entities_intel_result.direction_id:
-        entities_intel_result.direction_id = direction.id
+
     
     # Log result summary
     logger.info(f"✅ RESEARCH OUTPUT complete:")
-    logger.info(f"    Summary length: {len(entities_intel_result.extensive_summary) if entities_intel_result.extensive_summary else 0} chars")
-    logger.info(f"    Key findings: {len(entities_intel_result.key_findings) if entities_intel_result.key_findings else 0}")
-    logger.info(f"    Confidence: {entities_intel_result.confidence_score if hasattr(entities_intel_result, 'confidence_score') else 'N/A'}")
+    logger.info(f"    Summary length: {len(final_entity_intel_result.extensive_summary) if final_entity_intel_result.extensive_summary else 0} chars")
+    logger.info(f"    Key findings: {len(final_entity_intel_result.key_findings) if final_entity_intel_result.key_findings else 0}")
+    logger.info(f"    Confidence: {final_entity_intel_result.confidence_score if hasattr(final_entity_intel_result, 'confidence_score') else 'N/A'}")
     
     # Save the final research result
     await save_json_artifact(
-        entities_intel_result,
+        final_entity_intel_result,
         direction_id,
-        "entities_intel_result_final",
+        "final_entity_intel_result_final",
     )
 
     # Only update the parts we intend to change; LangGraph will merge this into state.
     return {
-        "result": entities_intel_result,
+        "result": final_entity_intel_result,
     }
 
 
@@ -1174,7 +1157,7 @@ async def extract_structured_entities(state: EntityIntelResearchState) -> Entity
     logger.info(f"")
     logger.info(f"{'='*60}")
     logger.info(f"🏷️  ENTITY EXTRACTION [{direction_id}]")
-    logger.info(f"    Topic: {direction.topic[:60]}{'...' if len(direction.topic) > 60 else ''}")
+    logger.info(f"    Title: {direction.title[:60]}{'...' if len(direction.title) > 60 else ''}")
     logger.info(f"{'='*60}")
     
     # Build the extraction prompt
@@ -1186,7 +1169,10 @@ async def extract_structured_entities(state: EntityIntelResearchState) -> Entity
         if result and result.key_findings 
         else "(no key findings)"
     )
-    citations_text = "\n".join(key_source_citations) if key_source_citations else "(no citations collected)"
+    citations_text = "\n".join(
+        f"- {c.title}: {c.url}" if c.title else f"- {c.url}"
+        for c in key_source_citations
+    ) if key_source_citations else "(no citations collected)"
     
     logger.info(f"    Input summary length: {len(extensive_summary)} chars")
     logger.info(f"    Key findings count: {len(result.key_findings) if result and result.key_findings else 0}")
@@ -1203,7 +1189,7 @@ async def extract_structured_entities(state: EntityIntelResearchState) -> Entity
         response_format=ResearchEntities,  
     )
     
-    # Use .with_structured_output() for deterministic extraction
+
     
     try:
         logger.info(f"    Extracting entities...")
@@ -1222,32 +1208,22 @@ async def extract_structured_entities(state: EntityIntelResearchState) -> Entity
         )
         entities = ResearchEntities()
     
-    # Collect all extracted entities and ensure direction_id is set
+    # Collect all extracted entities
     all_outputs: List[BaseModel] = []
     
     for business in entities.businesses:
-        if not business.direction_id or business.direction_id == "":
-            business.direction_id = direction.id
         all_outputs.append(business)
     
     for product in entities.products:
-        if not product.direction_id or product.direction_id == "":
-            product.direction_id = direction.id
         all_outputs.append(product)
     
     for person in entities.people:
-        if not person.direction_id or person.direction_id == "":
-            person.direction_id = direction.id
         all_outputs.append(person)
     
     for compound in entities.compounds:
-        if not compound.direction_id or compound.direction_id == "":
-            compound.direction_id = direction.id
         all_outputs.append(compound)
     
     for case_study in entities.case_studies:
-        if not case_study.direction_id or case_study.direction_id == "":
-            case_study.direction_id = direction.id
         all_outputs.append(case_study)
     
     # Log extraction results
@@ -1285,7 +1261,7 @@ async def extract_structured_entities(state: EntityIntelResearchState) -> Entity
 entity_intel_subgraph_builder = StateGraph(EntityIntelResearchState)
 
 # Entity intel research loop nodes
-entity_intel_subgraph_builder.add_node("call_model", call_model)
+entity_intel_subgraph_builder.add_node("call_entity_intel_model", call_entity_intel_model)
 entity_intel_subgraph_builder.add_node("tool_node", tool_node)
 entity_intel_subgraph_builder.add_node("entity_intel_output_node", research_output_node)
 
@@ -1293,11 +1269,11 @@ entity_intel_subgraph_builder.add_node("entity_intel_output_node", research_outp
 entity_intel_subgraph_builder.add_node("extract_entities", extract_structured_entities)
 
 # Entry point
-entity_intel_subgraph_builder.set_entry_point("call_model")
+entity_intel_subgraph_builder.set_entry_point("call_entity_intel_model")
 
 # LLM node conditionally goes to tool loop or to final output
 entity_intel_subgraph_builder.add_conditional_edges(
-    "call_model",
+    "call_entity_intel_model",
     should_continue_entity_intel,
     {
         "tool_node": "tool_node",
@@ -1306,7 +1282,7 @@ entity_intel_subgraph_builder.add_conditional_edges(
 )
 
 # After tools, go back to the LLM
-entity_intel_subgraph_builder.add_edge("tool_node", "call_model") 
+entity_intel_subgraph_builder.add_edge("tool_node", "call_entity_intel_model") 
 
 # After entity intel output, extract entities then end
 entity_intel_subgraph_builder.add_edge("entity_intel_output_node", "extract_entities")

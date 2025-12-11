@@ -2,6 +2,7 @@ from typing import Optional, Literal, List
 from pydantic import BaseModel, Field 
 from datetime import datetime
 from enum import Enum
+import uuid
 
 
 # ============================================================================
@@ -428,6 +429,13 @@ class EntityIntelSummary(BaseModel):
     )
 
 
+class EntityIntelResearchOutput(BaseModel):  
+    extensive_summary: str 
+    entity_intel_ids: List[str]
+    key_findings: List[str]
+    key_source_citations: Optional[List[GeneralCitation]] = None 
+
+
 class EntitiesIntelResearchResult(BaseModel):
     direction_id: str
     extensive_summary: str 
@@ -470,7 +478,6 @@ class ResearchDirection(BaseModel):
       - ["person:catharine_arnston", "product:energybits", "business:energybits"]
       - ["compound:spirulina", "compound:chlorella"]
     """
-
     id: str = Field(..., description="Stable ID for this research direction.")
     episode_id: str = Field(..., description="Podcast episode ID this direction comes from.")
 
@@ -546,6 +553,8 @@ class ResearchDirection(BaseModel):
             "be allowed to take for this direction. 10 is the default upper bound."
         ),
     )
+
+
 
 
 class ResearchDirectionOutput(BaseModel):  

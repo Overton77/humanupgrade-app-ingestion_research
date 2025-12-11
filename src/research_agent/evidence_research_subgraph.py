@@ -67,28 +67,13 @@ from research_agent.graph_states.evidence_research_subgraph import (
     ComparativeAnalysis,
     EvidenceItem,
     AdviceSnippet,
+    AdviceSnippets, 
+    EvidenceResearchOutput, 
 )
 
-# ============================================================================
-# LOGGING SETUP
-# ============================================================================
+from research_agent.common.logging_utils import get_logger  
 
-# Configure logger for the research subgraph
-logger = logging.getLogger("evidence_research_subgraph")
-logger.setLevel(logging.DEBUG)
-
-# Console handler with colored output
-console_handler = logging.StreamHandler()
-console_handler.setLevel(logging.INFO)
-console_format = logging.Formatter(
-    "%(asctime)s | %(levelname)-8s | %(message)s",
-    datefmt="%H:%M:%S"
-)
-console_handler.setFormatter(console_format)
-
-# Only add handler if not already added (prevents duplicate logs on reimport)
-if not logger.handlers:
-    logger.addHandler(console_handler)
+logger = get_logger(__name__)
 
 # Base output directory for research artifacts
 EVIDENCE_RESEARCH_OUTPUT_DIR = "evidence_research_outputs" 
@@ -762,7 +747,7 @@ async def write_evidence_summary_tool(
     # Create the EvidenceIntermediateSummary model
     summary = EvidenceIntermediateSummary(
         direction_id=direction_id,
-        direction_type=direction_type.value if direction_type else "unknown",
+        direction_type=direction_type if direction_type else ResearchDirectionType.CLAIM_VALIDATION,
         topic_focus=topic_focus,
         synthesis=synthesis,
         confidence=confidence,
@@ -852,7 +837,7 @@ async def write_evidence_summary_tool(
         f"Confidence: {confidence}\n\n"
         f"{synthesis}\n\n"
         f"Open Questions: {'; '.join(open_questions) if open_questions else 'None'}\n"
-        f"Key Sources: {', '.join(key_sources[:3]) if key_sources else 'None cited'}"
+        f"Key Sources: {', '.join(key_sources) if key_sources else 'None cited'}"
         f"{progress_str}"
         f"{next_steps_str}"
     )
@@ -868,7 +853,7 @@ async def write_evidence_summary_tool(
         f"✓ Evidence summary written to {filename}\n"
         f"  Topic: {topic_focus}\n"
         f"  Confidence: {confidence}\n"
-        f"  Open questions: {len(open_questions)}\n"
+        f"  Open questions: {', '.join(open_questions) if open_questions else 'None'}\n"
         f"  Progress tracked: {bool(progress_update)}\n\n"
         f"Continue researching other aspects or stop if you have sufficient evidence."
     )
@@ -1144,7 +1129,7 @@ advice_snippet_model = ChatOpenAI(
 async def generate_advice_snippets(
     evidence_result: EvidenceResearchResult,
     direction: ResearchDirection,
-) -> List[AdviceSnippet]:
+) -> AdviceSnippets:
     """
     Generate actionable advice snippets from the evidence research result.
     """
@@ -1172,7 +1157,7 @@ async def generate_advice_snippets(
     try:
         advice_agent = create_agent(
             advice_snippet_model,
-            response_format=List[AdviceSnippet],
+            response_format=AdviceSnippets,
         )
         
         response = await advice_agent.ainvoke(
@@ -1180,11 +1165,11 @@ async def generate_advice_snippets(
         )
         
         snippets = response["structured_response"]
-        logger.info(f"    ✓ Generated {len(snippets)} advice snippets")
+        logger.info(f"    ✓ Generated {len(snippets.advice_snippets)} advice snippets")
         return snippets
     except Exception as e:
         logger.error(f"    ✗ Failed to generate advice snippets: {e}")
-        return []
+        return AdviceSnippets(advice_snippets=[])
 
 
 async def evidence_output_node(state: EvidenceResearchState) -> EvidenceResearchState:
@@ -1264,42 +1249,52 @@ async def evidence_output_node(state: EvidenceResearchState) -> EvidenceResearch
     # Use strong model with structured output
     evidence_agent = create_agent(
         evidence_result_model,
-        response_format=EvidenceResearchResult,
+        response_format=EvidenceResearchOutput,
     )
 
     agent_response = await evidence_agent.ainvoke(
         {"messages": [{"role": "user", "content": prompt}]}
     )
 
-    evidence_result: EvidenceResearchResult = agent_response["structured_response"]
+    evidence_result: EvidenceResearchOutput = agent_response["structured_response"] 
+
+    
 
     # Ensure direction_id is set
-    if not evidence_result.direction_id:
-        evidence_result.direction_id = direction.id
+    
     
     # Generate advice snippets
-    advice_snippets = await generate_advice_snippets(evidence_result, direction)
-    evidence_result.advice_snippets = advice_snippets
+    advice_snippet = await generate_advice_snippets(evidence_result, direction)
+    
+    final_evidence_result: EvidenceResearchResult = EvidenceResearchResult(
+        direction_id=direction.id,
+        short_answer=evidence_result.short_answer,
+        long_answer=evidence_result.long_answer,
+        evidence_strength=evidence_result.evidence_strength,
+        key_points=evidence_result.key_points,
+        advice_snippets=advice_snippet.advice_snippets,
+        evidence_items=evidence_result.evidence_items,
+    )
     
     # Log result summary
     logger.info(f"✅ EVIDENCE OUTPUT complete:")
-    logger.info(f"    Short answer length: {len(evidence_result.short_answer) if evidence_result.short_answer else 0} chars")
-    logger.info(f"    Long answer length: {len(evidence_result.long_answer) if evidence_result.long_answer else 0} chars")
-    logger.info(f"    Key points: {len(evidence_result.key_points) if evidence_result.key_points else 0}")
-    logger.info(f"    Evidence items: {len(evidence_result.evidence_items) if evidence_result.evidence_items else 0}")
-    logger.info(f"    Advice snippets: {len(evidence_result.advice_snippets) if evidence_result.advice_snippets else 0}")
-    logger.info(f"    Evidence strength: {evidence_result.evidence_strength}")
+    logger.info(f"    Short answer length: {len(final_evidence_result.short_answer) if final_evidence_result.short_answer else 0} chars")
+    logger.info(f"    Long answer length: {len(final_evidence_result.long_answer) if final_evidence_result.long_answer else 0} chars")
+    logger.info(f"    Key points: {len(final_evidence_result.key_points) if final_evidence_result.key_points else 0}")
+    logger.info(f"    Evidence items: {len(final_evidence_result.evidence_items) if final_evidence_result.evidence_items else 0}")
+    logger.info(f"    Advice snippets: {len(final_evidence_result.advice_snippets) if final_evidence_result.advice_snippets else 0}")
+    logger.info(f"    Evidence strength: {final_evidence_result.evidence_strength}")
     
     # Save the final evidence result
     await save_json_artifact(
-        evidence_result,
+        final_evidence_result,
         direction_id,
-        "evidence_result_final",
+        "final_evidence_result_final",
     )
 
     # Only update the parts we intend to change; LangGraph will merge this into state.
     return {
-        "result": evidence_result,
+        "result": final_evidence_result,
     }
 
 
@@ -1376,7 +1371,7 @@ async def extract_claim_validation(
                 "finding": ei.key_finding,
                 "design": ei.design,
             }
-            for ei in evidence_result.evidence_items[:10]  # Limit to avoid token overflow
+            for ei in evidence_result.evidence_items[:10]  
         ] if evidence_result.evidence_items else [],
     }
     
@@ -1388,16 +1383,20 @@ async def extract_claim_validation(
         research_notes=research_notes[:5000],  # Limit to avoid token overflow
     )
     
-    extraction_model = type_specific_extraction_model.with_structured_output(
-        ClaimValidation,
-        method="json_schema",
-        strict=True,
+
+    extraction_model = create_agent( 
+        type_specific_extraction_model,
+        response_format=ClaimValidation, 
     )
     
     try:
-        claim_validation = await extraction_model.ainvoke(prompt)
-        logger.info(f"    ✓ ClaimValidation extracted: verdict={claim_validation.verdict}")
-        return claim_validation
+        claim_validation = await extraction_model.ainvoke(
+            {"messages": [{"role": "user", "content": prompt}]}
+        )  
+
+        claim_validation_final: ClaimValidation = claim_validation["structured_response"] 
+        logger.info(f"    ✓ ClaimValidation extracted: verdict={claim_validation_final.verdict}")
+        return claim_validation_final 
     except Exception as e:
         logger.error(f"    ✗ ClaimValidation extraction failed: {e}")
         # Return minimal valid object
@@ -1435,16 +1434,20 @@ async def extract_mechanism_explanation(
         research_notes=research_notes[:5000],
     )
     
-    extraction_model = type_specific_extraction_model.with_structured_output(
-        MechanismExplanation,
-        method="json_schema",
-        strict=True,
+
+    extraction_model = create_agent( 
+        type_specific_extraction_model,
+        response_format=MechanismExplanation, 
     )
     
     try:
-        mechanism = await extraction_model.ainvoke(prompt)
-        logger.info(f"    ✓ MechanismExplanation extracted: {len(mechanism.pathway_steps)} pathway steps")
-        return mechanism
+        mechanism = await extraction_model.ainvoke(
+            {"messages": [{"role": "user", "content": prompt}]}
+        )  
+
+        mechanism_final: MechanismExplanation = mechanism["structured_response"] 
+        logger.info(f"    ✓ MechanismExplanation extracted: {len(mechanism_final.pathway_steps)} pathway steps")
+        return mechanism_final
     except Exception as e:
         logger.error(f"    ✗ MechanismExplanation extraction failed: {e}")
         return MechanismExplanation(
@@ -1485,16 +1488,20 @@ async def extract_risk_benefit_profile(
         research_notes=research_notes[:5000],
     )
     
-    extraction_model = type_specific_extraction_model.with_structured_output(
-        RiskBenefitProfile,
-        method="json_schema",
-        strict=True,
+
+    extraction_model = create_agent( 
+        type_specific_extraction_model,
+        response_format=RiskBenefitProfile, 
     )
     
     try:
-        risk_benefit = await extraction_model.ainvoke(prompt)
-        logger.info(f"    ✓ RiskBenefitProfile extracted: {len(risk_benefit.benefits)} benefits, {len(risk_benefit.risks)} risks")
-        return risk_benefit
+        risk_benefit = await extraction_model.ainvoke(
+            {"messages": [{"role": "user", "content": prompt}]}
+        )  
+
+        risk_benefit_final: RiskBenefitProfile = risk_benefit["structured_response"] 
+        logger.info(f"    ✓ RiskBenefitProfile extracted: {len(risk_benefit_final.benefits)} benefits, {len(risk_benefit_final.risks)} risks")
+        return risk_benefit_final
     except Exception as e:
         logger.error(f"    ✗ RiskBenefitProfile extraction failed: {e}")
         return RiskBenefitProfile(
@@ -1533,17 +1540,21 @@ async def extract_comparative_analysis(
         evidence_result_summary=json.dumps(evidence_result_summary, indent=2),
         research_notes=research_notes[:5000],
     )
-    
-    extraction_model = type_specific_extraction_model.with_structured_output(
-        ComparativeAnalysis,
-        method="json_schema",
-        strict=True,
+  
+
+    extraction_model = create_agent( 
+        type_specific_extraction_model,
+        response_format=ComparativeAnalysis, 
     )
     
     try:
-        comparative = await extraction_model.ainvoke(prompt)
-        logger.info(f"    ✓ ComparativeAnalysis extracted: {len(comparative.comparators)} comparators")
-        return comparative
+        comparative = await extraction_model.ainvoke(
+            {"messages": [{"role": "user", "content": prompt}]}
+        )  
+
+        comparative_final: ComparativeAnalysis = comparative["structured_response"] 
+        logger.info(f"    ✓ ComparativeAnalysis extracted: {len(comparative_final.comparators)} comparators")
+        return comparative_final
     except Exception as e:
         logger.error(f"    ✗ ComparativeAnalysis extraction failed: {e}")
         return ComparativeAnalysis(

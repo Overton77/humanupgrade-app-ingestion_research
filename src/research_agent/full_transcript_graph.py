@@ -4,16 +4,20 @@ import asyncio
 import json
 from uuid import uuid4
 from pathlib import Path
-from typing import Optional, Union, Tuple, List, Dict, Any, TypedDict, Literal, cast   
+from typing import (Optional, Union, Tuple, List, Dict, Any, TypedDict, 
+ Iterable, Literal, Mapping, AsyncIterator, cast) 
+from contextlib import asynccontextmanager    
 import operator 
 from typing_extensions import Annotated 
-from langchain_core.prompts import PromptTemplate 
+from langchain_core.prompts import PromptTemplate  
+from langgraph.checkpoint.base import BaseCheckpointSaver
 
 from dotenv import load_dotenv
 from pydantic import BaseModel, Field
 from langchain.agents import create_agent
 from langchain_openai import ChatOpenAI 
-from langgraph.store.postgres.aio import AsyncPostgresStore 
+from langgraph.store.postgres.aio import AsyncPostgresStore  
+from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver 
 from langchain_core.prompts import PromptTemplate
 from langgraph.graph import StateGraph, START, END 
 from langgraph.graph.state import CompiledStateGraph 
@@ -25,9 +29,14 @@ from research_agent.entity_intel_subgraph import entity_intel_subgraph_builder, 
 from research_agent.evidence_research_subgraph import evidence_research_subgraph_builder, EvidenceResearchState    
 from research_agent.prompts.research_directions_prompts import RESEARCH_DIRECTIONS_SYSTEM_PROMPT, RESEARCH_DIRECTIONS_USER_PROMPT 
 from research_agent.retrieval.async_mongo_client import get_episode, EpisodeDoc 
-from research_agent.retrieval.async_s3_client import get_transcript_text_from_s3_url   
+from research_agent.retrieval.async_s3_client import get_transcript_text_from_s3_url  
+from research_agent.common.artifacts import save_json_artifact, save_text_artifact   
+from research_agent.common.logging_utils import configure_logging     
+from copy import deepcopy 
+from pprint import pprint 
+import logging 
 
-from langmem import create_memory_store_manager 
+from langmem import create_memory_store_manager
 
 import aiofiles
 
@@ -40,13 +49,14 @@ from research_agent.output_models import (
     ResearchDirectionOutput, 
     ResearchDirection, 
     GuestInfoModel,
-    ExtractedEntityBase,
     SummaryAndAttributionOutput,
     AttributionQuote,
     ResearchDirectionType, 
-    EntitiesIntelResearchResult,  
-    EvidenceResearchResult 
-)  
+    EntitiesIntelResearchResult,   
+    ResearchEntities 
+)   
+
+
 
 from research_agent.graph_states.evidence_research_subgraph import EvidenceResearchResult
 from research_agent.prompts.prompts import (
@@ -77,7 +87,7 @@ pg_password = os.getenv("POSTGRES_PASSWORD")
 pg_db_name = os.getenv("POSTGRES_DB")   
 pg_url = f"postgresql://postgres:{pg_password}@localhost:5432/{pg_db_name}"
 
-
+DEFAULT_MEMORY_NAMESPACE: Tuple[str, str] = ("memories", "transcript_graph")
 # Load in Langsmith Versioned Prompts here  
 
 
@@ -196,6 +206,31 @@ class TranscriptGraph(TypedDict, total=False):
 # -----------------------------------------------------------------------------
 # Filesystem Helpers
 # -----------------------------------------------------------------------------
+GRAPH_SNAPSHOT_OUTPUT_DIR = PARENT_DIR / "dev_env" / "graph_snapshots"
+
+async def dump_final_state_snapshot(
+    app: CompiledStateGraph,
+    config: RunnableConfig,
+    *,
+    thread_id: str,
+) -> str:
+    """
+    Get the final StateSnapshot from LangGraph for this config
+    and dump its .values (full state) to disk as JSON.
+    """
+    # Use LangGraph API to inspect state
+    snapshot = await app.aget_state(config)  # or app.get_state(config) in sync code
+    final_values: dict[str, Any] = snapshot.values
+
+    # Use your artifact utilities to save it
+    # We treat episode_id like the "direction_id" directory bucket
+    return await save_json_artifact(
+        data=final_values,
+        base_dir=GRAPH_SNAPSHOT_OUTPUT_DIR,
+        direction_id=thread_id,
+        artifact_type="final_state",
+        suffix=str(uuid4())[:8],  # optional, just to distinguish runs
+    )
 
 async def write_summary_outputs_without_docs(
     summary_output: TranscriptSummaryOutput,
@@ -204,8 +239,8 @@ async def write_summary_outputs_without_docs(
 ) -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    summary_path = output_dir / f"episode_{episode_number}_summary.txt"
-    guest_path = output_dir / f"episode_{episode_number}_guest.json"
+    summary_path = output_dir / f"episode_{uuid4()}-{episode_number}_summary.txt"
+    guest_path = output_dir / f"episode_{uuid4()}-{episode_number}_guest.json"
 
     async with aiofiles.open(summary_path, "w", encoding="utf-8") as f:
         await f.write(summary_output.summary)
@@ -215,6 +250,17 @@ async def write_summary_outputs_without_docs(
 
     print(f"Finished writing summary outputs for episode {episode_number}")
 
+
+def with_checkpoint_ns(
+    config: RunnableConfig,
+    checkpoint_ns: str,
+) -> RunnableConfig:
+    """Copy the parent config and override checkpoint_ns."""
+    cfg = deepcopy(config) if config is not None else {}
+    configurable = dict(cfg.get("configurable") or {})
+    configurable["checkpoint_ns"] = checkpoint_ns
+    cfg["configurable"] = configurable
+    return cfg
 
 def select_subgraph_for_direction(
     direction: ResearchDirection,
@@ -293,54 +339,59 @@ class SingleDirectionRunResult(TypedDict):
     kind: Literal["evidence", "entity"]
     direction: ResearchDirection
     result: DirectionResearchResult | None   
-    structured_outputs: List[BaseModel]      # will down-cast later as needed
+    structured_outputs: List[BaseModel]      
 
 
 async def run_single_direction(
     direction: ResearchDirection,
     episode_context: str,
     semaphore: asyncio.Semaphore,
+    evidence_subgraph_app: CompiledStateGraph, 
+    entity_intel_subgraph_app: CompiledStateGraph,  
+    config: RunnableConfig,
 ) -> SingleDirectionRunResult:
     """
     Run the appropriate subgraph (evidence or entity) for a single ResearchDirection.
-    Returns a tagged result so the caller knows which subgraph produced it.
+
+    The compiled subgraphs are passed in so we don't rely on globals and can
+    ensure they share the same checkpointer/store as the parent.
     """
     async with semaphore:
         subgraph_kind = select_subgraph_for_direction(direction)
 
         if subgraph_kind == "evidence":
-            # Evidence-specific subgraph + state
-            subgraph = evidence_research_subgraph_builder.compile()
+            subgraph = evidence_subgraph_app
             initial_child_state: EvidenceResearchState = create_initial_subgraph_state(
                 subgraph_type="evidence",
                 direction=direction,
                 episode_context=episode_context,
-            )
+            ) 
 
-            # mypy/pyright can't infer the generic here, so we cast to the specific state type
+            sub_config = with_checkpoint_ns(config, "evidence_subgraph")
+
             child_final = cast(
                 EvidenceResearchState,
-                await subgraph.ainvoke(initial_child_state),
+                await subgraph.ainvoke(initial_child_state, config=sub_config),
             )
 
         else:
-            # Entity-intel-specific subgraph + state
-            subgraph = entity_intel_subgraph_builder.compile()
+            subgraph = entity_intel_subgraph_app
             initial_child_state: EntityIntelResearchState = create_initial_subgraph_state(
                 subgraph_type="entity",
                 direction=direction,
                 episode_context=episode_context,
             )
 
+            sub_config = with_checkpoint_ns(config, "entity_intel_subgraph")
+
             child_final = cast(
                 EntityIntelResearchState,
-                await subgraph.ainvoke(initial_child_state),
+                await subgraph.ainvoke(initial_child_state, config=sub_config),
             )
 
         # Extract result (may be None if the graph never set it)
         result: DirectionResearchResult | None = None
         if "result" in child_final and child_final["result"] is not None:
-            # At runtime this is either EvidenceResearchResult or EntitiesIntelResearchResult
             result = child_final["result"]  # type: ignore[assignment]
 
         # Extract any structured outputs accumulated along the way
@@ -354,7 +405,6 @@ async def run_single_direction(
             result=result,
             structured_outputs=structured_outputs,
         )
-
 # -----------------------------------------------------------------------------
 # Graph Nodes
 # -----------------------------------------------------------------------------
@@ -471,7 +521,7 @@ async def generate_research_directions(state: TranscriptGraph) -> TranscriptGrap
 
     attribution_quotes = initial_output.attribution_quotes   
 
-    attribution_quotes_text = "\n".join([f" Speaker: {quote.speaker} - Quote: {quote.quote} -Paraphrased Statement: {quote.statement} - Verbatim: {quote.verbatim}" for quote in attribution_quotes])
+    attribution_quotes_text = "\n".join([f" Speaker: {quote.speaker} - Quote: {quote.statement} -Paraphrased Statement: {quote.statement} - Verbatim: {quote.verbatim}" for quote in attribution_quotes])
 
 
 
@@ -516,17 +566,38 @@ async def generate_research_directions(state: TranscriptGraph) -> TranscriptGrap
     }
 
 
+def compile_subgraphs(
+    checkpointer: BaseCheckpointSaver,
+    store: BaseStore,  
+) -> tuple[CompiledStateGraph, CompiledStateGraph]:
+    evidence_subgraph_app = evidence_research_subgraph_builder.compile(
+        checkpointer=checkpointer,
+        store=store, 
+        
+    )
+    entity_intel_subgraph_app = entity_intel_subgraph_builder.compile(
+        checkpointer=checkpointer,
+        store=store,
+        
+    )
+    return evidence_subgraph_app, entity_intel_subgraph_app
 
 
-
-async def run_research_directions(state: TranscriptGraph) -> TranscriptGraph:
+async def run_research_directions(
+    state: TranscriptGraph,
+    config: RunnableConfig,
+    *,
+    store: BaseStore,
+    evidence_subgraph_app: CompiledStateGraph,
+    entity_intel_subgraph_app: CompiledStateGraph,
+) -> TranscriptGraph:
     """
     For each ResearchDirection in the episode, run the appropriate subgraph
-    (EvidenceResearchSubgraph or EntityIntelSubgraph) and aggregate results.
-    All directions are processed in parallel with bounded concurrency.
+    (evidence or entity) and aggregate results.
 
-    Returns subgraph-specific aggregates so downstream consumers can easily
-    distinguish evidence vs entity intel outputs.
+    All directions are processed in parallel with bounded concurrency.
+    The compiled subgraphs are passed in via closure when the node is added
+    to the graph (not stored in state).
     """
     directions: List[ResearchDirection] = state.get("research_directions", []) or []
     if not directions:
@@ -546,7 +617,14 @@ async def run_research_directions(state: TranscriptGraph) -> TranscriptGraph:
     semaphore = asyncio.Semaphore(MAX_PARALLEL_DIRECTIONS)
 
     tasks = [
-        run_single_direction(direction, episode_context, semaphore)
+        run_single_direction(
+            direction=direction,
+            episode_context=episode_context,
+            semaphore=semaphore,
+            evidence_subgraph_app=evidence_subgraph_app,
+            entity_intel_subgraph_app=entity_intel_subgraph_app,
+            config=config,
+        )
         for direction in directions
     ]
 
@@ -558,10 +636,10 @@ async def run_research_directions(state: TranscriptGraph) -> TranscriptGraph:
     entity_direction_results: list[EntitiesIntelResearchResult] = []
 
     evidence_structured_outputs: list[BaseModel] = []
-    entity_structured_outputs: list[ExtractedEntityBase] = []
+    entity_structured_outputs: list[ResearchEntities] = []
 
     # Optional combined views if you still want them
-    all_direction_results: list[DirectionResearchResult] = []
+    all_direction_results: list[EvidenceResearchResult | EntitiesIntelResearchResult] = []
     all_structured_outputs: list[BaseModel] = []
 
     for r in results:
@@ -589,9 +667,8 @@ async def run_research_directions(state: TranscriptGraph) -> TranscriptGraph:
                     cast(EntitiesIntelResearchResult, result)
                 )
             if structured:
-                # we know entity subgraph uses ExtractedEntityBase; cast accordingly
                 entity_structured_outputs.extend(
-                    cast(list[ExtractedEntityBase], structured)
+                    cast(list[ResearchEntities], structured)
                 )
 
     return {
@@ -600,102 +677,140 @@ async def run_research_directions(state: TranscriptGraph) -> TranscriptGraph:
         "entity_direction_results": entity_direction_results,
         "evidence_structured_outputs": evidence_structured_outputs,
         "entity_structured_outputs": entity_structured_outputs,
-        # Optional combined views (keep if other parts of the graph expect them)
+        # Optional combined views
         "direction_results": all_direction_results,
         "direction_structured_outputs": all_structured_outputs,
     }
 
 
-# Guest Output should go to subgraph with wikipedia tool in addition to firecrawl and tavily or just go to another node in this graph 
-# for guest output 
-# Or guest output is part of Research Directions 
-
-# -----------------------------------------------------------------------------
-# Build the Graph
-# ----------------------------------------------------------------------------- 
-
-
-
-
 
 graph = StateGraph(TranscriptGraph)
 
-graph.add_node("summarize_transcript", summarize_transcript) 
-graph.add_node("generate_research_directions", generate_research_directions)  
-graph.add_node("run_research_directions", run_research_directions)   
-
-
-
-graph.add_edge(START, "summarize_transcript") 
-graph.add_edge("summarize_transcript", "generate_research_directions")   
-graph.add_edge("generate_research_directions", "run_research_directions")    
-
-graph.add_edge("run_research_directions", END)  
-
-# Generates a List of Research Directions how map out the subgraph or whatever operation strategy 
-
-# Compile without checkpointer for langgraph dev server compatibility
-# The dev server will inject its own in-memory checkpointer
-app: CompiledStateGraph = graph.compile()   
-
-
-# initial_state: TranscriptGraph = {
-#     "episode_meta": {
-#         "episode_number": 1303,
-#     },
-#     "webpage_summary": WEBPAGE_SUMMARY_FILE.read_text(encoding="utf-8"),
-#     "full_transcript": TRANSCRIPT_FILE.read_text(encoding="utf-8"),
-# } 
-
-
-async def create_store() -> BaseStore:
-    store = await AsyncPostgresStore.from_conn_string(
-        pg_url,
-        index={
-            "dims": 1536,
-            "embed": "openai:text-embedding-3-small",
-        },
-    )
-    await store.setup()
-    return store
-
-def create_memory_manager():
+def build_transcript_graph(
+    evidence_subgraph_app: CompiledStateGraph,
+    entity_intel_subgraph_app: CompiledStateGraph,
+) -> StateGraph:
     """
-    Returns a LangMem memory manager (Runnable) that:
-      - reads/writes to the configured BaseStore
-      - extracts/updates ResearchMemory entries
+    Build the parent transcript graph, closing over the compiled
+    evidence/entity subgraphs in the run_research_directions node.
     """
-    # you can also pass your existing `research_model` here instead of a string
+    
+
+    graph.add_node("summarize_transcript", summarize_transcript)
+    graph.add_node("generate_research_directions", generate_research_directions)
+
+    # Wrap run_research_directions so it can see the compiled subgraphs
+    async def run_research_directions_node(
+        state: TranscriptGraph,
+        config: RunnableConfig,
+        *,
+        store: BaseStore,
+    ) -> TranscriptGraph:
+        return await run_research_directions(
+            state,
+            config,
+            store=store,
+            evidence_subgraph_app=evidence_subgraph_app,
+            entity_intel_subgraph_app=entity_intel_subgraph_app,
+        )
+
+    graph.add_node("run_research_directions", run_research_directions_node)
+
+    graph.add_edge(START, "summarize_transcript")
+    graph.add_edge("summarize_transcript", "generate_research_directions")
+    graph.add_edge("generate_research_directions", "run_research_directions")
+    graph.add_edge("run_research_directions", END)
+
+    return graph
+
+
+
+def create_memory_agent(
+    store: BaseStore,
+    namespace: Iterable[str] = DEFAULT_MEMORY_NAMESPACE,
+):
+    """
+    Create a LangMem memory manager bound to the given BaseStore.
+
+    - `store`: the shared BaseStore instance (e.g., AsyncPostgresStore).
+    - `namespace`: hierarchical namespace used to partition memory entries,
+      e.g. ("memories", "transcript_graph") or ("memories", "guest_history").
+    """
+    namespace_tuple = tuple(namespace)
+
     manager = create_memory_store_manager(
-        model="openai:gpt-5-nano", 
-        namespace=("memories", "transcript_graph"),
+        "openai:gpt-5-nano",   
+        namespace=namespace_tuple,       
+        store=store,                 
         enable_inserts=True,
-        enable_updates=True,
         enable_deletes=True,
     )
     return manager
 
 
+
+DEFAULT_INDEX_CONFIG: Mapping[str, object] = {
+    "dims": 1536,
+    "embed": "openai:text-embedding-3-small",
+}
+
+
+@asynccontextmanager
+async def postgres_checkpointer(pg_url: str) -> AsyncIterator[AsyncPostgresSaver]:
+    """
+    Async context manager that yields a fully set-up AsyncPostgresSaver
+    configured as a LangGraph checkpointer.
+    """
+    async with AsyncPostgresSaver.from_conn_string(pg_url) as checkpointer:
+        await checkpointer.setup()
+        yield checkpointer
+        # cleanup handled by __aexit__ of AsyncPostgresSaver
+
+
+@asynccontextmanager
+async def postgres_store(
+    pg_url: str,
+    index: Mapping[str, object] | None = None,
+) -> AsyncIterator[BaseStore]:
+    """
+    Async context manager that yields a fully set-up AsyncPostgresStore
+    wrapped as a LangMem BaseStore.
+    """
+    async with AsyncPostgresStore.from_conn_string(
+        pg_url,
+        index=index or DEFAULT_INDEX_CONFIG,
+    ) as store:
+        await store.setup()
+        yield store
+
 # -----------------------------------------------------------------------------
 # Main: run the graph, persist checkpoints, pretty-print final state
 # -----------------------------------------------------------------------------
 
-async def one_full_transcript_graph_run(episode_page_url: str) -> None:    
-    # Import here to avoid module-level async context manager issues
-    from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
-    from pprint import pprint  
+async def run_transcript_graph_for_episode(episode_page_url: str) -> None:
+    """
+    Run the full transcript graph pipeline for a single episode:
+    - Load episode metadata + transcript
+    - Initialize state
+    - Create checkpointer + shared store
+    - Compile parent graph and subgraphs with shared persistence
+    - Attach compiled subgraphs (and memory manager if desired) to state
+    - Invoke the parent graph and write final state to disk.
+    """
+    # Fetch episode and context
+    episode_doc: EpisodeDoc = await get_episode(episode_page_url=episode_page_url)
 
-    episode_doc: EpisodeDoc = await get_episode(episode_page_url=episode_page_url)  
+    episode_meta = {
+        "episode_number": episode_doc.get("episodeNumber") or "Unknown",
+        "episode_page_url": episode_doc.get("episodePageUrl") or "Unknown",
+        "episode_transcript_url": episode_doc.get("episodeTranscriptUrl") or "Unknown",
+    }
 
-    episode_meta = { 
-        "episode_number": episode_doc["episodeNumber"] if episode_doc["episodeNumber"] is not None else "Unknown", 
-        "episode_page_url": episode_doc["episodePageUrl"] if episode_doc["episodePageUrl"] is not None else "Unknown", 
-        "episode_transcript_url": episode_doc["episodeTranscriptUrl"] if episode_doc["episodeTranscriptUrl"] is not None else "Unknown", 
-    }  
+    full_transcript = await get_transcript_text_from_s3_url(
+        episode_doc["s3TranscriptUrl"]
+    )
 
-    full_transcript = await get_transcript_text_from_s3_url(episode_doc["s3TranscriptUrl"]) 
-
-    webpage_summary = episode_doc.get("webPageSummary")    
+    webpage_summary = episode_doc.get("webPageSummary")
 
     initial_state: TranscriptGraph = {
         "episode_meta": episode_meta,
@@ -703,65 +818,63 @@ async def one_full_transcript_graph_run(episode_page_url: str) -> None:
         "full_transcript": full_transcript,
     }
 
-    
-
-    
     # Use AsyncPostgresSaver as an async context manager
-    async with ( AsyncPostgresSaver.from_conn_string(pg_url) as checkpointer, 
-    
-    ):
-        await checkpointer.setup()
-        
-        store = await create_store()
-        # Recompile the graph with the checkpointer for persistence 
+    async with postgres_checkpointer(pg_url) as checkpointer, \
+               postgres_store(pg_url) as store: 
 
-        app_with_checkpointer = graph.compile(checkpointer=checkpointer, store=store)
+        # Use Memory manager inside nodes 
+       
 
-        config = {
+        parent_graph_config = { 
             "configurable": {
                 "thread_id": str(uuid4()),
-                "checkpoint_ns": "transcript_graph", 
+                "checkpoint_ns": "transcript_graph",
                 "episode_id": episode_meta["episode_page_url"],
             }
-        } 
+        }   
+
+        evidence_subgraph_app, entity_intel_subgraph_app = compile_subgraphs(
+            checkpointer=checkpointer,
+            store=store,
+        ) 
+
+        graph = build_transcript_graph(
+            evidence_subgraph_app=evidence_subgraph_app,
+            entity_intel_subgraph_app=entity_intel_subgraph_app,
+        )
+
+        # Compile parent graph with checkpointer + store
+        parent_app = graph.compile(
+            checkpointer=checkpointer,
+            store=store,
+        )
+
+      
+      
 
         # Single final result (no streaming)
-        final_state: TranscriptGraph = await app_with_checkpointer.ainvoke(initial_state, config)
+        final_state: TranscriptGraph = await parent_app.ainvoke(initial_state, parent_graph_config)  
 
-        # Pretty-print to console
-        print("\n=== FINAL GRAPH STATE ===")
-        pprint(final_state)
+        snapshot_path = await dump_final_state_snapshot(
+            app=parent_app,
+            config=parent_graph_config,
+            thread_id=parent_graph_config["configurable"]["thread_id"],
+        )  
 
-        # Also save full state to disk for inspection
-        OUTPUT_DIR.mkdir(parents=True, exist_ok=True) 
+        return final_state 
 
-        final_state_id = str(uuid4())
-        state_path = OUTPUT_DIR / f"final_state_{final_state_id}.json"
-
-        # Convert Pydantic models to dicts before dumping
-        serializable_state: Dict[str, Any] = dict(final_state)
-
-        if "initial_transcript_output" in serializable_state:
-            serializable_state["initial_transcript_output"] = (
-                serializable_state["initial_transcript_output"].model_dump()
-            )
-
-        if "guest_research_result" in serializable_state and serializable_state["guest_research_result"] is not None:
-            serializable_state["guest_research_result"] = (
-                serializable_state["guest_research_result"].model_dump()
-            )
-
-        if "guest_research_history" in serializable_state and serializable_state["guest_research_history"]:
-            serializable_state["guest_research_history"] = [
-                item.model_dump() for item in serializable_state["guest_research_history"]
-            ]
-
-        async with aiofiles.open(state_path, "w", encoding="utf-8") as f:
-            await f.write(json.dumps(serializable_state, indent=2))
-
-        print(f"\nFinal state written to: {state_path}")
+    
 
 
-if __name__ == "__main__":
-    asyncio.run(one_full_transcript_graph_run("https://daveasprey.com/james-baber-toxic-mold-hidden-dangers-198/"))  
+if __name__ == "__main__": 
+    import argparse 
+    configure_logging( 
+        level=logging.INFO, 
+        log_dir="transcript_graph_logs"
+    )
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--episode_page_url", type=str, required=True)
+    args = parser.parse_args()
+    episode_page_url = args.episode_page_url
+    asyncio.run(run_transcript_graph_for_episode(episode_page_url))  
     # print(TRANSCRIPT_FILE.read_text())

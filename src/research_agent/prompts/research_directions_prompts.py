@@ -98,18 +98,20 @@ Generate a set of **high-quality Research Directions** of the following types:
 - `entities_due_diligence`
 
 Each Research Direction MUST contain:
-1. **title** – concise, descriptive name  
-2. **research_questions** – clear, testable, actionable questions. Only output more than one if needed to fully explain the extent of research
-3. **direction_type** – choose correctly from the enum  
-4. **primary_entities** – entity / downstream graph identifiers, e.g.  
+1. **id** – unique identifier for this research direction. Should be a stable, unique identifier for this research direction.
+2. **episode_id** – unique identifier for the episode this research direction comes from. Should be a stable, unique identifier for the episode this research direction comes from.
+3. **title** – concise, descriptive name  
+4. **research_questions** – clear, testable, actionable questions. Only output more than one if needed to fully explain the extent of research
+5. **direction_type** – choose correctly from the enum  
+6. **primary_entities** – entity / downstream graph identifiers, e.g.  
    `["person:<guest_name>"]`, `["business:<company_name>"]`,  
    `["product:<product_name>"]`, `["compound:<compound_name>"]`  
-5. **claim_text** (ONLY for claim-related types)  
-6. **claimed_by** – entity names or entity IDs.   
-7. **key_outcomes_of_interest** – endpoints or measurements  
-8. **key_mechanisms_to_examine** – mechanistic angles  
-9. **priority** – 1–5 (1 = highest)  
-10. **max_steps** – ALWAYS set to 10  
+7. **claim_text** (ONLY for claim-related types)  
+8. **claimed_by** – entity names or entity IDs.   
+9. **key_outcomes_of_interest** – endpoints or measurements  
+10. **key_mechanisms_to_examine** – mechanistic angles  
+11. **priority** – 1–5 (1 = highest)  
+12. **max_steps** – ALWAYS set to 10  
 
 Your outputs will be converted into `ResearchDirection` Pydantic models.
 
