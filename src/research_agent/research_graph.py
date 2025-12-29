@@ -76,7 +76,7 @@ load_dotenv()
 
 
 graphql_auth_token = os.getenv("GRAPHQL_AUTH_TOKEN")
-graphql_url = os.getenv("GRAPHQL_LOCAL_URL")  # e.g., "http://localhost:4000/graphql" 
+graphql_url = os.getenv("GRAPHQL_LOCAL_URL") or "localhost:4000/graphql"  
 
 tavily_api_key = os.getenv("TAVILY_API_KEY")
 firecrawl_api_key = os.getenv("FIRECRAWL_API_KEY") 
@@ -822,7 +822,9 @@ async def run_transcript_graph_for_episode(episode_page_url: str) -> None:
     async with postgres_checkpointer(pg_url) as checkpointer, \
                postgres_store(pg_url) as store: 
 
-        # Use Memory manager inside nodes 
+        # Use Memory manager inside nodes  
+
+        # add streaming support. Don't want so much latency 
        
 
         parent_graph_config = { 
@@ -847,7 +849,9 @@ async def run_transcript_graph_for_episode(episode_page_url: str) -> None:
         parent_app = graph.compile(
             checkpointer=checkpointer,
             store=store,
-        )
+        ) 
+
+
 
       
       
@@ -861,7 +865,9 @@ async def run_transcript_graph_for_episode(episode_page_url: str) -> None:
             thread_id=parent_graph_config["configurable"]["thread_id"],
         )  
 
-        return final_state 
+        full_state_history = await parent_app.aget_state_history(parent_graph_config) 
+
+        return full_state_history  
 
     
 

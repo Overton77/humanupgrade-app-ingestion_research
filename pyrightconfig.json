@@ -1,0 +1,25 @@
+{
+  "pythonVersion": "3.13",
+
+  "typeCheckingMode": "strict",
+
+  "include": ["src"],
+
+  "exclude": [
+    "**/.venv",
+    "**/__pycache__",
+    "**/node_modules",
+    "**/dist",
+    "**/build"
+  ],
+
+  "executionEnvironments": [
+    {
+      "root": ".",
+      "extraPaths": ["src"]
+    }
+  ],
+
+  "reportMissingTypeStubs": "none",
+  "reportMissingImports": "error"
+}

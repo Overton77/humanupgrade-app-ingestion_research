@@ -32,7 +32,8 @@ dev = [
     "pytest",
     "ruff",
     "black",
-    "mypy",
+    "mypy", 
+    "pyright",
     "pydantic>=2.0.0",
     "ipykernel",
     "ariadne-codegen[subscriptions]>=0.16.0",
@@ -67,6 +68,12 @@ strict = true
 mypy_path = ["src"]
 plugins = ["pydantic.mypy"]
 
+[tool.pyright]
+pythonVersion = "3.13"
+typeCheckingMode = "strict"
+diagnosticMode = "workspace"
+include = ["src"] 
+exclude = ["src/dev_env"]
 
 [tool.ariadne-codegen]
 # Where your schema lives, relative to pyproject.toml
