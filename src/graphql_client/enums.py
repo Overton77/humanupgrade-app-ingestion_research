@@ -4,6 +4,102 @@
 from enum import Enum
 
 
+class UserProtocolStatus(str, Enum):
+    draft = "draft"
+    active = "active"
+    archived = "archived"
+
+
+class UserGoalType(str, Enum):
+    sleep = "sleep"
+    energy = "energy"
+    fatLoss = "fatLoss"
+    circadian = "circadian"
+    fitness = "fitness"
+    nutrition = "nutrition"
+    cognition = "cognition"
+    longevity = "longevity"
+    strength = "strength"
+    stress = "stress"
+    recovery = "recovery"
+    health = "health"
+    other = "other"
+
+
+class ProtocolStepItemType(str, Enum):
+    Product = "Product"
+    Compound = "Compound"
+    Action = "Action"
+
+
+class ProtocolTimeOfDay(str, Enum):
+    morning = "morning"
+    midday = "midday"
+    evening = "evening"
+    bedtime = "bedtime"
+    any = "any"
+
+
+class EvidenceRefType(str, Enum):
+    Episode = "Episode"
+    CaseStudy = "CaseStudy"
+    Article = "Article"
+    External = "External"
+
+
+class ArticleSourceType(str, Enum):
+    human_upgrade = "human_upgrade"
+    external = "external"
+
+
+class GoalType(str, Enum):
+    sleep = "sleep"
+    energy = "energy"
+    fatLoss = "fatLoss"
+    circadian = "circadian"
+    fitness = "fitness"
+    nutrition = "nutrition"
+    cognition = "cognition"
+    longevity = "longevity"
+    strength = "strength"
+    stress = "stress"
+    recovery = "recovery"
+    health = "health"
+    other = "other"
+
+
+class ExperienceLevel(str, Enum):
+    beginner = "beginner"
+    intermediate = "intermediate"
+    advanced = "advanced"
+
+
+class DietStyle(str, Enum):
+    none = "none"
+    keto = "keto"
+    paleo = "paleo"
+    vegan = "vegan"
+    vegetarian = "vegetarian"
+    mediterranean = "mediterranean"
+    lowCarb = "lowCarb"
+    omnivore = "omnivore"
+    other = "other"
+
+
+class TimeBudget(str, Enum):
+    min5 = "min5"
+    min15 = "min15"
+    min30 = "min30"
+    min60 = "min60"
+
+
+class PreferredFormat(str, Enum):
+    video = "video"
+    summary = "summary"
+    protocol = "protocol"
+    caseStudy = "caseStudy"
+
+
 class UserProvider(str, Enum):
     LOCAL = "LOCAL"
     GOOGLE = "GOOGLE"
@@ -16,8 +112,57 @@ class UserRole(str, Enum):
     USER = "USER"
 
 
+class ProtocolCategory(str, Enum):
+    sleep = "sleep"
+    energy = "energy"
+    fatLoss = "fatLoss"
+    circadian = "circadian"
+    fitness = "fitness"
+    nutrition = "nutrition"
+    cognition = "cognition"
+    stress = "stress"
+    recovery = "recovery"
+    longevity = "longevity"
+    health = "health"
+    strength = "strength"
+    other = "other"
+
+
 class CaseStudySourceType(str, Enum):
-    PUBMED = "PUBMED"
-    CLINICAL_TRIAL = "CLINICAL_TRIAL"
-    ARTICLE = "ARTICLE"
-    OTHER = "OTHER"
+    pubmed = "pubmed"
+    clinicaltrial = "clinicaltrial"
+    article = "article"
+    other = "other"
+
+
+class SavedEntityType(str, Enum):
+    Product = "Product"
+    Compound = "Compound"
+    Person = "Person"
+    Business = "Business"
+    Protocol = "Protocol"
+    Episode = "Episode"
+    CaseStudy = "CaseStudy"
+    UserProtocol = "UserProtocol"
+    Article = "Article"
+
+
+class SaveSource(str, Enum):
+    dashboard = "dashboard"
+    episode = "episode"
+    assistant = "assistant"
+    search = "search"
+    protocol_builder = "protocol_builder"
+    profile = "profile"
+    other = "other"
+
+
+class HumanUpgradeParentPolicyMode(str, Enum):
+    NONE = "NONE"
+    UNIQUE_PARENTS = "UNIQUE_PARENTS"
+    THRESHOLD = "THRESHOLD"
+
+
+class HumanUpgradeContextWindowAround(str, Enum):
+    BEST_CHUNK_PER_PARENT = "BEST_CHUNK_PER_PARENT"
+    EACH_CHUNK = "EACH_CHUNK"

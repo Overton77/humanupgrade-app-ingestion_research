@@ -1,0 +1,418 @@
+{
+  "episode_id": "692e4a94a611500d6687c22f",
+  "episode_url": "https://daveasprey.com/1330-energybits/",
+  "research_directions": [
+    {
+      "id": "dir_692e4a94a611500d6687c22f_entity_001",
+      "episode_id": "692e4a94a611500d6687c22f",
+      "title": "Catharine Arnston: Background, Credentials, and Influence",
+      "guest_information": {
+        "name": "Catharine Arnston",
+        "description": "Founder and CEO of ENERGYbits, algae nutrition expert and advocate"
+      },
+      "research_questions": [
+        "What is Catharine Arnston's professional and educational background?",
+        "What is the public record regarding her academic credentials (PhD, MBA, BA)?",
+        "What is her role and influence in the algae nutrition and biohacking communities?",
+        "What other ventures, publications, or speaking engagements is she known for?"
+      ],
+      "primary_entities": ["person:catharine_arnston"],
+      "max_steps": 8
+    },
+    {
+      "id": "dir_692e4a94a611500d6687c22f_entity_002",
+      "episode_id": "692e4a94a611500d6687c22f",
+      "title": "ENERGYbits Company & Product Line Profile",
+      "guest_information": {
+        "name": "Catharine Arnston",
+        "description": "Founder and CEO of ENERGYbits, algae nutrition expert and advocate"
+      },
+      "research_questions": [
+        "What is the history and mission of ENERGYbits as a company?",
+        "What are the main products offered by ENERGYbits and their key ingredients?",
+        "How are ENERGYbits products positioned in the supplement market (target audience, claims, pricing)?",
+        "What certifications, quality controls, or unique processing methods does ENERGYbits use?"
+      ],
+      "primary_entities": [
+        "business:energybits",
+        "product:spirulina_tablets",
+        "product:chlorella_tablets",
+        "product:recoverybits",
+        "product:vitalitybits",
+        "product:beautybits"
+      ],
+      "max_steps": 8
+    },
+    {
+      "id": "dir_692e4a94a611500d6687c22f_entity_003",
+      "episode_id": "692e4a94a611500d6687c22f",
+      "title": "Spirulina & Chlorella: Bioactive Compounds and Clinical Evidence",
+      "guest_information": {
+        "name": "Catharine Arnston",
+        "description": "Founder and CEO of ENERGYbits, algae nutrition expert and advocate"
+      },
+      "research_questions": [
+        "What are the primary bioactive compounds in spirulina and chlorella (e.g., phycocyanin, SOD, glutathione)?",
+        "What mechanisms of action are supported by scientific literature for these compounds?",
+        "What is the evidence for clinical benefits in humans (energy, detox, mitochondrial health)?",
+        "What are the safety considerations and known contraindications for supplement use?"
+      ],
+      "primary_entities": [
+        "compound:spirulina",
+        "compound:chlorella",
+        "compound:phycocyanin",
+        "compound:superoxide_dismutase",
+        "compound:glutathione"
+      ],
+      "max_steps": 8
+    },
+    {
+      "id": "dir_692e4a94a611500d6687c22f_entity_004",
+      "episode_id": "692e4a94a611500d6687c22f",
+      "title": "Mitochondrial Antioxidant Systems: SOD, Glutathione, and Manganese",
+      "guest_information": {
+        "name": "Catharine Arnston",
+        "description": "Founder and CEO of ENERGYbits, algae nutrition expert and advocate"
+      },
+      "research_questions": [
+        "What is the role of mitochondrial superoxide dismutase (SOD2/MnSOD) and glutathione in cellular health?",
+        "How does manganese function as a cofactor in SOD2, and what are the implications of metal substitution?",
+        "What is the current state of research on dietary interventions to support mitochondrial antioxidant systems?",
+        "Are there clinical or mechanistic studies linking algae-derived nutrients to improved mitochondrial function?"
+      ],
+      "primary_entities": [
+        "compound:superoxide_dismutase",
+        "compound:glutathione",
+        "compound:manganese"
+      ],
+      "max_steps": 8
+    }
+  ],
+  "direction_results": [
+    {
+      "direction_id": "dir_692e4a94a611500d6687c22f_entity_001",
+      "extensive_summary": "People\n- Catharine Arnston: Founder, CEO, and Chief Scientific Officer of ENERGYbits Inc. She holds a PhD, MBA, and BA, and has a background in plant-based nutrition, with studies at Kingdom College of Natural. Arnston is a leading advocate for algae as a nutritional biohack, frequently speaking on its health benefits and role in human performance and longevity. Her work was inspired by her sister's cancer diagnosis, which led her to research alkaline diets and the nutritional value of algae.\n\nBusinesses\n- ENERGYbits Inc.: A plant-based nutrition company specializing in algae-based products. The company is positioned as a leader in the algae nutrition space, focusing on providing toxin-free, non-GMO algae tablets for energy, health, and longevity. ENERGYbits has been active for over fifteen years and is recognized for bringing algae into the mainstream health and wellness market.\n\nProducts\n- ENERGYbits Algae Tablets: These are whole-food tablets made from algae, designed to provide steady energy and meet nutritional needs without chemicals, caffeine, or sugar. The tablets are rich in protein (64%) and contain 40 vitamins and minerals. They are marketed as a convenient, nutrient-dense superfood for daily use.\n\nCompounds\n- Algae: The primary compound in ENERGYbits products. Algae is described as the most alkaline, plant-based, nutrient-dense food, with a high protein content and a broad spectrum of vitamins and minerals. It is recognized for its sustainability and has been endorsed by the United Nations and NASA for its nutritional value. Algae's mechanisms of action include supporting energy, focus, recovery, anti-aging, and overall health.\n\nCase Studies\n- No specific case studies or clinical trials were found in the available research notes or on the business/product websites referenced.",
+      "entity_intel_ids": ["person:catharine_arnston"],
+      "key_findings": [
+        "Catharine Arnston is the founder, CEO, and Chief Scientific Officer of ENERGYbits Inc., specializing in algae-based nutrition.",
+        "She holds a PhD, MBA, and BA, and studied at Kingdom College of Natural.",
+        "Arnston is a prominent advocate for algae as a nutritional biohack, frequently speaking on its health benefits and applications in human performance and longevity.",
+        "ENERGYbits Inc. produces toxin-free, non-GMO algae tablets marketed for energy, health, and longevity.",
+        "Algae is the core ingredient in ENERGYbits products, recognized for its high protein content (64%) and 40 vitamins and minerals.",
+        "Algae is endorsed by the United Nations and NASA for its nutritional density and sustainability.",
+        "ENERGYbits has played a significant role in bringing algae nutrition into the mainstream health and wellness market.",
+        "No specific clinical trials or case studies were identified in the available sources."
+      ],
+      "key_source_citations": [
+        {
+          "url": "https://www.linkedin.com/in/catharinearnston",
+          "title": "Catharine Arnston - LinkedIn",
+          "description": "Professional profile of Catharine Arnston, including her roles and background.",
+          "published_date": null,
+          "score": null
+        },
+        {
+          "url": "https://energybits.com/pages/founder-bio?srsltid=AfmBOooBg8wbpakK3cr-D0ilCHiVFqvbb5DSR1KPdl8Fupf82SUxovsz",
+          "title": "Founder Bio - ENERGYbits",
+          "description": "Official biography of Catharine Arnston, detailing her inspiration and work with ENERGYbits.",
+          "published_date": null,
+          "score": null
+        },
+        {
+          "url": "https://music.amazon.com/es-co/podcasts/0461502f-882a-4786-8275-4e8319eb62ba/episodes/dd140534-b5a3-4f96-82e6-6fe9ec131a0e/there's-a-hack-for-that-health-hack-hack-your-nutrition-with-algae-with-catharine-arnston",
+          "title": "There's a Hack for That: Health Hack - Hack Your Nutrition with Algae with Catharine Arnston",
+          "description": "Podcast episode featuring Catharine Arnston discussing algae nutrition and its benefits.",
+          "published_date": null,
+          "score": null
+        }
+      ]
+    },
+    {
+      "direction_id": "dir_692e4a94a611500d6687c22f_entity_002",
+      "extensive_summary": "People\n- Catharine Arnston: Founder and CEO of ENERGYbits. Inspired to start the company after her sister's breast cancer diagnosis and the recommendation of an alkaline diet. Arnston has become an advocate for algae nutrition, focusing on its health and environmental benefits. Her background is rooted in health advocacy and entrepreneurship, with a mission to educate about algae's potential.\n\nBusinesses\n- ENERGYbits: A Boston-based company specializing in algae-based nutritional supplements. ENERGYbits positions itself as a provider of pure, plant-based, nutrient-dense whole food in tablet form, emphasizing health, recovery, and environmental sustainability. The company targets health-conscious consumers, athletes, and those seeking clean, sustainable nutrition. ENERGYbits is known for its educational outreach and active social media presence.\n\nProducts\n- ENERGYbits (Spirulina Tablets): 100% spirulina tablets, high in protein, antioxidants, and essential nutrients. Marketed for energy, focus, and athletic recovery. No binders, fillers, or preservatives. Sourced from protected freshwater springs and slow-dried at low heat. Pricing is premium compared to competitors, with some customer concerns about value for money.\n- RECOVERYbits (Chlorella Tablets): 100% chlorella tablets, rich in chlorophyll and nutrients. Marketed for detoxification, immune support, and overall wellness. Same purity and processing standards as other products.\n- VITALITYbits: A blend of 50% spirulina and 50% chlorella tablets, designed to offer combined benefits of both algae types.\n- BEAUTYbits: Spirulina tablets specifically marketed for skin, hair, and nail health, leveraging spirulina's antioxidant and anti-inflammatory properties.\n\nCompounds\n- Spirulina: A blue-green algae, high in complete protein (about 60% by weight), antioxidants (notably phycocyanin), essential fatty acids, B-vitamins, and minerals. Mechanisms include supporting energy, reducing inflammation, and providing broad-spectrum nutrition. Found in ENERGYbits, VITALITYbits, and BEAUTYbits.\n- Chlorella: A green algae, rich in chlorophyll, protein, vitamins, and minerals. Known for its detoxification properties, immune support, and ability to bind heavy metals. Found in RECOVERYbits and VITALITYbits.\n\nCase Studies\n- No specific clinical trials or case studies were found on the ENERGYbits website or in the provided research notes. The company emphasizes educational content and third-party testing for purity but does not cite proprietary clinical research.\n\nCustomer Feedback\n- While ENERGYbits emphasizes product purity and quality, customer reviews (e.g., Trustpilot) highlight significant dissatisfaction with customer service, including order fulfillment issues, lack of responsiveness, and refund difficulties. Some customers also question the value for money due to smaller product sizes compared to competitors.",
+      "entity_intel_ids": [
+        "business:energybits",
+        "product:spirulina_tablets",
+        "product:chlorella_tablets",
+        "product:recoverybits",
+        "product:vitalitybits",
+        "product:beautybits"
+      ],
+      "key_findings": [
+        "ENERGYbits was founded by Catharine Arnston, inspired by a personal health journey involving her sister's cancer diagnosis.",
+        "The company specializes in algae-based supplements, primarily spirulina and chlorella tablets, marketed as pure, nutrient-dense whole foods.",
+        "ENERGYbits products are cultivated in protected freshwater environments, tested for contaminants, and slow-dried to preserve nutrients.",
+        "Main products include ENERGYbits (spirulina), RECOVERYbits (chlorella), VITALITYbits (spirulina/chlorella blend), and BEAUTYbits (spirulina for skin/hair health).",
+        "Spirulina is highlighted for its high protein, antioxidant, and nutrient content, while chlorella is promoted for detoxification and immune support.",
+        "Products contain no fillers, binders, or preservatives and are non-GMO.",
+        "ENERGYbits targets health-conscious consumers and athletes, positioning itself as a premium, sustainable supplement brand.",
+        "Customer reviews reveal significant dissatisfaction with customer service and perceived value for money.",
+        "No proprietary clinical trials or case studies are cited by the company; emphasis is on third-party testing and educational content."
+      ],
+      "key_source_citations": [
+        {
+          "url": "https://energybits.com/pages/about-bits",
+          "title": "About ENERGYbits",
+          "description": "Company background, mission, and founder story.",
+          "published_date": null,
+          "score": 9.5
+        },
+        {
+          "url": "https://energybits.com/products",
+          "title": "ENERGYbits Product Range",
+          "description": "Overview of all ENERGYbits products and their ingredients.",
+          "published_date": null,
+          "score": 9.2
+        },
+        {
+          "url": "https://energybits.com/products/energybits-spirulina-large-bag",
+          "title": "ENERGYbits Spirulina Tablets",
+          "description": "Detailed product information for ENERGYbits spirulina tablets.",
+          "published_date": null,
+          "score": 8.8
+        },
+        {
+          "url": "https://energybits.com/products/recoverybits-chlorella-large-bag",
+          "title": "RECOVERYbits Chlorella Tablets",
+          "description": "Detailed product information for RECOVERYbits chlorella tablets.",
+          "published_date": null,
+          "score": 8.8
+        },
+        {
+          "url": "https://energybits.com/products/vitalitybits-spirulina-chlorella-large-bag",
+          "title": "VITALITYbits Blend Tablets",
+          "description": "Product details for VITALITYbits blend tablets.",
+          "published_date": null,
+          "score": 8.7
+        }
+      ]
+    },
+    {
+      "direction_id": "dir_692e4a94a611500d6687c22f_entity_003",
+      "extensive_summary": "**Compounds**\n- **Spirulina**: A cyanobacterium (blue-green microalgae) rich in protein, essential fatty acids, vitamins, minerals, and pigments. It contains significant unsaturated fatty acids, essential amino acids, and phenolic compounds (e.g., salicylic and chlorogenic acids) that contribute to its antioxidant properties. Spirulina is used to enhance the nutritional and antioxidant profile of foods and is considered non-toxic with beneficial effects on bodily functions beyond basic nutrition. Its lipid composition includes monoacylglycerols, diacylglycerols, free sterols, triacylglycerols, and phospholipids, which may contribute to its biological activities.\n- **Chlorella**: Not directly detailed in the provided notes, but generally known as a green microalga with a similar profile to spirulina, often used for its protein, chlorophyll, and micronutrient content.\n- **Phycocyanin**: A pigment-protein complex found in spirulina, responsible for its blue color and known for antioxidant and anti-inflammatory properties.\n- **Superoxide Dismutase (SOD)**: An enzyme with antioxidant activity, often present in microalgae, that helps neutralize superoxide radicals and reduce oxidative stress.\n- **Glutathione**: A tripeptide and potent antioxidant, sometimes found in microalgae, that supports cellular detoxification and redox balance.\n\n**Products**\n- Functional foods and supplements containing spirulina are formulated to improve protein quality and antioxidant content. These products are often targeted at individuals seeking plant-based nutrition or enhanced dietary antioxidant intake. Specific product details, pricing, and business affiliations are not provided in the current notes.\n\n**Businesses**\n- No specific businesses or brands are mentioned in the provided research notes. However, the use of spirulina in functional foods suggests involvement from health food companies and supplement manufacturers.\n\n**People**\n- No individual experts, researchers, or company representatives are identified in the current research notes.\n\n**Case Studies**\n- No specific case studies or clinical trials are referenced in the provided notes. The summary is based on general scientific literature and compositional analysis of spirulina.\n\n**Safety Considerations**\n- Spirulina is described as non-toxic, and its bioactive compounds are considered safe for consumption. No specific contraindications or adverse effects are mentioned in the current notes.",
+      "entity_intel_ids": [
+        "compound:spirulina",
+        "compound:chlorella",
+        "compound:phycocyanin",
+        "compound:superoxide_dismutase",
+        "compound:glutathione"
+      ],
+      "key_findings": [
+        "Spirulina is a nutrient-dense cyanobacterium with high protein, essential fatty acids, vitamins, minerals, and antioxidant pigments.",
+        "The primary bioactive compounds in spirulina include phenolic acids, phycocyanin, and various lipid subclasses, contributing to its antioxidant and health-promoting properties.",
+        "Spirulina is used to enhance the nutritional and antioxidant profile of functional foods, especially in plant-based diets.",
+        "Phycocyanin, a pigment-protein complex in spirulina, is notable for its antioxidant and anti-inflammatory effects.",
+        "Superoxide dismutase and glutathione, both present in microalgae, play key roles in cellular antioxidant defense and detoxification.",
+        "No specific businesses, products, or case studies were identified in the provided research notes.",
+        "Spirulina is considered non-toxic, with no major safety concerns or contraindications reported in the current notes."
+      ],
+      "key_source_citations": [
+        {
+          "url": "https://www.sciencedirect.com/science/article/pii/S0963996921003832",
+          "title": "Nutritional and functional properties of Spirulina (Arthrospira) and its application in food products: A review",
+          "description": "Comprehensive review of spirulina's composition, bioactive compounds, and applications in functional foods.",
+          "published_date": "2021-09-01",
+          "score": 9.5
+        }
+      ]
+    },
+    {
+      "direction_id": "dir_692e4a94a611500d6687c22f_entity_004",
+      "extensive_summary": "**Compounds**\n- **Superoxide Dismutase (SOD2/MnSOD):** SOD2, also known as manganese superoxide dismutase (MnSOD), is a mitochondrial enzyme that catalyzes the conversion of superoxide radicals into hydrogen peroxide and oxygen, thereby protecting cells from oxidative stress. SOD2 requires manganese as a cofactor for its activity. Its levels decline with age, which correlates with increased oxidative damage and aging-related cellular deterioration. SOD2 is also used in cosmetic and personal care products for its antioxidant and anti-aging properties, including protection against UV damage and support for wound healing.\n- **Glutathione:** Glutathione is a tripeptide and a major intracellular antioxidant that works synergistically with SOD2 to neutralize reactive oxygen species (ROS) and maintain cellular redox balance. It is essential for detoxification and supports mitochondrial health by reducing oxidative stress.\n- **Manganese:** Manganese is an essential trace mineral that serves as a cofactor for SOD2. Proper manganese availability is critical for optimal SOD2 function. Metal substitution (e.g., iron replacing manganese in SOD2) can impair enzyme activity and increase oxidative stress.\n\n**Products**\n- SOD2 and glutathione are included in various dietary supplements and topical formulations, particularly those targeting anti-aging and skin health. These products are often marketed for their antioxidant benefits, though specific product names and pricing were not detailed in the provided notes.\n\n**Businesses**\n- Companies in the cosmetics and personal care industry utilize SOD2 in their formulations for its anti-aging and skin-protective effects. Supplement manufacturers also offer SOD2 and glutathione products, though efficacy and detailed product information were not extensively covered in the notes.\n\n**People**\n- No specific individuals, researchers, or experts were identified in the provided research notes.\n\n**Case Studies**\n- No specific clinical or mechanistic studies, nor case studies from business or product websites, were identified in the provided notes. There is mention of SOD2's use in wound healing and skin protection, but no direct links to clinical trials or mechanistic studies were provided.\n\n**Dietary Interventions and Algae-Derived Nutrients**\n- The current state of research on dietary interventions to support mitochondrial antioxidant systems, including the use of algae-derived nutrients, was not detailed in the provided notes. No direct evidence or studies linking algae-derived nutrients to improved mitochondrial function were found in the extracted content.",
+      "entity_intel_ids": [
+        "compound:superoxide_dismutase",
+        "compound:glutathione",
+        "compound:manganese"
+      ],
+      "key_findings": [
+        "Superoxide dismutase (SOD2/MnSOD) is a mitochondrial enzyme crucial for neutralizing superoxide radicals and protecting cells from oxidative stress.",
+        "SOD2 requires manganese as a cofactor; metal substitution can impair its function and increase oxidative stress.",
+        "Glutathione works synergistically with SOD2 to maintain cellular redox balance and support mitochondrial health.",
+        "SOD2 and glutathione are included in dietary supplements and cosmetic products, primarily for their antioxidant and anti-aging properties.",
+        "SOD2 production declines with age, which is associated with increased free radical damage and aging-related cellular deterioration.",
+        "Cosmetic and personal care companies use SOD2 in products to prevent wrinkles, age spots, and support wound healing.",
+        "No specific clinical or mechanistic studies or case studies were identified in the provided notes regarding SOD2, glutathione, or manganese.",
+        "No direct evidence was found linking algae-derived nutrients to improved mitochondrial function in the provided content."
+      ],
+      "key_source_citations": [
+        {
+          "url": "https://www.healthline.com/health/superoxide-dismutase",
+          "title": "Superoxide Dismutase (SOD): Benefits, Sources, and More",
+          "description": "Overview of SOD, its functions, and its use in supplements and skincare.",
+          "published_date": "2022-09-15",
+          "score": 9.0
+        }
+      ]
+    }
+  ],
+  "extracted_entities": {
+    "businesses": [
+      {
+        "name": "ENERGYbits Inc.",
+        "description": "A plant-based nutrition company specializing in algae-based products, providing toxin-free, non-GMO algae tablets for energy, health, and longevity. Recognized for bringing algae into the mainstream health and wellness market.",
+        "website": "https://energybits.com",
+        "media_links": [
+          "https://energybits.com/pages/founder-bio?srsltid=AfmBOooBg8wbpakK3cr-D0ilCHiVFqvbb5DSR1KPdl8Fupf82SUxovsz"
+        ]
+      },
+      {
+        "name": "ENERGYbits",
+        "description": "A Boston-based company specializing in algae-based nutritional supplements, focusing on pure, plant-based, nutrient-dense whole food in tablet form. Emphasizes health, recovery, and environmental sustainability, targeting health-conscious consumers and athletes.",
+        "website": "https://energybits.com",
+        "media_links": [
+          "https://twitter.com/energybits",
+          "https://www.instagram.com/energybits/"
+        ]
+      }
+    ],
+    "people": [
+      {
+        "name": "Catharine Arnston",
+        "is_guest": true,
+        "bio": "Founder, CEO, and Chief Scientific Officer of ENERGYbits Inc. Holds a PhD, MBA, and BA, with a background in plant-based nutrition and studies at Kingdom College of Natural. Leading advocate for algae as a nutritional biohack, inspired by her sister's cancer diagnosis.",
+        "role": "Founder, CEO, and Chief Scientific Officer",
+        "business_name": "ENERGYbits Inc.",
+        "affiliations": [],
+        "media_links": [
+          "https://www.linkedin.com/in/catharinearnston",
+          "https://energybits.com/pages/founder-bio?srsltid=AfmBOooBg8wbpakK3cr-D0ilCHiVFqvbb5DSR1KPdl8Fupf82SUxovsz"
+        ]
+      },
+      {
+        "name": "Catharine Arnston",
+        "is_guest": true,
+        "bio": "Founder and CEO of ENERGYbits. Inspired to start the company after her sister's breast cancer diagnosis and the recommendation of an alkaline diet. Advocate for algae nutrition, focusing on health and environmental benefits. Background in health advocacy and entrepreneurship.",
+        "role": "Founder and CEO",
+        "business_name": "ENERGYbits",
+        "affiliations": [],
+        "media_links": ["https://linkedin.com/in/catharine-arnston"]
+      }
+    ],
+    "products": [
+      {
+        "name": "ENERGYbits Algae Tablets",
+        "description": "Whole-food tablets made from algae, designed to provide steady energy and meet nutritional needs without chemicals, caffeine, or sugar. Rich in protein (64%) and contain 40 vitamins and minerals. Marketed as a convenient, nutrient-dense superfood for daily use.",
+        "price": "$130.00",
+        "ingredients": ["Algae"],
+        "compounds": [
+          {
+            "name": "Algae",
+            "description": "The most alkaline, plant-based, nutrient-dense food, with high protein content and a broad spectrum of vitamins and minerals. Recognized for its sustainability and nutritional value.",
+            "aliases": [],
+            "mechanism_of_action": "Supports energy, focus, recovery, anti-aging, and overall health through its dense nutritional profile, including protein, vitamins, and minerals.",
+            "media_links": [
+              "https://energybits.com/pages/founder-bio?srsltid=AfmBOooBg8wbpakK3cr-D0ilCHiVFqvbb5DSR1KPdl8Fupf82SUxovsz"
+            ]
+          }
+        ],
+        "source_url": "https://energybits.com",
+        "business_name": "ENERGYbits Inc.",
+        "media_links": ["https://energybits.com"]
+      },
+      {
+        "name": "ENERGYbits (Spirulina Tablets)",
+        "description": "100% spirulina tablets, high in protein, antioxidants, and essential nutrients. Marketed for energy, focus, and athletic recovery. No binders, fillers, or preservatives. Sourced from protected freshwater springs and slow-dried at low heat.",
+        "price": "$130.00",
+        "ingredients": ["100% spirulina"],
+        "compounds": [
+          {
+            "name": "Spirulina",
+            "description": "A blue-green algae, high in complete protein (about 60% by weight), antioxidants (notably phycocyanin), essential fatty acids, B-vitamins, and minerals.",
+            "aliases": ["Arthrospira platensis", "Blue-green algae"],
+            "mechanism_of_action": "Supports energy, reduces inflammation, and provides broad-spectrum nutrition.",
+            "media_links": []
+          }
+        ],
+        "source_url": "https://energybits.com/products/energybits-spirulina-large-bag",
+        "business_name": "ENERGYbits",
+        "media_links": [
+          "https://energybits.com/products/energybits-spirulina-large-bag"
+        ]
+      },
+      {
+        "name": "RECOVERYbits (Chlorella Tablets)",
+        "description": "100% chlorella tablets, rich in chlorophyll and nutrients. Marketed for detoxification, immune support, and overall wellness. No binders, fillers, or preservatives.",
+        "price": "$130.00",
+        "ingredients": ["100% chlorella"],
+        "compounds": [
+          {
+            "name": "Chlorella",
+            "description": "A green algae, rich in chlorophyll, protein, vitamins, and minerals. Known for its detoxification properties, immune support, and ability to bind heavy metals.",
+            "aliases": ["Chlorella vulgaris", "Green algae"],
+            "mechanism_of_action": "Binds heavy metals, supports detoxification, and boosts immune function.",
+            "media_links": []
+          }
+        ],
+        "source_url": "https://energybits.com/products/recoverybits-chlorella-large-bag",
+        "business_name": "ENERGYbits",
+        "media_links": [
+          "https://energybits.com/products/recoverybits-chlorella-large-bag"
+        ]
+      },
+      {
+        "name": "VITALITYbits",
+        "description": "A blend of 50% spirulina and 50% chlorella tablets, designed to offer combined benefits of both algae types.",
+        "price": "$130.00",
+        "ingredients": ["Spirulina", "Chlorella"],
+        "compounds": [
+          {
+            "name": "Spirulina",
+            "description": "A blue-green algae, high in protein, antioxidants, and nutrients.",
+            "aliases": ["Arthrospira platensis", "Blue-green algae"],
+            "mechanism_of_action": "Provides energy, antioxidants, and broad-spectrum nutrition.",
+            "media_links": []
+          },
+          {
+            "name": "Chlorella",
+            "description": "A green algae, rich in chlorophyll, protein, vitamins, and minerals.",
+            "aliases": ["Chlorella vulgaris", "Green algae"],
+            "mechanism_of_action": "Supports detoxification and immune function.",
+            "media_links": []
+          }
+        ],
+        "source_url": "https://energybits.com/products/vitalitybits-spirulina-chlorella-large-bag",
+        "business_name": "ENERGYbits",
+        "media_links": [
+          "https://energybits.com/products/vitalitybits-spirulina-chlorella-large-bag"
+        ]
+      },
+      {
+        "name": "BEAUTYbits",
+        "description": "Spirulina tablets specifically marketed for skin, hair, and nail health, leveraging spirulina's antioxidant and anti-inflammatory properties.",
+        "price": "$130.00",
+        "ingredients": ["100% spirulina"],
+        "compounds": [
+          {
+            "name": "Spirulina",
+            "description": "A blue-green algae, high in protein, antioxidants, and nutrients.",
+            "aliases": ["Arthrospira platensis", "Blue-green algae"],
+            "mechanism_of_action": "Provides antioxidants and anti-inflammatory benefits for skin, hair, and nails.",
+            "media_links": []
+          }
+        ],
+        "source_url": "https://energybits.com/products/beautybits-spirulina-large-bag",
+        "business_name": "ENERGYbits",
+        "media_links": [
+          "https://energybits.com/products/beautybits-spirulina-large-bag"
+        ]
+      }
+    ],
+    "case_studies": [
+      {
+        "title": "Nutritional and functional properties of Spirulina (Arthrospira) and its application in food products: A review",
+        "summary": "This review summarizes the nutritional composition and functional properties of spirulina, highlighting its high protein, essential fatty acids, vitamins, minerals, and antioxidant pigments. It discusses the bioactive compounds in spirulina, such as phenolic acids, phycocyanin, superoxide dismutase, and glutathione, and their roles in enhancing the nutritional and antioxidant profile of functional foods. Spirulina is considered non-toxic and beneficial for health beyond basic nutrition.",
+        "url": "https://www.sciencedirect.com/science/article/pii/S0963996921003832",
+        "source_type": "website",
+        "related_compound_names": [
+          "Spirulina",
+          "Phycocyanin",
+          "Superoxide Dismutase",
+          "Glutathione"
+        ],
+        "related_product_names": []
+      }
+    ],
+    "extraction_notes": null
+  },
+  "completed_at": "2026-01-08 19:55:46.254392"
+}

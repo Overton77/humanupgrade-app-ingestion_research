@@ -3,6 +3,8 @@
 
 from typing import Optional
 
+from pydantic import Field
+
 from .base_model import BaseModel
 
 
@@ -14,6 +16,30 @@ class CompoundCompound(BaseModel):
     id: str
     name: str
     description: Optional[str]
+    aliases: list[str]
+    media_links: Optional[list["CompoundCompoundMediaLinks"]] = Field(
+        alias="mediaLinks"
+    )
+    products: list["CompoundCompoundProducts"]
+    case_studies: list["CompoundCompoundCaseStudies"] = Field(alias="caseStudies")
+
+
+class CompoundCompoundMediaLinks(BaseModel):
+    url: str
+    description: Optional[str]
+
+
+class CompoundCompoundProducts(BaseModel):
+    id: str
+    name: str
+    description: Optional[str]
+
+
+class CompoundCompoundCaseStudies(BaseModel):
+    id: str
+    title: str
+    summary: str
 
 
 Compound.model_rebuild()
+CompoundCompound.model_rebuild()

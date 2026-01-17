@@ -1,142 +1,180 @@
+mutation Login($email: String!, $password: String!) {
+  login(email: $email, password: $password) {
+    token
+    user {
+      id
+      email
+      name
+      role
+    }
+  }
+}
+
 # --- Business Mutations ---
 
-mutation CreateBusiness($input: BusinessCreateWithIdsInput!) {
-  createBusiness(input: $input) {
+mutation UpsertBusinessWithRelations(
+  $input: BusinessUpsertRelationFieldsInput!
+) {
+  upsertBusinessWithRelations(input: $input) {
     id
     name
     description
-  }
-}
-
-mutation UpdateBusiness($input: BusinessUpdateWithIdsInput!) {
-  updateBusiness(input: $input) {
-    id
-    name
-    description
-  }
-}
-
-mutation UpdateBusinessRelations($input: BusinessUpdateRelationFieldsInput!) {
-  updateBusinessRelations(input: $input) {
-    id
-    name
+    website
+    mediaLinks {
+      url
+      description
+      posterUrl
+    }
+    products {
+      id
+      name
+      description
+      price
+      ingredients
+      sourceUrl
+      mediaLinks {
+        url
+        description
+        posterUrl
+      }
+      compounds {
+        id
+        name
+        description
+        aliases
+        mediaLinks {
+          url
+          description
+          posterUrl
+        }
+      }
+    }
+    owners {
+      id
+      name
+      role
+      bio
+      mediaLinks {
+        url
+        description
+        posterUrl
+      }
+    }
+    executives {
+      person {
+        id
+        name
+        role
+        bio
+        mediaLinks {
+          url
+          description
+          posterUrl
+        }
+      }
+      title
+      role
+    }
   }
 }
 
 # --- Product Mutations ---
 
-mutation CreateProduct($input: ProductCreateWithIdsInput!) {
-  createProduct(input: $input) {
+mutation UpsertProductWithRelations($input: ProductUpsertRelationFieldsInput!) {
+  upsertProductWithRelations(input: $input) {
     id
     name
     description
-  }
-}
-
-mutation UpdateProduct($input: ProductUpdateWithIdsInput!) {
-  updateProduct(input: $input) {
-    id
-    name
-    description
-  }
-}
-
-mutation UpdateProductRelations($input: ProductUpdateRelationFieldsInput!) {
-  updateProductRelations(input: $input) {
-    id
-    name
-  }
-}
-
-# --- Person Mutations ---
-
-mutation CreatePerson($input: PersonCreateWithIdsInput!) {
-  createPerson(input: $input) {
-    id
-    name
-    role
-  }
-}
-
-mutation UpdatePerson($input: PersonUpdateWithIdsInput!) {
-  updatePerson(input: $input) {
-    id
-    name
-    role
-  }
-}
-
-mutation UpdatePersonRelations($input: PersonUpdateRelationFieldsInput!) {
-  updatePersonRelations(input: $input) {
-    id
-    name
+    price
+    ingredients
+    sourceUrl
+    mediaLinks {
+      url
+      description
+      posterUrl
+    }
+    business {
+      id
+      name
+      description
+      website
+    }
+    compounds {
+      id
+      name
+      description
+      aliases
+      mediaLinks {
+        url
+        description
+        posterUrl
+      }
+    }
   }
 }
 
 # --- Episode Mutations ---
 
-mutation CreateEpisode($input: EpisodeCreateWithIdsInput!) {
-  createEpisode(input: $input) {
-    id
-    episodeTitle
-    channelName
-  }
-}
-
-mutation UpdateEpisode($input: EpisodeUpdateWithIdsInput!) {
-  updateEpisode(input: $input) {
-    id
-    episodeTitle
-    channelName
-  }
-}
-
 mutation UpdateEpisodeRelations($input: EpisodeUpdateRelationFieldsInput!) {
   updateEpisodeRelations(input: $input) {
     id
+    channelName
+    episodeNumber
     episodeTitle
+    episodePageUrl
+    episodeTranscriptUrl
+    publishedAt
+    summaryShort
+    webPageSummary
+    summaryDetailed
+    publishedSummary
+    youtubeVideoId
+    youtubeWatchUrl
+    youtubeEmbedUrl
+    takeaways
+    s3TranscriptKey
+    s3TranscriptUrl
+    mediaLinks {
+      url
+      description
+      posterUrl
+    }
+    guests {
+      id
+      name
+      role
+      bio
+      mediaLinks {
+        url
+        description
+        posterUrl
+      }
+    }
+    sponsorBusinesses {
+      id
+      name
+      description
+      website
+      mediaLinks {
+        url
+        description
+        posterUrl
+      }
+    }
+    protocols {
+      id
+      name
+      description
+      categories
+      goals
+      steps
+      cautions
+      aliases
+      sourceUrl
+    }
   }
 }
 
-# --- Compound Mutations ---
+# -- Case Study Mutations -- #
 
-mutation CreateCompound($input: CompoundCreateWithIdsInput!) {
-  createCompound(input: $input) {
-    id
-    name
-    description
-  }
-}
-
-mutation UpdateCompound($input: CompoundUpdateWithIdsInput!) {
-  updateCompound(input: $input) {
-    id
-    name
-    description
-  }
-}
-
-mutation UpdateCompoundRelations($input: CompoundUpdateRelationFieldsInput!) {
-  updateCompoundRelations(input: $input) {
-    id
-    name
-  }
-}
-
-# --- CaseStudy Mutations ---
-
-mutation CreateCaseStudy($input: CaseStudyCreateWithOptionalIdsInput!) {
-  createCaseStudy(input: $input) {
-    id
-    title
-    summary
-  }
-}
-
-mutation UpdateCaseStudy($input: CaseStudyUpdateWithOptionalIdsInput!) {
-  updateCaseStudy(input: $input) {
-    id
-    title
-    summary
-  }
-}
+# Person, Compound, Episode Mutations and helpers if needed

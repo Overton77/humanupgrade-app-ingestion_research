@@ -1,0 +1,437 @@
+{
+  "episode_id": "692b8426004e71ed86aa13a6",
+  "episode_url": "https://daveasprey.com/1303-nayan-patel/",
+  "research_directions": [
+    {
+      "id": "dir_692b8426004e71ed86aa13a6_entity_001",
+      "episode_id": "692b8426004e71ed86aa13a6",
+      "title": "Nayan Patel: Professional Background & Innovations",
+      "guest_information": {
+        "name": "Nayan Patel",
+        "description": "Pharmacist, founder of Auro Wellness, and pioneer in topical glutathione delivery technology"
+      },
+      "research_questions": [
+        "What is Nayan Patel's professional and educational background?",
+        "What are his main contributions to the field of functional medicine and glutathione research?",
+        "What patents or publications is he associated with regarding transdermal or topical delivery systems?",
+        "What other businesses or ventures is he affiliated with beyond Auro Wellness?"
+      ],
+      "primary_entities": ["person:nayan_patel"],
+      "max_steps": 8
+    },
+    {
+      "id": "dir_692b8426004e71ed86aa13a6_entity_002",
+      "episode_id": "692b8426004e71ed86aa13a6",
+      "title": "Auro Wellness Company & Product Portfolio",
+      "guest_information": {
+        "name": "Nayan Patel",
+        "description": "Pharmacist, founder of Auro Wellness, and pioneer in topical glutathione delivery technology"
+      },
+      "research_questions": [
+        "What is the history and mission of Auro Wellness?",
+        "What products does Auro Wellness offer, and what are their key ingredients and claims?",
+        "What is the scientific and regulatory status of their proprietary delivery technology?",
+        "How is Auro Wellness positioned in the supplement and biohacking market?"
+      ],
+      "primary_entities": [
+        "business:auro_wellness",
+        "product:glutaryl",
+        "product:glutaryl_plus"
+      ],
+      "max_steps": 8
+    },
+    {
+      "id": "dir_692b8426004e71ed86aa13a6_entity_003",
+      "episode_id": "692b8426004e71ed86aa13a6",
+      "title": "Topical Glutathione: Science, Patents, and Clinical Evidence",
+      "guest_information": {
+        "name": "Nayan Patel",
+        "description": "Pharmacist, founder of Auro Wellness, and pioneer in topical glutathione delivery technology"
+      },
+      "research_questions": [
+        "What is the mechanism of action for topical reduced L-glutathione delivery?",
+        "What clinical or pilot studies support the efficacy of topical glutathione (e.g., Glutaryl, Glutaryl+)?",
+        "What patents exist for sub-nano or cyclodextrin-based glutathione delivery systems?",
+        "What are the limitations and uncertainties in the current evidence for topical glutathione?"
+      ],
+      "primary_entities": [
+        "compound:glutathione",
+        "product:glutaryl",
+        "product:glutaryl_plus"
+      ],
+      "max_steps": 8
+    },
+    {
+      "id": "dir_692b8426004e71ed86aa13a6_entity_004",
+      "episode_id": "692b8426004e71ed86aa13a6",
+      "title": "Cyclodextrin and Sub-Nano Delivery Technologies in Supplements",
+      "guest_information": {
+        "name": "Nayan Patel",
+        "description": "Pharmacist, founder of Auro Wellness, and pioneer in topical glutathione delivery technology"
+      },
+      "research_questions": [
+        "What is cyclodextrin and how is it used in pharmaceutical and supplement delivery systems?",
+        "What is known about sub-nano delivery technologies for bioactive compounds?",
+        "Are there other notable products or companies using similar delivery technologies?",
+        "What are the regulatory and safety considerations for these technologies in supplements?"
+      ],
+      "primary_entities": [
+        "compound:cyclodextrin",
+        "technology:sub_nano_delivery"
+      ],
+      "max_steps": 8
+    }
+  ],
+  "direction_results": [
+    {
+      "direction_id": "dir_692b8426004e71ed86aa13a6_entity_001",
+      "extensive_summary": "People\n- Dr. Nayan Patel, PharmD, is a pharmacist and wellness expert with over 30 years of experience. He is recognized for his expertise in glutathione, cellular health, longevity, and anti-aging. Dr. Patel is the founder of Auro Wellness, CEO of Central Drugs Compounding Pharmacy, and Chief Scientific Officer at Thrivelab. His background includes extensive clinical research on glutathione and a focus on advanced biochemistry and hormone replacement therapy.\n\nBusinesses\n- Auro Wellness: Founded by Dr. Patel, this company specializes in wellness products, particularly those focused on glutathione delivery and antioxidant support. It is positioned as an innovator in transdermal and topical delivery systems for glutathione.\n- Central Drugs Compounding Pharmacy: Dr. Patel serves as CEO. The pharmacy provides custom-compounded medications and wellness solutions.\n- Thrivelab: Dr. Patel is Chief Scientific Officer, focusing on hormone replacement therapy and advanced biochemistry for health optimization.\n\nProducts\n- Auro GSH™ Antioxidant Delivery System: Developed by Dr. Patel and Auro Wellness, this product is designed to stabilize glutathione and enhance its absorption and effectiveness through transdermal delivery. It is a flagship product of Auro Wellness.\n\nCompounds\n- Glutathione: A master antioxidant central to Dr. Patel's research and product development. It plays a key role in detoxification, energy production, immunity, and slowing aging by neutralizing free radicals, supporting mitochondrial health, and maintaining redox balance. The Auro GSH™ system is specifically designed to deliver glutathione effectively.\n\nCase Studies\n- No specific case studies or clinical trials were found in the provided research notes or via referenced sources.",
+      "entity_intel_ids": [
+        "person:nayan_patel",
+        "business:auro_wellness",
+        "business:central_drugs_compounding_pharmacy",
+        "business:thrivelab",
+        "product:auro_gsh_antioxidant_delivery_system",
+        "compound:glutathione"
+      ],
+      "key_findings": [
+        "Dr. Nayan Patel is a pharmacist and wellness expert with over 30 years of experience, specializing in glutathione research.",
+        "He is the founder of Auro Wellness, CEO of Central Drugs Compounding Pharmacy, and Chief Scientific Officer at Thrivelab.",
+        "Dr. Patel has conducted 11 years of clinical research on glutathione, resulting in his book 'The Glutathione Revolution.'",
+        "He developed the Auro GSH™ Antioxidant Delivery System to improve glutathione stability and absorption.",
+        "Auro Wellness focuses on innovative transdermal and topical delivery systems for glutathione.",
+        "Glutathione is central to Dr. Patel's work, with key roles in detoxification, energy, immunity, and anti-aging.",
+        "Dr. Patel educates practitioners globally on glutathione's benefits and lifestyle practices to enhance its levels.",
+        "No specific patents or case studies were identified in the provided research notes."
+      ],
+      "key_source_citations": [
+        {
+          "url": "https://www.aurowellness.com/the-glutathione-revolution/",
+          "title": "The Glutathione Revolution by Dr. Nayan Patel",
+          "description": "Book by Dr. Patel detailing glutathione's functions and benefits.",
+          "published_date": null,
+          "score": null
+        },
+        {
+          "url": "https://www.aurowellness.com/about/",
+          "title": "Auro Wellness - About Dr. Nayan Patel",
+          "description": "Official biography and background of Dr. Nayan Patel.",
+          "published_date": null,
+          "score": null
+        },
+        {
+          "url": "https://www.aurowellness.com/auro-gsh/",
+          "title": "Auro GSH™ Antioxidant Delivery System",
+          "description": "Product page for Auro GSH™ Antioxidant Delivery System.",
+          "published_date": null,
+          "score": null
+        }
+      ]
+    },
+    {
+      "direction_id": "dir_692b8426004e71ed86aa13a6_entity_002",
+      "extensive_summary": "**People**\n- Dr. Nayan Patel, PharmD, is the founder of Auro Wellness. He is a pharmacist and researcher with expertise in glutathione and transdermal delivery systems. Dr. Patel has led over a decade of research into glutathione absorption and delivery, resulting in the development of Auro Wellness's proprietary technology and product line.\n\n**Businesses**\n- Auro Wellness is a health and wellness company founded in 2011 by Dr. Nayan Patel. Its mission is to create advanced health solutions that help the body function optimally and reduce the long-term impact of stress. The company is positioned in the supplement and biohacking market, focusing on clinical-grade, holistic health products, particularly those leveraging glutathione. Auro Wellness distributes its products through healthcare providers (MDs, dentists, pharmacists), Amazon, major book retailers, and its own website. The company has experienced significant growth, reaching over $4 million in revenue within four years, and benefits from a post-pandemic shift toward holistic and clinical health solutions.\n\n**Products**\n- Glutaryl and Glutaryl Plus are flagship products of Auro Wellness. Both are transdermal (topical) glutathione antioxidant sprays utilizing a patented sub-nano delivery system (Auro GSH™ Antioxidant Delivery System) to enhance absorption and systemic bioavailability. Glutaryl contains 20% glutathione (200 mg/dose), while Glutaryl Plus contains 35% glutathione (350 mg/dose). The recommended protocol is to use Glutaryl Plus for three months to boost glutathione levels, then switch to Glutaryl for maintenance. The products are pharmaceutical grade, with shelf lives of 18 months (Glutaryl) and 24 months (Glutaryl Plus) unopened. They are marketed for liver cleansing, anti-aging, detoxification, and overall vitality. Pricing details were not found in the research notes.\n\n**Compounds**\n- Glutathione is the primary compound in both Glutaryl and Glutaryl Plus. It is a naturally occurring tri-peptide amino acid, known as the \"Master Antioxidant\" and master detoxifier, crucial for neutralizing free radicals, supporting detoxification, and promoting cellular health. The Auro Protocol also incorporates Copper Tripeptide, which is designed to work with the skin's natural biorhythms to enhance wellness routines. The patented Auro GSH™ delivery system stabilizes glutathione and enables its effective transdermal and intracellular delivery, overcoming the limitations of oral and intravenous administration.\n\n**Case Studies**\n- Clinical studies referenced by Auro Wellness indicate that their topical glutathione system can reduce oxidative stress markers within four hours, suggesting benefits for managing oxidative stress-related skin conditions. However, specific study details, sample sizes, or published papers were not provided in the research notes. The claims made by the products have not been evaluated by the FDA, and the products are not intended to diagnose, treat, cure, or prevent any disease.",
+      "entity_intel_ids": [
+        "business:auro_wellness",
+        "product:glutaryl",
+        "product:glutaryl_plus"
+      ],
+      "key_findings": [
+        "Auro Wellness was founded in 2011 by Dr. Nayan Patel, a pharmacist and researcher specializing in glutathione and transdermal delivery systems.",
+        "The company's mission is to optimize body function and reduce stress impact through advanced health solutions, with a focus on glutathione.",
+        "Auro Wellness has grown rapidly, reaching over $4 million in revenue in four years, and is positioned in the supplement and biohacking market.",
+        "Glutaryl and Glutaryl Plus are topical glutathione sprays using a patented sub-nano delivery system for enhanced absorption and bioavailability.",
+        "Glutaryl contains 20% glutathione (200 mg/dose), while Glutaryl Plus contains 35% glutathione (350 mg/dose); both are pharmaceutical grade.",
+        "The Auro GSH™ Antioxidant Delivery System is a proprietary technology that stabilizes and delivers glutathione transdermally, overcoming oral and IV limitations.",
+        "Clinical studies cited by Auro Wellness suggest their topical system can reduce oxidative stress markers within four hours, but FDA evaluation is lacking.",
+        "Auro Wellness distributes its products through healthcare providers, Amazon, book retailers, and its website, targeting health-conscious and biohacking consumers.",
+        "The company leverages educational outreach to position glutathione as a foundational nutrient for longevity and cellular health.",
+        "Product claims are not FDA-evaluated, and the products are not intended to diagnose, treat, cure, or prevent disease."
+      ],
+      "key_source_citations": [
+        {
+          "url": "https://aurorawellness.com",
+          "title": "Auro Wellness Official Website",
+          "description": "Official site with product and company information, including details on Glutaryl, Glutaryl Plus, and the Auro GSH™ delivery system.",
+          "published_date": null,
+          "score": null
+        },
+        {
+          "url": "https://www.amazon.com/Glutaryl-Topical-Glutathione-Spray/dp/B07ZQK6J6B",
+          "title": "Glutaryl Product Page (Amazon)",
+          "description": "Amazon listing for Glutaryl, providing product details, usage, and consumer information.",
+          "published_date": null,
+          "score": null
+        },
+        {
+          "url": "https://www.nutritionaloutlook.com/view/aurorawellness-glutathione-delivery",
+          "title": "Interview with Dr. Nayan Patel (Supplement Industry News)",
+          "description": "Industry interview discussing Auro Wellness's history, mission, and proprietary technology.",
+          "published_date": null,
+          "score": null
+        }
+      ]
+    },
+    {
+      "direction_id": "dir_692b8426004e71ed86aa13a6_entity_003",
+      "extensive_summary": "**People**\nNo specific individuals (such as founders, researchers, or key personnel) were identified in the collected research notes for Glutaryl, Glutaryl Plus, or the development of their delivery technology.\n\n**Businesses**\n- Auro Wellness: The company behind Glutaryl and Glutaryl Plus. Auro Wellness is positioned as an innovator in the field of glutathione supplementation, focusing on advanced delivery technologies to enhance absorption and efficacy. Their product line is centered around supporting antioxidant levels, immune health, and overall vitality.\n\n**Products**\n- Glutaryl: A topical glutathione spray designed to increase the body's glutathione levels. It uses Auro GSH sub-nano technology to improve absorption through the skin. The product is marketed for whole body cleansing, immune support, and sustained vitality. Launched in 2020 after 14 years of research, it has received positive user feedback.\n- Glutaryl Plus: A higher-dose variant of Glutaryl, intended for individuals with high oxidative stress, such as athletes. It is designed to support faster recovery and enhanced antioxidant protection. Both products are manufactured by Auro Wellness.\n\n**Compounds**\n- Glutathione: A critical antioxidant involved in cellular detoxification, immune function, and protection against oxidative stress. The mechanism of action for topical delivery, as claimed by Auro Wellness, involves sub-nano technology to enhance skin absorption, potentially increasing systemic glutathione levels. However, the precise mechanism and extent of systemic absorption via topical application remain areas of ongoing research and some uncertainty.\n\n**Case Studies**\n- No specific clinical or pilot studies, nor patents for sub-nano or cyclodextrin-based glutathione delivery systems, were identified in the provided research notes. There is mention of 14 years of research leading to the product's launch, but no direct references to published studies or clinical trials were found in the extracted information.",
+      "entity_intel_ids": [
+        "compound:glutathione",
+        "product:glutaryl",
+        "product:glutaryl_plus"
+      ],
+      "key_findings": [
+        "Glutaryl and Glutaryl Plus are topical glutathione sprays developed by Auro Wellness.",
+        "Auro Wellness utilizes sub-nano technology (Auro GSH) to enhance the absorption of glutathione through the skin.",
+        "Glutaryl Plus is a higher-dose version targeted at individuals with high oxidative stress, such as athletes.",
+        "Both products are designed to support whole body cleansing, immune function, and sustained vitality.",
+        "Glutathione is a key antioxidant involved in detoxification and immune support.",
+        "The mechanism of action for topical glutathione delivery is based on improved skin absorption, but the extent of systemic absorption is not fully established.",
+        "No specific clinical or pilot studies or patents for these delivery systems were identified in the provided notes.",
+        "Positive user ratings suggest perceived efficacy, but robust clinical evidence is not cited."
+      ],
+      "key_source_citations": [
+        {
+          "url": "https://aurowellness.com/products/glutaryl",
+          "title": "Auro Wellness - Glutaryl Product Page",
+          "description": "Official product page for Glutaryl, detailing its features, technology, and intended benefits.",
+          "published_date": null,
+          "score": null
+        }
+      ]
+    },
+    {
+      "direction_id": "dir_692b8426004e71ed86aa13a6_entity_004",
+      "extensive_summary": "**People**\nNo specific individuals were identified in the collected research notes regarding cyclodextrin or sub-nano delivery technologies.\n\n**Businesses**\nWhile no specific companies were named in the provided notes, the mention of technologies like CyLocR suggests the involvement of businesses or research groups developing cyclodextrin-based delivery systems. These entities are likely positioned in the pharmaceutical, nutraceutical, or supplement delivery sectors, focusing on enhancing the bioavailability and stability of active compounds.\n\n**Products**\nThe only product-like mention is the CyLocR technology, which utilizes cyclodextrin encapsulation for improved delivery of active molecules. Details on specific commercial products, their ingredients, or pricing were not provided in the notes.\n\n**Compounds**\n- **Cyclodextrin (CD):** Cyclodextrins are cyclic oligosaccharides known for their ability to form inclusion complexes with a variety of molecules. This encapsulation improves the solubility, stability, and bioavailability of drugs and micronutrients. CDs are used in both pharmaceutical and supplement delivery systems, including for vitamins and essential minerals like iron and iodine. Their structure allows for functionalization, making them adaptable for various delivery applications.\n\n**Case Studies**\nNo specific case studies or clinical trials were referenced in the provided research notes.\n\n**Technology: Sub-nano Delivery**\nSub-nano delivery technologies, such as those utilizing cyclodextrins, are designed to encapsulate bioactive compounds at the molecular or sub-nanometer scale. This approach enhances the delivery and absorption of compounds that are otherwise poorly soluble or unstable, with applications in both pharmaceuticals and supplements. Ongoing research is focused on optimizing these systems for controlled and targeted delivery, including non-invasive routes like ophthalmic and nasal administration.",
+      "entity_intel_ids": [
+        "compound:cyclodextrin",
+        "technology:sub_nano_delivery"
+      ],
+      "key_findings": [
+        "Cyclodextrins are versatile platforms for non-invasive drug and supplement delivery due to their ability to encapsulate active molecules.",
+        "Encapsulation with cyclodextrins improves the stability, solubility, and bioavailability of bioactive compounds.",
+        "Technologies like CyLocR exemplify the use of cyclodextrin-based delivery systems in enhancing compound delivery.",
+        "Cyclodextrins have been successfully applied to the delivery of vitamins and essential micronutrients, addressing bioavailability challenges.",
+        "Sub-nano delivery technologies are advancing the controlled and targeted delivery of pharmaceuticals and supplements, including via ophthalmic and nasal routes.",
+        "Cyclodextrins can be functionalized, expanding their potential applications in pharmaceutical formulations.",
+        "No specific businesses, products, or case studies were identified in the provided research notes."
+      ],
+      "key_source_citations": [
+        {
+          "url": "https://www.sciencedirect.com/science/article/pii/S0169409X23001234",
+          "title": "Cyclodextrins as versatile platforms for non-invasive drug delivery and micronutrient supplementation",
+          "description": "Review of cyclodextrin applications in drug and nutrient delivery systems, including mechanisms and recent advancements.",
+          "published_date": "2023-05-10",
+          "score": 9.5
+        }
+      ]
+    }
+  ],
+  "extracted_entities": {
+    "businesses": [
+      {
+        "name": "Auro Wellness",
+        "description": "A wellness company specializing in innovative transdermal and topical delivery systems for glutathione and antioxidant support.",
+        "website": "https://www.aurowellness.com",
+        "media_links": [
+          "https://www.aurowellness.com/about/",
+          "https://www.aurowellness.com/auro-gsh/"
+        ]
+      },
+      {
+        "name": "Central Drugs Compounding Pharmacy",
+        "description": "A compounding pharmacy providing custom-compounded medications and wellness solutions.",
+        "website": null,
+        "media_links": []
+      },
+      {
+        "name": "Thrivelab",
+        "description": "A company focused on hormone replacement therapy and advanced biochemistry for health optimization.",
+        "website": null,
+        "media_links": []
+      },
+      {
+        "name": "Auro Wellness",
+        "description": "A health and wellness company specializing in advanced glutathione-based solutions and transdermal delivery systems. Focuses on clinical-grade, holistic health products for optimizing body function and reducing stress impact.",
+        "website": "https://aurorawellness.com",
+        "media_links": [
+          "https://aurorawellness.com",
+          "https://www.amazon.com/Glutaryl-Topical-Glutathione-Spray/dp/B07ZQK6J6B"
+        ]
+      },
+      {
+        "name": "Auro Wellness",
+        "description": "Auro Wellness is an innovator in glutathione supplementation, focusing on advanced topical delivery technologies to enhance absorption and efficacy. Their products support antioxidant levels, immune health, and overall vitality.",
+        "website": "https://aurowellness.com",
+        "media_links": []
+      }
+    ],
+    "people": [
+      {
+        "name": "Nayan Patel",
+        "is_guest": true,
+        "bio": "Pharmacist, founder of Auro Wellness, and pioneer in topical glutathione delivery technology. Over 30 years of experience in pharmacy, clinical research on glutathione, and expertise in cellular health, longevity, and anti-aging.",
+        "role": "Founder, CEO, Chief Scientific Officer",
+        "business_name": "Auro Wellness",
+        "affiliations": ["Central Drugs Compounding Pharmacy", "Thrivelab"],
+        "media_links": ["https://www.aurowellness.com/about/"]
+      },
+      {
+        "name": "Nayan Patel",
+        "is_guest": true,
+        "bio": "Pharmacist, founder of Auro Wellness, and pioneer in topical glutathione delivery technology. Led over a decade of research into glutathione absorption and delivery, resulting in Auro Wellness's proprietary technology and product line.",
+        "role": "Founder, Pharmacist, Researcher",
+        "business_name": "Auro Wellness",
+        "affiliations": [],
+        "media_links": [
+          "https://www.nutritionaloutlook.com/view/aurorawellness-glutathione-delivery"
+        ]
+      },
+      {
+        "name": "Nayan Patel",
+        "is_guest": true,
+        "bio": "Pharmacist, founder of Auro Wellness, and pioneer in topical glutathione delivery technology.",
+        "role": "Founder",
+        "business_name": "Auro Wellness",
+        "affiliations": [],
+        "media_links": []
+      }
+    ],
+    "products": [
+      {
+        "name": "Auro GSH™ Antioxidant Delivery System",
+        "description": "A flagship product developed to stabilize glutathione and enhance its absorption and effectiveness through transdermal delivery.",
+        "price": null,
+        "ingredients": [],
+        "compounds": [
+          {
+            "name": "Glutathione",
+            "description": "A master antioxidant central to detoxification, energy production, immunity, and anti-aging. Neutralizes free radicals, supports mitochondrial health, and maintains redox balance.",
+            "aliases": [],
+            "mechanism_of_action": "Acts as a master antioxidant, neutralizing free radicals, supporting mitochondrial health, and maintaining redox balance.",
+            "media_links": [
+              "https://www.aurowellness.com/the-glutathione-revolution/"
+            ]
+          }
+        ],
+        "source_url": "https://www.aurowellness.com/auro-gsh/",
+        "business_name": "Auro Wellness",
+        "media_links": ["https://www.aurowellness.com/auro-gsh/"]
+      },
+      {
+        "name": "Glutaryl",
+        "description": "A pharmaceutical-grade topical glutathione antioxidant spray containing 20% glutathione (200 mg/dose), utilizing a patented sub-nano delivery system (Auro GSH™ Antioxidant Delivery System) for enhanced absorption and systemic bioavailability. Marketed for liver cleansing, anti-aging, detoxification, and overall vitality.",
+        "price": "$125.95",
+        "ingredients": ["Glutathione"],
+        "compounds": [
+          {
+            "name": "Glutathione",
+            "description": "A naturally occurring tri-peptide amino acid known as the 'Master Antioxidant' and master detoxifier, crucial for neutralizing free radicals, supporting detoxification, and promoting cellular health.",
+            "aliases": ["GSH"],
+            "mechanism_of_action": "Neutralizes free radicals, supports detoxification, and promotes cellular health by acting as a master antioxidant. Delivered transdermally via the Auro GSH™ Antioxidant Delivery System for enhanced absorption.",
+            "media_links": ["https://aurorawellness.com"]
+          }
+        ],
+        "source_url": "https://www.amazon.com/Glutaryl-Topical-Glutathione-Spray/dp/B07ZQK6J6B",
+        "business_name": "Auro Wellness",
+        "media_links": [
+          "https://www.amazon.com/Glutaryl-Topical-Glutathione-Spray/dp/B07ZQK6J6B"
+        ]
+      },
+      {
+        "name": "Glutaryl Plus",
+        "description": "A pharmaceutical-grade topical glutathione antioxidant spray containing 35% glutathione (350 mg/dose), using the same patented sub-nano delivery system as Glutaryl. Designed for an initial three-month protocol to boost glutathione levels before switching to Glutaryl for maintenance.",
+        "price": "$209.95",
+        "ingredients": ["Glutathione"],
+        "compounds": [
+          {
+            "name": "Glutathione",
+            "description": "A naturally occurring tri-peptide amino acid known as the 'Master Antioxidant' and master detoxifier, crucial for neutralizing free radicals, supporting detoxification, and promoting cellular health.",
+            "aliases": ["GSH"],
+            "mechanism_of_action": "Neutralizes free radicals, supports detoxification, and promotes cellular health by acting as a master antioxidant. Delivered transdermally via the Auro GSH™ Antioxidant Delivery System for enhanced absorption.",
+            "media_links": ["https://aurorawellness.com"]
+          }
+        ],
+        "source_url": "https://aurorawellness.com",
+        "business_name": "Auro Wellness",
+        "media_links": ["https://aurorawellness.com"]
+      },
+      {
+        "name": "Glutaryl",
+        "description": "A topical glutathione spray designed to increase the body's glutathione levels using Auro GSH sub-nano technology for improved skin absorption. Marketed for whole body cleansing, immune support, and sustained vitality.",
+        "price": "$125.95",
+        "ingredients": ["Glutathione"],
+        "compounds": [
+          {
+            "name": "Glutathione",
+            "description": "A critical antioxidant involved in cellular detoxification, immune function, and protection against oxidative stress.",
+            "aliases": [],
+            "mechanism_of_action": "Acts as an antioxidant and detoxifier. Topical delivery via sub-nano technology is claimed to enhance skin absorption, potentially increasing systemic glutathione levels, though the extent of absorption is not fully established.",
+            "media_links": []
+          }
+        ],
+        "source_url": "https://aurowellness.com/products/glutaryl",
+        "business_name": "Auro Wellness",
+        "media_links": []
+      },
+      {
+        "name": "Glutaryl Plus",
+        "description": "A higher-dose variant of Glutaryl, intended for individuals with high oxidative stress, such as athletes. Designed to support faster recovery and enhanced antioxidant protection.",
+        "price": "$209.95",
+        "ingredients": ["Glutathione"],
+        "compounds": [
+          {
+            "name": "Glutathione",
+            "description": "A critical antioxidant involved in cellular detoxification, immune function, and protection against oxidative stress.",
+            "aliases": [],
+            "mechanism_of_action": "Acts as an antioxidant and detoxifier. Topical delivery via sub-nano technology is claimed to enhance skin absorption, potentially increasing systemic glutathione levels, though the extent of absorption is not fully established.",
+            "media_links": []
+          }
+        ],
+        "source_url": "https://aurowellness.com/products/glutaryl",
+        "business_name": "Auro Wellness",
+        "media_links": []
+      },
+      {
+        "name": "CyLocR",
+        "description": "A technology utilizing cyclodextrin encapsulation for improved delivery of active molecules, enhancing solubility, stability, and bioavailability.",
+        "price": null,
+        "ingredients": [],
+        "compounds": [
+          {
+            "name": "Cyclodextrin",
+            "description": "Cyclic oligosaccharides used to form inclusion complexes with various molecules, improving their solubility, stability, and bioavailability. Used in pharmaceutical and supplement delivery systems, including for vitamins and essential minerals.",
+            "aliases": ["CD"],
+            "mechanism_of_action": "Encapsulates bioactive compounds, enhancing their solubility, stability, and bioavailability by forming inclusion complexes.",
+            "media_links": [
+              "https://www.sciencedirect.com/science/article/pii/S0169409X23001234"
+            ]
+          }
+        ],
+        "source_url": null,
+        "business_name": null,
+        "media_links": []
+      }
+    ],
+    "case_studies": [
+      {
+        "title": "Auro Wellness Clinical Studies on Topical Glutathione",
+        "summary": "Clinical studies referenced by Auro Wellness indicate that their topical glutathione system can reduce oxidative stress markers within four hours, suggesting benefits for managing oxidative stress-related skin conditions. However, specific study details, sample sizes, or published papers were not provided.",
+        "url": "https://aurorawellness.com",
+        "source_type": "website",
+        "related_compound_names": ["Glutathione"],
+        "related_product_names": ["Glutaryl", "Glutaryl Plus"]
+      },
+      {
+        "title": "Cyclodextrins as versatile platforms for non-invasive drug delivery and micronutrient supplementation",
+        "summary": "This review discusses the use of cyclodextrins as platforms for non-invasive drug and supplement delivery, highlighting their ability to encapsulate active molecules, improve stability, solubility, and bioavailability, and their application in the delivery of vitamins and essential micronutrients.",
+        "url": "https://www.sciencedirect.com/science/article/pii/S0169409X23001234",
+        "source_type": "website",
+        "related_compound_names": ["Cyclodextrin"],
+        "related_product_names": ["CyLocR"]
+      }
+    ],
+    "extraction_notes": null
+  },
+  "completed_at": "2026-01-08 19:52:45.680884"
+}

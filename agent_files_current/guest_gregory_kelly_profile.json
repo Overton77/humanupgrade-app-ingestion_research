@@ -1,0 +1,31 @@
+{
+  "entity_key": "guest_gregory_kelly",
+  "entity_name": "Dr. Gregory Kelly",
+  "entity_type": "GUEST",
+  "todo_id": "guest_001_profile",
+  "research_date": "2026-01-16",
+  "findings": {
+    "canonicalName": "Dr. Gregory (Greg) Kelly",
+    "currentRole": "Chief Product Officer",
+    "currentAffiliation": "Qualia Life Sciences (Qualia)",
+    "professionalBio": "Per the Qualia Life (Qualia) people page, Dr. Gregory (Greg) Kelly, N.D., serves as Chief Product Officer at Qualia Life Sciences. He is a naturopathic physician, author (including the book 'Shape Shift'), former editor of Alternative Medicine Review, and former instructor in naturopathic education. His work focuses on translational longevity and performance topics — including mitochondrial health, NAD+ biology, cellular senescence/senolytics, nootropics, and clinical nutrition — which he helps translate into product formulations and public education. (Source: Qualia Life people profile)",
+    "linkedInUrl": "https://www.linkedin.com/in/gregory-kelly-98b96b138",
+    "expertise_preview": [
+      "nootropics / brain health",
+      "mitochondrial health & NAD+ biology",
+      "cellular senescence & senolytics",
+      "weight management & metabolic health",
+      "clinical nutrition / botanical therapeutics"
+    ],
+    "credentials_preview": [
+      "N.D. (Naturopathic Doctor) - pending independent verification"
+    ]
+  },
+  "sources": [
+    {"url": "https://www.qualialife.com/people/greg-kelly", "title": "Dr. Gregory Kelly - Qualia"},
+    {"url": "https://www.linkedin.com/in/gregory-kelly-98b96b138", "title": "Gregory Kelly - LinkedIn"},
+    {"url": "https://www.a4m.com/gregory-kelly.html", "title": "Gregory Kelly - A4M"}
+  ],
+  "confidence": "high",
+  "notes": "Company-hosted bio and LinkedIn captured. Detailed credentials and publication counts to be validated in guest_002_background_credentials."
+}

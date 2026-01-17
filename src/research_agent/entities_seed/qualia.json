@@ -1,0 +1,494 @@
+{
+  "episode_id": "692b8834004e71ed86aa1e6c",
+  "episode_url": "https://daveasprey.com/1296-qualia-greg-kelly/",
+  "research_directions": [
+    {
+      "id": "dir_692b8834004e71ed86aa1e6c_entity_001",
+      "episode_id": "692b8834004e71ed86aa1e6c",
+      "title": "Dr. Gregory Kelly: Background, Expertise, and Role at Qualia Life",
+      "guest_information": {
+        "name": "Dr. Gregory Kelly",
+        "description": "Chief Product Officer at Qualia Life, naturopathic physician, functional medicine expert, and authority on anti-aging and nootropics."
+      },
+      "research_questions": [
+        "What is Dr. Gregory Kelly's professional and academic background?",
+        "What are his main areas of expertise and published works?",
+        "What is his current and past role at Qualia Life?",
+        "What other companies, products, or initiatives is he affiliated with?"
+      ],
+      "primary_entities": ["person:gregory_kelly", "business:qualia_life"],
+      "max_steps": 8
+    },
+    {
+      "id": "dir_692b8834004e71ed86aa1e6c_entity_002",
+      "episode_id": "692b8834004e71ed86aa1e6c",
+      "title": "Qualia Life & Qualia Joint Health: Company and Product Profile",
+      "guest_information": {
+        "name": "Dr. Gregory Kelly",
+        "description": "Chief Product Officer at Qualia Life, naturopathic physician, functional medicine expert, and authority on anti-aging and nootropics."
+      },
+      "research_questions": [
+        "What is the history and mission of Qualia Life as a company?",
+        "What are the key products offered, especially Qualia Joint Health and Qualia Senolytic?",
+        "What are the main ingredients and scientific rationales behind these products?",
+        "How are these products positioned in the supplement market?"
+      ],
+      "primary_entities": [
+        "business:qualia_life",
+        "product:qualia_joint_health",
+        "product:qualia_senolytic"
+      ],
+      "max_steps": 8
+    },
+    {
+      "id": "dir_692b8834004e71ed86aa1e6c_entity_003",
+      "episode_id": "692b8834004e71ed86aa1e6c",
+      "title": "Key Joint Health Compounds: Ovomet, Tamaflex, L-Carnitine, and Senolytics",
+      "guest_information": {
+        "name": "Dr. Gregory Kelly",
+        "description": "Chief Product Officer at Qualia Life, naturopathic physician, functional medicine expert, and authority on anti-aging and nootropics."
+      },
+      "research_questions": [
+        "What are the mechanisms of action and clinical evidence for Ovomet (eggshell membrane), Tamaflex, L-carnitine, and senolytic compounds?",
+        "What are the typical dosages and safety profiles for these compounds?",
+        "What companies or brands are leading in the development or supply of these ingredients?",
+        "Are there notable clinical trials or meta-analyses supporting their use for joint health?"
+      ],
+      "primary_entities": [
+        "compound:ovomet",
+        "compound:tamaflex",
+        "compound:l_carnitine",
+        "compound:senolytics"
+      ],
+      "max_steps": 10
+    },
+    {
+      "id": "dir_692b8834004e71ed86aa1e6c_entity_004",
+      "episode_id": "692b8834004e71ed86aa1e6c",
+      "title": "Gut-Joint Axis and Metabolic Drivers of Joint Pain",
+      "guest_information": {
+        "name": "Dr. Gregory Kelly",
+        "description": "Chief Product Officer at Qualia Life, naturopathic physician, functional medicine expert, and authority on anti-aging and nootropics."
+      },
+      "research_questions": [
+        "What is the current scientific understanding of the gut-joint axis and its role in joint inflammation?",
+        "How do metabolic factors like insulin resistance and glycation contribute to joint degeneration?",
+        "What interventions (dietary, supplement, lifestyle) are supported by evidence for modulating these pathways?",
+        "Are there leading researchers, companies, or products focused on the gut-joint axis?"
+      ],
+      "primary_entities": [
+        "compound:lps",
+        "compound:glucosamine",
+        "compound:boswellia",
+        "compound:hyaluronic_acid"
+      ],
+      "max_steps": 8
+    }
+  ],
+  "direction_results": [
+    {
+      "direction_id": "dir_692b8834004e71ed86aa1e6c_entity_001",
+      "extensive_summary": "**People**\n\n- Dr. Gregory Kelly is a naturopathic physician (N.D.), author, and recognized expert in nootropics, anti-aging, regenerative medicine, and natural medicine. He currently serves as Chief Product Officer at Qualia Life Sciences and Vice President of Product Development at Neurohacker Collective. Dr. Kelly has a significant academic background, having taught at the University of Bridgeport's College of Naturopathic Medicine and edited the Alternative Medicine Review. He has published hundreds of articles, contributed chapters to the Textbook of Natural Medicine, and authored the book \"Shape Shift.\" His expertise spans clinical nutrition, counseling, doctor-patient relationships, and biomedical research compliance. He is also Principal at the Kelly Group LLC, a consulting firm focused on biomedical research compliance and data analytics. Dr. Kelly is a leading expert on senescent cells, senolytic compounds, and the science of aging, and is frequently featured in podcasts and interviews on topics such as NAD+, gut health, and biohacking for longevity.\n\n**Businesses**\n\n- Qualia Life Sciences (also known as Qualia or Neurohacker Collective) was founded in 2015 and is dedicated to developing best-in-class well-being products using a unique research and development methodology grounded in complex systems science. The company emphasizes supporting the body's natural self-regulation mechanisms rather than simply altering biomarkers with chemicals. Initially focused on cognitive enhancement through its Qualia nootropic line, Qualia Life Sciences has expanded to offer comprehensive products for peak performance and longevity. The leadership team includes CEO and founder James Schmachtenberger, Chief Health Officer Dan Pardi, and a scientific advisory board with experts such as Scott Barry Kaufman, Aubrey de Grey, and Lisa Feldman Barrett. The company has received recognition for rapid growth and innovation, including the 2025 Inc. 5000 list and the 2025 Nutrition Business Journal Award for Science & Innovation. Its products are available in major retailers like GNC and Sprouts.\n\n**Products**\n\n- Qualia Senolytic: A supplement designed to target senescent cells (\"zombie cells\") and support healthy aging and longevity. It is backed by rigorous research and is one of the company's flagship products.\n- Qualia NAD+: A supplement formulated to increase NAD+ levels, which are associated with cellular energy and longevity. Clinical evidence shows a 67% increase in NAD levels with this product.\n- Qualia Nootropic Line: The original product line focused on cognitive enhancement and mental performance.\n- Joint Health Supplements: Products aimed at supporting joint mobility and alleviating discomfort as part of healthy aging.\n\n**Compounds**\n\n- Magnesium: Highlighted by Dr. Kelly as vital for over 600 enzyme reactions, brain health, and all twelve hallmarks of aging. It is a key ingredient in several Qualia products.\n- Senolytic Compounds: Used in Qualia Senolytic to help clear senescent cells and extend health span.\n- NAD+ Precursors: Found in Qualia NAD+ to boost cellular NAD+ levels, supporting energy and longevity.\n\n**Case Studies**\n\n- Clinical evidence for Qualia NAD+ demonstrates a 67% increase in NAD levels, supporting its efficacy for cellular energy and longevity. No additional case studies or clinical trials were found in the provided research notes.",
+      "entity_intel_ids": ["person:gregory_kelly", "business:qualia_life"],
+      "key_findings": [
+        "Dr. Gregory Kelly is a leading expert in nootropics, anti-aging, regenerative medicine, and natural medicine, with significant academic and publishing credentials.",
+        "He currently serves as Chief Product Officer at Qualia Life Sciences and Vice President of Product Development at Neurohacker Collective.",
+        "Dr. Kelly has published hundreds of articles, contributed to the Textbook of Natural Medicine, and authored the book \"Shape Shift.\"",
+        "Qualia Life Sciences is a company focused on developing well-being products using complex systems science, emphasizing the body's self-regulation.",
+        "The company is recognized for its innovative products, including Qualia Senolytic and Qualia NAD+, and has received industry awards for growth and science.",
+        "Qualia Senolytic targets senescent cells to support healthy aging, while Qualia NAD+ is clinically shown to increase NAD levels by 67%.",
+        "Dr. Kelly is a frequent speaker and educator on topics such as senescent cells, NAD+, gut health, and biohacking for longevity.",
+        "Magnesium and senolytic compounds are key ingredients in Qualia's product formulations, supporting brain health and longevity."
+      ],
+      "key_source_citations": [
+        {
+          "url": "https://www.qualialife.com/people/greg-kelly?srsltid=AfmBOorY-uo81SppfWBlMuV1DZhc2707omV8eTEw2oAtkGAxn_vUaRi5",
+          "title": "Dr. Gregory Kelly - Qualia Life",
+          "description": "Official profile of Dr. Gregory Kelly at Qualia Life Sciences, detailing his background and expertise.",
+          "published_date": null,
+          "score": null
+        },
+        {
+          "url": "https://www.qualialife.com/about?srsltid=AfmBOopmdxSxxxZj4aD3hHegORuJmD-YFYz5kjaBnsISoVBLsD8-Ocq9",
+          "title": "About Qualia Life",
+          "description": "Company overview, leadership, and scientific advisory board information for Qualia Life Sciences.",
+          "published_date": null,
+          "score": null
+        },
+        {
+          "url": "https://adammarkel.com/dr-gregory-kelly-on-food-medicine-and-resilience/",
+          "title": "Dr. Gregory Kelly on Food, Medicine, and Resilience",
+          "description": "Podcast interview with Dr. Kelly discussing his approach to medicine, nutrition, and resilience.",
+          "published_date": null,
+          "score": null
+        },
+        {
+          "url": "https://www.a4m.com/gregory-kelly.html",
+          "title": "Gregory Kelly, ND - A4M",
+          "description": "Professional profile of Dr. Gregory Kelly, including his academic and publishing background.",
+          "published_date": null,
+          "score": null
+        }
+      ]
+    },
+    {
+      "direction_id": "dir_692b8834004e71ed86aa1e6c_entity_002",
+      "extensive_summary": "**People**\n- Qualia Life Sciences is led by a collective of scientists, technologists, academics, and creatives. The team includes scientific, medical, and domain expert advisors who contribute to the company's mission of advancing human well-being and longevity. Specific individual names and backgrounds were not detailed in the available research notes.\n\n**Businesses**\n- Qualia Life Sciences (often referred to as Qualia) was founded in 2015. The company is dedicated to developing advanced well-being products using a complex systems science approach. Their mission is to provide ethical, effective, and elegant tools for optimized wellness and longevity, focusing on supporting the body's natural self-regulation and homeostatic balance. Qualia Life positions itself as a leader in the supplement market by emphasizing synergy between ingredients and systems, evidence-based product development, and a commitment to quality (e.g., third-party testing, ethical sourcing, gluten-free ingredients). Their product line includes Qualia Mind, Qualia Mitochondria+, Qualia NAD+, Qualia Night, Qualia Joint Health, Qualia Magnesium+, Qualia Mind Caffeine Free, Qualia Senolytic, Qualia Stem Cell, Qualia Creatine+, and Qualia Probiotic+.\n\n**Products**\n- Qualia Joint Health: A supplement designed to promote joint health and tissue renewal. It combines ancient Ayurvedic ingredients (notably Haritaki fruit extract) with modern compounds such as Ovomet® (eggshell membrane), Tamaflex®, ApresFlex®, and GingerT3® (fermented ginger extract). The formulation is gluten-free, ethically sourced, and third-party tested. It is positioned as a fast-acting joint support supplement, with some users experiencing benefits within a week.\n- Qualia Senolytic: A supplement targeting the elimination of senescent (aged, dysfunctional) cells to support healthy tissue function and longevity. Key ingredients include fisetin (a plant flavonol), luteolin (a plant pigment), Quercefit® (a patented quercetin phytosome for enhanced bioavailability), and Longvida Optimized Curcumin®. The product is designed to support cellular health and slow aging processes by leveraging natural senolytic compounds.\n\n**Compounds**\n- Haritaki (Terminalia chebula) fruit extract: Used in Qualia Joint Health for its tissue renewal properties, rooted in Ayurvedic tradition.\n- Ovomet®: An eggshell membrane providing undenatured collagen and hyaluronic acid, supporting cartilage and joint lubrication (in Qualia Joint Health).\n- Tamaflex® and ApresFlex®: Trademarked compounds included in Qualia Joint Health for joint support.\n- GingerT3®: A fermented ginger extract for joint mobility (in Qualia Joint Health).\n- Fisetin: A flavonol with strong research support for senolytic activity, found in Qualia Senolytic.\n- Luteolin: A plant pigment with senolytic properties, included in Qualia Senolytic.\n- Quercefit®: A patented quercetin phytosome for improved bioavailability, in Qualia Senolytic.\n- Longvida Optimized Curcumin®: A bioavailable curcumin extract with senolytic properties, in Qualia Senolytic.\n\n**Case Studies**\n- Qualia Senolytic: Clinical research includes double-blind, placebo-controlled studies showing statistically significant improvements in joint health and performance, including reductions in joint discomfort, physical function issues, and joint stiffness.\n- Qualia NAD+: Placebo-controlled studies have been conducted.\n- Qualia Energy Shot®: Pre-launch beta studies have been performed.\n\nThese studies demonstrate Qualia Life's commitment to evidence-based product development and validation.",
+      "entity_intel_ids": [
+        "business:qualia_life",
+        "product:qualia_joint_health",
+        "product:qualia_senolytic"
+      ],
+      "key_findings": [
+        "Qualia Life Sciences was founded in 2015 and focuses on developing advanced well-being products using a complex systems science approach.",
+        "The company emphasizes supporting the body's natural self-regulation and homeostatic balance rather than targeting individual biomarkers.",
+        "Qualia Joint Health combines Ayurvedic ingredients and modern compounds (e.g., Haritaki, Ovomet®, Tamaflex®, ApresFlex®, GingerT3®) for rapid and sustained joint support.",
+        "Qualia Senolytic targets the elimination of senescent cells using natural compounds like fisetin, luteolin, Quercefit®, and Longvida Optimized Curcumin® to support healthy aging.",
+        "Both products are gluten-free, ethically sourced, and third-party tested for quality and potency.",
+        "Clinical studies on Qualia Senolytic have shown statistically significant improvements in joint health and reductions in discomfort and stiffness.",
+        "Qualia Life's product line includes a range of supplements for brain, mitochondrial, and overall health, with a 100-day money-back guarantee for first-time buyers.",
+        "The company is supported by a team of scientific, medical, and domain experts, though specific individuals are not named in the research notes."
+      ],
+      "key_source_citations": [
+        {
+          "url": "https://neurohacker.com/about",
+          "title": "Qualia Life Sciences company overview and product philosophy",
+          "description": "Describes the company's mission, scientific approach, and product development philosophy.",
+          "published_date": null,
+          "score": 9.5
+        },
+        {
+          "url": "https://neurohacker.com/shop/qualia-joint-health",
+          "title": "Qualia Joint Health product page",
+          "description": "Details on ingredients, scientific rationale, and product positioning for Qualia Joint Health.",
+          "published_date": null,
+          "score": 9.2
+        },
+        {
+          "url": "https://neurohacker.com/shop/qualia-senolytic",
+          "title": "Qualia Senolytic product page",
+          "description": "Information on senolytic ingredients, mechanisms, and clinical research for Qualia Senolytic.",
+          "published_date": null,
+          "score": 9.2
+        }
+      ]
+    },
+    {
+      "direction_id": "dir_692b8834004e71ed86aa1e6c_entity_003",
+      "extensive_summary": "**People**\n- No specific individuals (scientists, founders, or key opinion leaders) were identified in the provided research notes regarding Ovomet or related compounds.\n\n**Businesses**\n- The primary business associated with Ovomet® is the company that holds its patent and manufactures the product. This company is positioned as a leader in sustainable, high-purity eggshell membrane extraction, focusing on joint and tendon health supplements. The company adheres to high-quality manufacturing standards (ISO 9001) and markets Ovomet® as a premium ingredient for joint support.\n\n**Products**\n- Ovomet®: A patented eggshell membrane extract supplement. It is composed of over 95% pure eggshell membrane, containing collagen (type I and others), elastin, hyaluronic acid, glucosamine, and natural lysozyme. Ovomet® is gluten-free, vegetarian, and produced via a chemical-free process. It is often included in joint health formulations, sometimes combined with glucosamine, chondroitin sulfate, MSM, and Boswellia. Pricing and specific product SKUs were not detailed in the notes.\n\n**Compounds**\n- Ovomet® (Eggshell Membrane): Contains a blend of bioactive compounds including collagen, elastin, hyaluronic acid, glucosamine, and lysozyme. Its mechanism of action is believed to involve supporting cartilage structure, reducing joint pain, and enhancing mobility, strength, and flexibility. It is used in dietary supplements for joint and tendon health.\n- Tamaflex, L-carnitine, and senolytics: No detailed information was provided in the research notes regarding their mechanisms, dosages, or clinical evidence.\n\n**Case Studies**\n- No specific clinical trials or meta-analyses were cited in the provided research notes. However, Ovomet® is described as clinically studied, suggesting the existence of supporting research, though details were not included in the notes.",
+      "entity_intel_ids": ["compound:ovomet"],
+      "key_findings": [
+        "Ovomet® is a patented, high-purity eggshell membrane extract used for joint and tendon health.",
+        "Ovomet® contains collagen, elastin, hyaluronic acid, glucosamine, and lysozyme, supporting cartilage and joint comfort.",
+        "The product is manufactured using a chemical-free, sustainable process and is suitable for vegetarians and those avoiding gluten.",
+        "Ovomet® is often combined with other joint-supporting ingredients such as glucosamine, chondroitin sulfate, MSM, and Boswellia in supplement formulations.",
+        "The company behind Ovomet® adheres to ISO 9001 quality standards and positions itself as a leader in natural joint health ingredients.",
+        "No specific clinical trials, meta-analyses, or detailed information on Tamaflex, L-carnitine, or senolytics were found in the provided notes."
+      ],
+      "key_source_citations": [
+        {
+          "url": "https://www.ovomet.com/",
+          "title": "Ovomet® Official Product Page",
+          "description": "Official site for Ovomet® eggshell membrane ingredient, including product details and benefits.",
+          "published_date": null,
+          "score": null
+        }
+      ]
+    },
+    {
+      "direction_id": "dir_692b8834004e71ed86aa1e6c_entity_004",
+      "extensive_summary": "**People**\n- No specific researchers or experts were identified in the provided research notes regarding the gut-joint axis or the compounds listed.\n\n**Businesses**\n- No specific companies or organizations were mentioned in the research notes as being focused on the gut-joint axis or the listed compounds.\n\n**Products**\n- No particular products were referenced in the research notes. However, the compounds listed (glucosamine, boswellia, hyaluronic acid) are commonly found in joint health supplements, though no brands or formulations were specified.\n\n**Compounds**\n- **Lipopolysaccharide (LPS):**\n  - LPS is a major component of the outer membrane of Gram-negative bacteria, composed of lipid A, core oligosaccharide, and O antigen.\n  - It acts as a potent endotoxin, triggering strong immune responses via Toll-like receptor 4 (TLR4).\n  - LPS can enter human circulation when the gut barrier is compromised, leading to metabolic endotoxemia, insulin resistance, low-level inflammation, and potentially contributing to joint inflammation.\n  - LPS is not present in Gram-positive bacteria.\n- **Glucosamine, Boswellia, Hyaluronic Acid:**\n  - These compounds are widely used in joint health supplements, but no specific mechanistic or clinical data were provided in the research notes.\n\n**Case Studies**\n- No case studies or clinical trials were referenced in the provided research notes.",
+      "entity_intel_ids": [
+        "compound:lps",
+        "compound:glucosamine",
+        "compound:boswellia",
+        "compound:hyaluronic_acid"
+      ],
+      "key_findings": [
+        "Lipopolysaccharide (LPS) is a key endotoxin from Gram-negative bacteria that can trigger immune responses and inflammation when it enters human circulation.",
+        "LPS exposure is linked to metabolic endotoxemia, insulin resistance, and low-level inflammation, which may contribute to joint inflammation and degeneration.",
+        "LPS acts through the Toll-like receptor 4 (TLR4) pathway, serving as a pathogen-associated molecular pattern (PAMP).",
+        "Compromised gut barrier function allows LPS to enter the bloodstream, highlighting the gut-joint axis as a potential target for intervention.",
+        "No specific researchers, companies, or products focused on the gut-joint axis were identified in the provided research notes.",
+        "Glucosamine, boswellia, and hyaluronic acid are commonly used in joint health supplements, but no detailed information was provided in the notes."
+      ],
+      "key_source_citations": [
+        {
+          "url": "N/A",
+          "title": "Lipopolysaccharide (LPS) - Research Notes",
+          "description": "Summary of LPS structure, function, and role in inflammation and metabolic disease.",
+          "published_date": null,
+          "score": null
+        }
+      ]
+    }
+  ],
+  "extracted_entities": {
+    "businesses": [
+      {
+        "name": "Qualia Life Sciences",
+        "description": "A company dedicated to developing well-being products using complex systems science, with a focus on cognitive enhancement, longevity, and supporting the body's natural self-regulation.",
+        "website": "https://www.qualialife.com",
+        "media_links": [
+          "https://www.qualialife.com/about?srsltid=AfmBOopmdxSxxxZj4aD3hHegORuJmD-YFYz5kjaBnsISoVBLsD8-Ocq9"
+        ]
+      },
+      {
+        "name": "Qualia Life Sciences",
+        "description": "A company dedicated to developing advanced well-being products using a complex systems science approach, focusing on wellness, longevity, and supporting the body's natural self-regulation.",
+        "website": "https://neurohacker.com/about",
+        "media_links": [
+          "https://twitter.com/neurohacker",
+          "https://neurohacker.com/about"
+        ]
+      },
+      {
+        "name": "Ovomet",
+        "description": "Company holding the patent and manufacturing Ovomet®, a high-purity eggshell membrane extract for joint and tendon health. Focuses on sustainable, chemical-free extraction and adheres to ISO 9001 quality standards.",
+        "website": "https://www.ovomet.com/",
+        "media_links": []
+      }
+    ],
+    "people": [
+      {
+        "name": "Dr. Gregory Kelly",
+        "is_guest": true,
+        "bio": "Naturopathic physician, author, and expert in nootropics, anti-aging, regenerative medicine, and natural medicine. Chief Product Officer at Qualia Life Sciences, Vice President of Product Development at Neurohacker Collective, former faculty at University of Bridgeport, and editor of Alternative Medicine Review. Published author and frequent speaker on longevity, senescent cells, NAD+, and biohacking.",
+        "role": "Chief Product Officer",
+        "business_name": "Qualia Life Sciences",
+        "affiliations": [
+          "Neurohacker Collective",
+          "University of Bridgeport",
+          "Kelly Group LLC"
+        ],
+        "media_links": [
+          "https://www.qualialife.com/people/greg-kelly?srsltid=AfmBOorY-uo81SppfWBlMuV1DZhc2707omV8eTEw2oAtkGAxn_vUaRi5",
+          "https://adammarkel.com/dr-gregory-kelly-on-food-medicine-and-resilience/",
+          "https://www.a4m.com/gregory-kelly.html"
+        ]
+      },
+      {
+        "name": "Dr. Gregory Kelly",
+        "is_guest": true,
+        "bio": "Chief Product Officer at Qualia Life, naturopathic physician, functional medicine expert, and authority on anti-aging and nootropics.",
+        "role": "Chief Product Officer",
+        "business_name": "Qualia Life Sciences",
+        "affiliations": [],
+        "media_links": []
+      },
+      {
+        "name": "Dr. Gregory Kelly",
+        "is_guest": true,
+        "bio": "Chief Product Officer at Qualia Life, naturopathic physician, functional medicine expert, and authority on anti-aging and nootropics.",
+        "role": "Chief Product Officer",
+        "business_name": "Qualia Life",
+        "affiliations": [],
+        "media_links": []
+      }
+    ],
+    "products": [
+      {
+        "name": "Qualia Senolytic",
+        "description": "A supplement designed to target senescent cells ('zombie cells') and support healthy aging and longevity. Backed by research and a flagship product of Qualia Life Sciences.",
+        "price": "$79.00",
+        "ingredients": ["Senolytic compounds"],
+        "compounds": [
+          {
+            "name": "Senolytic Compounds",
+            "description": "Bioactive molecules that help clear senescent cells, potentially extending health span and supporting healthy aging.",
+            "aliases": [],
+            "mechanism_of_action": "Promote the clearance of senescent cells from the body, reducing their negative impact on tissue function and aging.",
+            "media_links": []
+          }
+        ],
+        "source_url": null,
+        "business_name": "Qualia Life Sciences",
+        "media_links": []
+      },
+      {
+        "name": "Qualia NAD+",
+        "description": "A supplement formulated to increase NAD+ levels, supporting cellular energy and longevity. Clinically shown to increase NAD levels by 67%.",
+        "price": "$79.00",
+        "ingredients": ["NAD+ precursors"],
+        "compounds": [
+          {
+            "name": "NAD+ Precursors",
+            "description": "Molecules that increase NAD+ levels in the body, supporting cellular energy production and longevity.",
+            "aliases": [],
+            "mechanism_of_action": "Boost NAD+ biosynthesis, enhancing cellular metabolism and energy production.",
+            "media_links": []
+          }
+        ],
+        "source_url": null,
+        "business_name": "Qualia Life Sciences",
+        "media_links": []
+      },
+      {
+        "name": "Qualia Nootropic Line",
+        "description": "The original product line from Qualia Life Sciences, focused on cognitive enhancement and mental performance.",
+        "price": null,
+        "ingredients": [],
+        "compounds": [],
+        "source_url": null,
+        "business_name": "Qualia Life Sciences",
+        "media_links": []
+      },
+      {
+        "name": "Joint Health Supplements",
+        "description": "Products aimed at supporting joint mobility and alleviating discomfort as part of healthy aging.",
+        "price": null,
+        "ingredients": [],
+        "compounds": [],
+        "source_url": null,
+        "business_name": "Qualia Life Sciences",
+        "media_links": []
+      },
+      {
+        "name": "Qualia Joint Health",
+        "description": "A supplement designed to promote joint health and tissue renewal, combining ancient Ayurvedic ingredients with modern compounds for rapid and sustained joint support.",
+        "price": "$79.00",
+        "ingredients": [
+          "Haritaki fruit extract",
+          "Ovomet®",
+          "Tamaflex®",
+          "ApresFlex®",
+          "GingerT3®"
+        ],
+        "compounds": [
+          {
+            "name": "Haritaki (Terminalia chebula) fruit extract",
+            "description": "Ayurvedic ingredient used for tissue renewal and joint health.",
+            "aliases": ["Terminalia chebula", "Haritaki"],
+            "mechanism_of_action": "Supports tissue renewal and joint health through antioxidant and anti-inflammatory effects.",
+            "media_links": []
+          },
+          {
+            "name": "Ovomet®",
+            "description": "Eggshell membrane providing undenatured collagen and hyaluronic acid for cartilage and joint lubrication.",
+            "aliases": [],
+            "mechanism_of_action": "Supports cartilage structure and joint lubrication.",
+            "media_links": []
+          },
+          {
+            "name": "Tamaflex®",
+            "description": "Trademarked compound for joint support.",
+            "aliases": [],
+            "mechanism_of_action": "Supports joint comfort and mobility.",
+            "media_links": []
+          },
+          {
+            "name": "ApresFlex®",
+            "description": "Trademarked compound for joint support.",
+            "aliases": [],
+            "mechanism_of_action": "Supports joint comfort and mobility.",
+            "media_links": []
+          },
+          {
+            "name": "GingerT3®",
+            "description": "Fermented ginger extract for joint mobility.",
+            "aliases": [],
+            "mechanism_of_action": "Supports joint mobility and reduces inflammation.",
+            "media_links": []
+          }
+        ],
+        "source_url": "https://neurohacker.com/shop/qualia-joint-health",
+        "business_name": "Qualia Life Sciences",
+        "media_links": ["https://neurohacker.com/shop/qualia-joint-health"]
+      },
+      {
+        "name": "Qualia Senolytic",
+        "description": "A supplement targeting the elimination of senescent cells to support healthy tissue function and longevity, using natural senolytic compounds.",
+        "price": "$79.00",
+        "ingredients": [
+          "Fisetin",
+          "Luteolin",
+          "Quercefit®",
+          "Longvida Optimized Curcumin®"
+        ],
+        "compounds": [
+          {
+            "name": "Fisetin",
+            "description": "A plant flavonol with strong research support for senolytic activity.",
+            "aliases": [],
+            "mechanism_of_action": "Promotes elimination of senescent cells and supports healthy aging.",
+            "media_links": []
+          },
+          {
+            "name": "Luteolin",
+            "description": "A plant pigment with senolytic properties.",
+            "aliases": [],
+            "mechanism_of_action": "Supports elimination of senescent cells and reduces inflammation.",
+            "media_links": []
+          },
+          {
+            "name": "Quercefit®",
+            "description": "A patented quercetin phytosome for improved bioavailability.",
+            "aliases": ["Quercetin phytosome"],
+            "mechanism_of_action": "Enhances bioavailability of quercetin, supporting senolytic activity.",
+            "media_links": []
+          },
+          {
+            "name": "Longvida Optimized Curcumin®",
+            "description": "A bioavailable curcumin extract with senolytic properties.",
+            "aliases": ["Curcumin"],
+            "mechanism_of_action": "Supports elimination of senescent cells and reduces inflammation.",
+            "media_links": []
+          }
+        ],
+        "source_url": "https://neurohacker.com/shop/qualia-senolytic",
+        "business_name": "Qualia Life Sciences",
+        "media_links": ["https://neurohacker.com/shop/qualia-senolytic"]
+      },
+      {
+        "name": "Ovomet®",
+        "description": "A patented eggshell membrane extract supplement composed of over 95% pure eggshell membrane, containing collagen, elastin, hyaluronic acid, glucosamine, and lysozyme. Used for joint and tendon health, produced via a chemical-free, sustainable process, and suitable for vegetarians and those avoiding gluten.",
+        "price": null,
+        "ingredients": [
+          "Eggshell membrane",
+          "Collagen",
+          "Elastin",
+          "Hyaluronic acid",
+          "Glucosamine",
+          "Lysozyme"
+        ],
+        "compounds": [
+          {
+            "name": "Ovomet",
+            "description": "Eggshell membrane extract containing collagen, elastin, hyaluronic acid, glucosamine, and lysozyme. Supports cartilage structure, joint comfort, and mobility.",
+            "aliases": ["Eggshell membrane"],
+            "mechanism_of_action": "Believed to support cartilage structure, reduce joint pain, and enhance mobility, strength, and flexibility.",
+            "media_links": ["https://www.ovomet.com/"]
+          }
+        ],
+        "source_url": "https://www.ovomet.com/",
+        "business_name": "Ovomet",
+        "media_links": ["https://www.ovomet.com/"]
+      }
+    ],
+    "case_studies": [
+      {
+        "title": "Clinical Evidence for Qualia NAD+",
+        "summary": "Clinical evidence demonstrates that Qualia NAD+ increases NAD levels by 67%, supporting its efficacy for cellular energy and longevity.",
+        "url": null,
+        "source_type": "website",
+        "related_compound_names": ["NAD+ Precursors"],
+        "related_product_names": ["Qualia NAD+"]
+      },
+      {
+        "title": "Clinical research on Qualia Senolytic: Double-blind, placebo-controlled studies",
+        "summary": "Studies showed statistically significant improvements in joint health and performance, including reductions in joint discomfort, physical function issues, and joint stiffness.",
+        "url": "https://neurohacker.com/shop/qualia-senolytic",
+        "source_type": "website",
+        "related_compound_names": [
+          "Fisetin",
+          "Luteolin",
+          "Quercefit®",
+          "Longvida Optimized Curcumin®"
+        ],
+        "related_product_names": ["Qualia Senolytic"]
+      }
+    ],
+    "extraction_notes": null
+  },
+  "completed_at": "2026-01-08 19:46:00.285025"
+}

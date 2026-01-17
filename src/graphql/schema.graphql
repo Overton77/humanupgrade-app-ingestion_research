@@ -1,9 +1,309 @@
 scalar DateTime
 
-type MediaLink {
+enum UserProtocolStatus {
+  draft
+  active
+  archived
+}
+
+enum UserGoalType {
+  sleep
+  energy
+  fatLoss
+  circadian
+  fitness
+  nutrition
+  cognition
+  longevity
+  strength
+  stress
+  recovery
+  health
+  other
+}
+
+enum ProtocolStepItemType {
+  Product
+  Compound
+  Action
+}
+
+enum ProtocolTimeOfDay {
+  morning
+  midday
+  evening
+  bedtime
+  any
+}
+
+enum EvidenceRefType {
+  Episode
+  CaseStudy
+  Article
+  External
+}
+
+union ProtocolStepItemEntity = Product | Compound
+
+type ProtocolStepItem {
+  type: ProtocolStepItemType!
+  refId: ID
+  nameOverride: String
+  dosage: String
+  timing: String
+  notes: String
+  itemEntity: ProtocolStepItemEntity
+}
+
+type ProtocolStepGroup {
   label: String
+  timeOfDay: ProtocolTimeOfDay
+  items: [ProtocolStepItem!]!
+}
+
+union EvidenceRefEntity = Article | CaseStudy | Episode | External
+
+type EvidenceRef {
+  type: EvidenceRefType!
+  refId: ID
+  label: String
+  url: String
+  episodeId: ID
+  timestamps: [Int!]!
+  notes: String
+  evidenceRefEntity: EvidenceRefEntity
+}
+
+type SafetyBucket {
+  warnings: [String!]!
+  contraindications: [String!]!
+  interactions: [String!]!
+  notes: String
+}
+
+type UserProtocol {
+  id: ID!
+  userId: ID!
+  title: String!
+  goalType: UserGoalType
+  status: UserProtocolStatus!
+
+  sourceProtocolId: ID
+
+  stepsStructured: [ProtocolStepGroup!]!
+  evidenceRefs: [EvidenceRef!]!
+  safety: SafetyBucket
+
+  lastEditedAt: DateTime
+  createdAt: DateTime!
+  updatedAt: DateTime!
+}
+
+input ProtocolStepItemInput {
+  type: ProtocolStepItemType!
+  refId: ID
+  nameOverride: String
+  dosage: String
+  timing: String
+  notes: String
+}
+
+input CursorPageInput {
+  first: Int!
+  after: String
+}
+
+input ProtocolStepGroupInput {
+  label: String
+  timeOfDay: ProtocolTimeOfDay
+  items: [ProtocolStepItemInput!]!
+}
+
+input EvidenceRefInput {
+  type: EvidenceRefType!
+  refId: ID
+  label: String
+  url: String
+  episodeId: ID
+  timestamps: [Int!]
+  notes: String
+}
+
+input SafetyBucketInput {
+  warnings: [String!]
+  contraindications: [String!]
+  interactions: [String!]
+  notes: String
+}
+
+input CreateUserProtocolInput {
+  title: String!
+  goalType: UserGoalType
+  status: UserProtocolStatus
+  sourceProtocolId: ID
+  stepsStructured: [ProtocolStepGroupInput!]
+  evidenceRefs: [EvidenceRefInput!]
+  safety: SafetyBucketInput
+}
+
+input UpdateUserProtocolInput {
+  id: ID!
+  title: String
+  goalType: UserGoalType
+  status: UserProtocolStatus
+  stepsStructured: [ProtocolStepGroupInput!]
+  evidenceRefs: [EvidenceRefInput!]
+  safety: SafetyBucketInput
+}
+
+type UserProtocolConnection {
+  edges: [UserProtocolEdge!]!
+  pageInfo: PageInfo!
+}
+
+type UserProtocolEdge {
+  cursor: String!
+  node: UserProtocol!
+}
+
+enum ArticleSourceType {
+  human_upgrade
+  external
+}
+
+type Article {
+  id: ID!
+
+  title: String!
+  summary: String!
+  url: String
+
+  sourceType: ArticleSourceType!
+  publishedAt: DateTime
+  authorName: String
+
+  tags: [String!]!
+  mediaLinks: [MediaLink!]
+
+  episodeIds: [ID!]
+  personIds: [ID!]
+  businessIds: [ID!]
+  productIds: [ID!]
+  compoundIds: [ID!]
+  protocolIds: [ID!]
+
+  createdAt: DateTime!
+  updatedAt: DateTime!
+}
+
+enum GoalType {
+  sleep
+  energy
+  fatLoss
+  circadian
+  fitness
+  nutrition
+  cognition
+  longevity
+  strength
+  stress
+  recovery
+  health
+  other
+}
+
+enum ExperienceLevel {
+  beginner
+  intermediate
+  advanced
+}
+
+enum DietStyle {
+  none
+  keto
+  paleo
+  vegan
+  vegetarian
+  mediterranean
+  lowCarb
+  omnivore
+  other
+}
+
+enum TimeBudget {
+  min5
+  min15
+  min30
+  min60
+}
+
+enum PreferredFormat {
+  video
+  summary
+  protocol
+  caseStudy
+}
+
+type UserGoal {
+  goalType: GoalType!
+  priority: Int!
+  notes: String
+}
+
+type EntityPreferences {
+  likedEntityIds: [ID!]!
+  hiddenEntityIds: [ID!]!
+  blockedEntityIds: [ID!]!
+}
+
+type UserProfile {
+  id: ID!
+  userId: ID!
+
+  goals: [UserGoal!]!
+
+  experienceLevel: ExperienceLevel
+  dietStyle: DietStyle
+
+  avoidances: [String!]!
+  timeBudget: TimeBudget
+
+  preferredFormats: [PreferredFormat!]!
+  topicInterests: [String!]!
+
+  entityPreferences: EntityPreferences
+
+  createdAt: DateTime!
+  updatedAt: DateTime!
+}
+
+input UserGoalInput {
+  goalType: GoalType!
+  priority: Int!
+  notes: String
+}
+
+input EntityPreferencesInput {
+  likedEntityIds: [ID!]
+  hiddenEntityIds: [ID!]
+  blockedEntityIds: [ID!]
+}
+
+input UserProfileUpsertInput {
+  goals: [UserGoalInput!]
+  experienceLevel: ExperienceLevel
+  dietStyle: DietStyle
+  avoidances: [String!]
+  timeBudget: TimeBudget
+  preferredFormats: [PreferredFormat!]
+  topicInterests: [String!]
+  entityPreferences: EntityPreferencesInput
+}
+
+type MediaLink {
   url: String!
-  type: String
+  description: String
+  posterUrl: String
 }
 
 enum UserProvider {
@@ -18,13 +318,30 @@ enum UserRole {
   USER
 }
 
+enum ProtocolCategory {
+  sleep
+  energy
+  fatLoss
+  circadian
+  fitness
+  nutrition
+  cognition
+  stress
+  recovery
+  longevity
+  health
+  strength
+  other
+}
+
 input MediaLinkInput {
-  label: String
   url: String!
-  type: String
+  description: String
+  posterUrl: String
 }
 
 input UserUpsertInput {
+  userId: ID
   email: String!
   password: String
   provider: UserProvider
@@ -44,14 +361,22 @@ input UserCreateInput {
   mediaLinks: [MediaLinkInput!]
 }
 
-input BusinessCreateWithIdsInput {
+input BusinessCreateRelationsInput {
   name: String!
   description: String
+  biography: String
   website: String
   mediaLinks: [MediaLinkInput!]
   ownerIds: [ID!]
+  ownerNames: [String!]
   productIds: [ID!]
+  productNames: [String!]
   sponsorEpisodeIds: [ID!]
+  ownersNested: [BusinessOwnerNestedInput!]
+  executivesNested: [BusinessExecutiveNestedInput!]
+  productsNested: [BusinessProductNestedInput!]
+  sponsorEpisodesNested: [BusinessEpisodeNestedInput!]
+  executives: [BusinessExecutiveRelationInput!]
 }
 
 input BusinessUpdateWithIdsInput {
@@ -61,7 +386,9 @@ input BusinessUpdateWithIdsInput {
   website: String
   mediaLinks: [MediaLinkInput!]
   ownerIds: [ID!]
+  ownerNames: [String!]
   productIds: [ID!]
+  productNames: [String!]
   sponsorEpisodeIds: [ID!]
 }
 
@@ -76,6 +403,7 @@ input BusinessOwnerNestedInput {
 input BusinessProductNestedInput {
   id: ID
   name: String
+  price: Float
   description: String
   ingredients: [String!]
   mediaLinks: [MediaLinkInput!]
@@ -108,6 +436,7 @@ input BusinessEpisodeNestedInput {
   id: ID
   channelName: String!
   episodeNumber: Int
+  episodePageUrl: String!
   episodeTitle: String
   publishedAt: DateTime
   summaryShort: String
@@ -124,16 +453,33 @@ input BusinessEpisodeNestedInput {
   webPageTimelines: [WebPageTimelineInput!]
 }
 
-input BusinessUpdateRelationFieldsInput {
-  id: ID!
+input BusinessExecutiveNestedInput {
+  id: ID
+  name: String
+  title: String
+  role: String
+  mediaLinks: [MediaLinkInput!]
+}
+
+input BusinessUpsertRelationFieldsInput {
+  id: ID
+
+  name: String
+  description: String
+  website: String
+  biography: String
+  mediaLinks: [MediaLinkInput!]
 
   ownerIds: [ID!]
+  ownerNames: [String!]
   ownersNested: [BusinessOwnerNestedInput!]
 
   productIds: [ID!]
+  productNames: [String!]
   productsNested: [BusinessProductNestedInput!]
 
   executives: [BusinessExecutiveRelationInput!]
+  executivesNested: [BusinessExecutiveNestedInput!]
 
   sponsorEpisodeIds: [ID!]
   sponsorEpisodesNested: [BusinessEpisodeNestedInput!]
@@ -145,20 +491,28 @@ input ProductCreateWithIdsInput {
   name: String!
   businessId: ID!
   description: String
+  price: Float
   ingredients: [String!]
   mediaLinks: [MediaLinkInput!]
   sourceUrl: String
   compoundIds: [ID!]
+  compoundNames: [String!]
+  compoundsNested: [ProductCompoundNestedInput!]
+  protocolIds: [ID!]
 }
 
 input ProductUpdateWithIdsInput {
   id: ID!
   name: String
   description: String
+  price: Float
   ingredients: [String!]
   mediaLinks: [MediaLinkInput!]
   sourceUrl: String
   compoundIds: [ID!]
+  compoundNames: [String!]
+  compoundsNested: [ProductCompoundNestedInput!]
+  protocolIds: [ID!]
 }
 
 input ProductCompoundNestedInput {
@@ -169,45 +523,50 @@ input ProductCompoundNestedInput {
   mediaLinks: [MediaLinkInput!]
 }
 
-input ProductUpdateRelationFieldsInput {
-  id: ID!
+input ProductProtocolNestedInput {
+  id: ID
+  name: String
+  description: String
+  categories: [ProtocolCategory!]
+  goals: [String!]
+  steps: [String!]
+  cautions: [String!]
+  aliases: [String!]
+  sourceUrl: String
+}
 
+input ProductUpsertRelationFieldsInput {
+  id: ID
+  name: String
+  changeBusinessId: Boolean
+  description: String
+  price: Float
+  businessId: ID
+  ingredients: [String!]
+  mediaLinks: [MediaLinkInput!]
+  sourceUrl: String
   compoundIds: [ID!]
+  compoundNames: [String!]
   compoundsNested: [ProductCompoundNestedInput!]
+  protocolIds: [ID!]
+  protocolsNested: [ProductProtocolNestedInput!]
 }
 
 # --- Person Inputs ---
 
-input PersonCreateWithIdsInput {
+input PersonCreateInput {
   name: String!
   role: String
   bio: String
   mediaLinks: [MediaLinkInput!]
-  businessIds: [ID!]
 }
 
-input PersonUpdateWithIdsInput {
+input PersonUpdateInput {
   id: ID!
   name: String
   role: String
   bio: String
   mediaLinks: [MediaLinkInput!]
-  businessIds: [ID!]
-}
-
-input PersonBusinessNestedInput {
-  id: ID
-  name: String
-  description: String
-  website: String
-  mediaLinks: [MediaLinkInput!]
-}
-
-input PersonUpdateRelationFieldsInput {
-  id: ID!
-
-  businessIds: [ID!]
-  businessesNested: [PersonBusinessNestedInput!]
 }
 
 # --- Episode Inputs ---
@@ -216,12 +575,13 @@ input EpisodeCreateWithIdsInput {
   channelName: String!
   episodeNumber: Int
   episodeTitle: String
-  episodePageUrl: String
+  episodePageUrl: String!
   episodeTranscriptUrl: String
   publishedAt: DateTime
   summaryShort: String
   webPageSummary: String
   summaryDetailed: String
+  publishedSummary: String
   youtubeVideoId: String
   youtubeWatchUrl: String
   youtubeEmbedUrl: String
@@ -231,8 +591,10 @@ input EpisodeCreateWithIdsInput {
   mediaLinks: [MediaLinkInput!]
   sponsorLinkObjects: [SponsorLinkObjectInput!]
   webPageTimelines: [WebPageTimelineInput!]
+  businessLinks: [String!]
   guestIds: [ID!]
   sponsorBusinessIds: [ID!]
+  protocolIds: [ID!]
 }
 
 input EpisodeUpdateWithIdsInput {
@@ -246,6 +608,7 @@ input EpisodeUpdateWithIdsInput {
   summaryShort: String
   webPageSummary: String
   summaryDetailed: String
+  publishedSummary: String
   youtubeVideoId: String
   youtubeWatchUrl: String
   youtubeEmbedUrl: String
@@ -255,8 +618,10 @@ input EpisodeUpdateWithIdsInput {
   mediaLinks: [MediaLinkInput!]
   sponsorLinkObjects: [SponsorLinkObjectInput!]
   webPageTimelines: [WebPageTimelineInput!]
+  businessLinks: [String!]
   guestIds: [ID!]
   sponsorBusinessIds: [ID!]
+  protocolIds: [ID!]
 }
 
 input EpisodeGuestNestedInput {
@@ -276,16 +641,77 @@ input EpisodeSponsorBusinessNestedInput {
 }
 
 input EpisodeUpdateRelationFieldsInput {
-  id: ID!
+  id: ID
+  episodePageUrl: String
 
   guestIds: [ID!]
   guestsNested: [EpisodeGuestNestedInput!]
 
   sponsorBusinessIds: [ID!]
   sponsorBusinessesNested: [EpisodeSponsorBusinessNestedInput!]
+
+  protocolIds: [ID!]
 }
 
 # --- Compound Inputs ---
+
+input ProtocolCreateWithIdsInput {
+  name: String!
+  description: String
+  categories: [ProtocolCategory!]
+  goals: [String!]
+  steps: [String!]
+  cautions: [String!]
+  aliases: [String!]
+  sourceUrl: String
+  productIds: [ID!]
+  compoundIds: [ID!]
+}
+
+input ProtocolUpdateWithIdsInput {
+  id: ID!
+  name: String
+  description: String
+  categories: [ProtocolCategory!]
+  goals: [String!]
+  steps: [String!]
+  cautions: [String!]
+  aliases: [String!]
+  sourceUrl: String
+  productIds: [ID!]
+  compoundIds: [ID!]
+  stepsStructured: [ProtocolStepGroupInput!]
+  evidenceRefs: [EvidenceRefInput!]
+  safety: SafetyBucketInput
+  overwriteEvidenceRefs: Boolean
+  addToEvidenceRefs: Boolean
+}
+
+input ProtocolProductNestedInput {
+  id: ID
+  name: String
+  description: String
+  businessId: ID
+  ingredients: [String!]
+  mediaLinks: [MediaLinkInput!]
+  sourceUrl: String
+}
+
+input ProtocolCompoundNestedInput {
+  id: ID
+  name: String
+  description: String
+  aliases: [String!]
+  mediaLinks: [MediaLinkInput!]
+}
+
+input ProtocolUpdateRelationFieldsInput {
+  id: ID!
+  productIds: [ID!]
+  productsNested: [ProtocolProductNestedInput!]
+  compoundIds: [ID!]
+  compoundsNested: [ProtocolCompoundNestedInput!]
+}
 
 input CompoundCreateWithIdsInput {
   name: String!
@@ -324,10 +750,8 @@ type User {
   id: ID!
   email: String!
   name: String
-  savedEpisodes: [Episode!]!
-  savedProducts: [Product!]!
-  savedBusinesses: [Business!]!
   role: String!
+  profile: UserProfile
 }
 
 type WebPageTimeline {
@@ -366,7 +790,10 @@ type Episode {
   guests: [Person!]
   summaryShort: String
   summaryDetailed: String
+  publishedSummary: String
+  businessLinks: [String!]
   sponsorBusinesses: [Business!]
+  protocols: [Protocol!]
 }
 
 type Person {
@@ -401,6 +828,7 @@ type Product {
   id: ID!
   name: String!
   mediaLinks: [MediaLink!]
+  price: Float
   business: Business!
   description: String
   ingredients: [String!]!
@@ -419,11 +847,28 @@ type Compound {
   caseStudies: [CaseStudy!]!
 }
 
+type Protocol {
+  id: ID!
+  name: String!
+  description: String
+  categories: [ProtocolCategory!]!
+  goals: [String!]!
+  steps: [String!]!
+  cautions: [String!]!
+  stepsStructured: [ProtocolStepGroup!]
+  evidenceRefs: [EvidenceRef!]!
+  safety: SafetyBucket
+  aliases: [String!]!
+  sourceUrl: String
+  products: [Product!]!
+  compounds: [Compound!]!
+}
+
 enum CaseStudySourceType {
-  PUBMED
-  CLINICAL_TRIAL
-  ARTICLE
-  OTHER
+  pubmed
+  clinicaltrial
+  article
+  other
 }
 
 type CaseStudy {
@@ -433,8 +878,10 @@ type CaseStudy {
   mediaLinks: [MediaLink!]
   url: String
   sourceType: String!
-  episodes: [Episode!]!
-  compounds: [Compound!]!
+  episodes: [Episode!]
+  compounds: [Compound!]
+  products: [Product!]
+  protocols: [Protocol!]
 }
 
 input CaseStudyCreateWithOptionalIdsInput {
@@ -443,7 +890,11 @@ input CaseStudyCreateWithOptionalIdsInput {
   url: String
   sourceType: CaseStudySourceType
   episodeIds: [ID!]
+  episodePageUrls: [String!]
   compoundIds: [ID!]
+  compoundNames: [String!]
+  productIds: [ID!]
+  productNames: [String!]
 }
 
 input CaseStudyUpdateWithOptionalIdsInput {
@@ -452,26 +903,271 @@ input CaseStudyUpdateWithOptionalIdsInput {
   summary: String
   url: String
   sourceType: CaseStudySourceType
-  # These are *additional* IDs to merge and dedupe with existing ones
   episodeIds: [ID!]
+  episodePageUrls: [String!]
   compoundIds: [ID!]
+  compoundNames: [String!]
+  productIds: [ID!]
+  productNames: [String!]
+}
+
+type UserDeleteResult {
+  message: String!
+  success: Boolean
+}
+
+enum SavedEntityType {
+  Product
+  Compound
+  Person
+  Business
+  Protocol
+  Episode
+  CaseStudy
+  UserProtocol
+  Article
+}
+
+enum SaveSource {
+  dashboard
+  episode
+  assistant
+  search
+  protocol_builder
+  profile
+  other
+}
+
+type External {
+  url: String
+  label: String
+}
+
+type UserSaved {
+  id: ID!
+  userId: ID!
+
+  targetType: SavedEntityType!
+  targetId: ID!
+
+  note: String
+  tags: [String!]!
+  pinned: Boolean!
+  source: SaveSource
+
+  createdAt: DateTime!
+  updatedAt: DateTime!
+
+  # hydrated via dataloaders
+  target: SavedTargetUnion
+}
+
+"""
+Relay-style pagination info
+"""
+type PageInfo {
+  hasNextPage: Boolean!
+  endCursor: String
+}
+
+"""
+Cursor pagination input (matches your usage: first + after)
+"""
+input CursorPageInput {
+  first: Int!
+  after: String
+}
+
+"""
+UserSaved connection types
+"""
+type UserSavedConnection {
+  edges: [UserSavedEdge!]!
+  pageInfo: PageInfo!
+}
+
+type UserSavedEdge {
+  cursor: String!
+  node: UserSaved!
+}
+
+"""
+Filter input for user protocols listing
+"""
+input UserProtocolsFilterInput {
+  status: UserProtocolStatus
+  goalType: UserGoalType
+  search: String
+}
+
+union SavedTargetUnion =
+    Product
+  | Compound
+  | CaseStudy
+  | Protocol
+  | Person
+  | Business
+  | Episode
+  | Article
+  | UserProtocol
+
+input SaveEntityInput {
+  targetType: SavedEntityType!
+  targetId: ID!
+
+  note: String
+  tags: [String!]
+  pinned: Boolean
+  source: SaveSource
+}
+
+input UnsaveEntityInput {
+  targetType: SavedEntityType!
+  targetId: ID!
+}
+
+input SavedEntitiesFilterInput {
+  targetType: SavedEntityType
+  search: String
+  tags: [String!]
+  pinned: Boolean
+}
+
+"""
+Qdrant Episode Search and User-Assistant Conversation Persistence
+"""
+enum HumanUpgradeParentPolicyMode {
+  NONE
+  UNIQUE_PARENTS
+  THRESHOLD
+}
+
+enum HumanUpgradeContextWindowAround {
+  BEST_CHUNK_PER_PARENT
+  EACH_CHUNK
+}
+
+input HumanUpgradeParentPolicyInput {
+  mode: HumanUpgradeParentPolicyMode! = THRESHOLD
+
+  # Used only when mode = THRESHOLD
+  minChunksFromParent: Int = 2
+  minBestScore: Float = 0.0
+
+  # SummaryDetailed inclusion rules
+  # - UNIQUE_PARENTS: default true (return summaryDetailed for all returned parents)
+  includeSummaryDetailedForAllParents: Boolean = true
+
+  # - THRESHOLD: default true (return summaryDetailed for top parent only; others chunks-only)
+  includeSummaryDetailedForTopParentOnly: Boolean = true
+
+  # Safety cap (optional)
+  maxParents: Int = 20
+}
+
+input HumanUpgradeContextWindowInput {
+  around: HumanUpgradeContextWindowAround! = BEST_CHUNK_PER_PARENT
+  left: Int = 2
+  right: Int = 2
+}
+
+input HumanUpgradeEpisodeSearchInput {
+  queryText: String
+  queryVector: [Float!]
+
+  # Raw chunk retrieval (Qdrant)
+  topKChunks: Int = 50
+
+  # Per-episode output shaping
+  chunksPerEpisode: Int = 8
+
+  # Optional payload filters
+  source: String
+  episodeUrl: String
+
+  parentPolicy: HumanUpgradeParentPolicyInput = { mode: THRESHOLD }
+  contextWindow: HumanUpgradeContextWindowInput = {
+    around: BEST_CHUNK_PER_PARENT
+    left: 2
+    right: 2
+  }
+}
+
+type HumanUpgradeEpisodeChunkHit {
+  pointId: ID!
+  score: Float!
+  isMatch: Boolean!
+
+  text: String
+  chunkIndex: Int
+
+  parentMongoEpisodeId: String
+  episodeUrl: String
+  source: String
+}
+
+type HumanUpgradeEpisodeSearchHit {
+  episodeId: ID!
+
+  # full Episode object (so you can traverse to guests/businesses via existing resolvers)
+  episode: Episode!
+
+  # returned based on parentPolicy rules (use this in the UI)
+  summaryDetailed: String
+
+  bestScore: Float!
+  bestChunkPointId: ID!
+
+  # ranked / contextualized chunks
+  chunks: [HumanUpgradeEpisodeChunkHit!]!
+}
+
+type HumanUpgradeEpisodeSearchResult {
+  hits: [HumanUpgradeEpisodeSearchHit!]!
 }
 
 type Query {
   me: User
+  myProfile: UserProfile
   episodes(limit: Int = 20, offset: Int = 0): [Episode!]!
   episode(id: ID!): Episode
+  episodeByPageUrl(pageUrl: String!): Episode
+  protocols(limit: Int = 20, offset: Int = 0): [Protocol!]!
+  protocol(id: ID!): Protocol
   products(limit: Int = 20, offset: Int = 0): [Product!]!
   product(id: ID!): Product
+  productByName(name: String!): Product
   compounds(limit: Int = 20, offset: Int = 0): [Compound!]!
   compound(id: ID!): Compound
+  compoundByName(name: String!): Compound
   people(limit: Int = 20, offset: Int = 0): [Person!]!
   person(id: ID!): Person
+  personByName(name: String!): Person
   businesses(limit: Int = 20, offset: Int = 0): [Business!]!
   business(id: ID!): Business
+  businessByName(name: String!): Business
   caseStudies(limit: Int = 20, offset: Int = 0): [CaseStudy!]!
   caseStudy(id: ID!): CaseStudy
   allUsers(limit: Int = 20, offset: Int = 0): [User!]!
+
+  vectorSearchProducts(args: VectorSearchArgs!): [ProductSearchPayload!]
+  vectorSearchBusinesses(args: VectorSearchArgs!): [BusinessSearchPayload!]
+  vectorSearchPeople(args: VectorSearchArgs!): [PersonSearchPayload!]
+
+  savedEntities(
+    filter: SavedEntitiesFilterInput
+    page: CursorPageInput
+  ): UserSavedConnection!
+
+  myUserProtocols(
+    filter: UserProtocolsFilterInput
+    page: CursorPageInput
+  ): UserProtocolConnection!
+
+  dashboard: Dashboard!
+  humanUpgradeEpisodeSearch(
+    input: HumanUpgradeEpisodeSearchInput!
+  ): HumanUpgradeEpisodeSearchResult!
 }
 
 type AuthPayload {
@@ -479,50 +1175,116 @@ type AuthPayload {
   user: User!
 }
 
-input UserMassSaveInput {
-  userId: ID!
-  episodeIds: [ID!]
-  productIds: [ID!]
-  businessIds: [ID!]
+type DeleteResult {
+  deletedCount: Int!
+}
+
+input VectorSearchArgs {
+  query: String!
+  numCandidates: Int
+  limit: Int
+}
+
+type ProductSearchPayload {
+  id: ID!
+  name: String!
+  description: String!
+  score: Float
+}
+
+type BusinessSearchPayload {
+  id: ID!
+  name: String!
+  description: String!
+  score: Float
+}
+
+type PersonSearchPayload {
+  id: ID!
+  name: String!
+  bio: String!
+  score: Float
+}
+
+type DashboardItem {
+  entityType: String!
+  entityId: ID!
+  score: Float
+  reasons: [String!]
+  entity: SavedTargetUnion
+}
+
+type ContinueEpisode {
+  kind: String! # always "EPISODE"
+  episodeId: ID!
+  timestamp: Float
+  lastActivityAt: String!
+  episode: Episode
+}
+
+type ContinueEntity {
+  kind: String! # always "ENTITY"
+  entityType: String!
+  entityId: ID!
+  lastActivityAt: String!
+  entity: SavedTargetUnion
+}
+
+type ContinueNone {
+  kind: String! # always "NONE"
+}
+
+union DashboardContinue = ContinueEpisode | ContinueEntity | ContinueNone
+
+type Dashboard {
+  continue: DashboardContinue!
+  trending: [DashboardItem!]!
+  recommended: [DashboardItem!]!
 }
 
 type Mutation {
   register(email: String!, password: String!, name: String): AuthPayload!
   login(email: String!, password: String!): AuthPayload!
 
-  toggleSaveEpisode(episodeId: ID!): User!
-  toggleSaveProduct(productId: ID!): User!
-  toggleSaveBusiness(businessId: ID!): User!
+  upsertUserProfile(input: UserProfileUpsertInput!): UserProfile!
+  deleteUserProfile(userId: ID!): DeleteResult!
+  deleteUser(userId: ID!): UserDeleteResult!
 
   # --- Business management ---
 
-  createBusiness(input: BusinessCreateWithIdsInput!): Business!
+  createBusinessWithRelations(input: BusinessCreateRelationsInput!): Business!
   updateBusiness(input: BusinessUpdateWithIdsInput!): Business
-  updateBusinessRelations(input: BusinessUpdateRelationFieldsInput!): Business
+  upsertBusinessWithRelations(
+    input: BusinessUpsertRelationFieldsInput!
+  ): Business
+  deleteBusiness(id: ID!): DeleteResult!
 
   # --- Product management ---
 
   createProduct(input: ProductCreateWithIdsInput!): Product!
   updateProduct(input: ProductUpdateWithIdsInput!): Product
-  updateProductRelations(input: ProductUpdateRelationFieldsInput!): Product
-
+  upsertProductWithRelations(input: ProductUpsertRelationFieldsInput!): Product
+  deleteProduct(id: ID!): Product!
   # --- Person management ---
 
-  createPerson(input: PersonCreateWithIdsInput!): Person!
-  updatePerson(input: PersonUpdateWithIdsInput!): Person
-  updatePersonRelations(input: PersonUpdateRelationFieldsInput!): Person
+  createPerson(input: PersonCreateInput!): Person!
+  updatePerson(input: PersonUpdateInput!): Person
+  deletePerson(id: ID!): Person!
 
   # --- Episode management ---
 
   createEpisode(input: EpisodeCreateWithIdsInput!): Episode!
   updateEpisode(input: EpisodeUpdateWithIdsInput!): Episode
   updateEpisodeRelations(input: EpisodeUpdateRelationFieldsInput!): Episode
+  deleteEpisode(identifier: String!): Episode
+  deleteAllEpisodes: DeleteResult!
 
   # --- Compound management ---
 
   createCompound(input: CompoundCreateWithIdsInput!): Compound!
   updateCompound(input: CompoundUpdateWithIdsInput!): Compound
   updateCompoundRelations(input: CompoundUpdateRelationFieldsInput!): Compound
+  deleteCompound(id: ID!): Compound!
 
   createCaseStudy(input: CaseStudyCreateWithOptionalIdsInput!): CaseStudy!
 
@@ -530,6 +1292,38 @@ type Mutation {
 
   upsertUser(input: UserUpsertInput!): User!
 
-  addSavedItemsToUser(input: UserMassSaveInput!): User!
-  removeSavedItemsFromUser(input: UserMassSaveInput!): User!
+  createProtocol(input: ProtocolCreateWithIdsInput!): Protocol!
+  updateProtocol(input: ProtocolUpdateWithIdsInput!): Protocol
+  updateProtocolRelations(input: ProtocolUpdateRelationFieldsInput!): Protocol
+  deleteProtocol(id: ID!): Protocol!
+
+  createUserProtocol(input: CreateUserProtocolInput!): UserProtocol!
+  updateUserProtocol(input: UpdateUserProtocolInput!): UserProtocol
+  deleteUserProtocol(id: ID!): Boolean!
+
+  # --- Vector management ---
+
+  embedProductDescription(productId: ID!): Product!
+  embedBusinessDescription(businessId: ID!): Business!
+  embedPersonBio(personId: ID!): Person!
+
+  saveEntity(input: SaveEntityInput!): UserSaved!
+  unsaveEntity(input: UnsaveEntityInput!): Boolean!
+}
+
+type ActivityEvent {
+  id: ID!
+  userId: ID!
+  eventType: String!
+  entityType: String
+  entityId: ID
+  surface: String
+  createdAt: String!
+}
+
+type Subscription {
+  myActivity: ActivityEvent!
+  dashboardInvalidated: Boolean!
+  trendingInvalidated: Boolean!
+  recommendationsReady: Boolean!
 }

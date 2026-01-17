@@ -3,6 +3,8 @@
 
 from typing import Optional
 
+from pydantic import Field
+
 from .base_model import BaseModel
 
 
@@ -14,6 +16,38 @@ class ProductProduct(BaseModel):
     id: str
     name: str
     description: Optional[str]
+    ingredients: list[str]
+    source_url: Optional[str] = Field(alias="sourceUrl")
+    media_links: Optional[list["ProductProductMediaLinks"]] = Field(alias="mediaLinks")
+    business: "ProductProductBusiness"
+    compounds: Optional[list["ProductProductCompounds"]]
+    sponsor_episodes: Optional[list["ProductProductSponsorEpisodes"]] = Field(
+        alias="sponsorEpisodes"
+    )
+
+
+class ProductProductMediaLinks(BaseModel):
+    url: str
+    description: Optional[str]
+
+
+class ProductProductBusiness(BaseModel):
+    id: str
+    name: str
+    description: Optional[str]
+
+
+class ProductProductCompounds(BaseModel):
+    id: str
+    name: str
+    description: Optional[str]
+
+
+class ProductProductSponsorEpisodes(BaseModel):
+    id: str
+    episode_title: Optional[str] = Field(alias="episodeTitle")
+    channel_name: str = Field(alias="channelName")
 
 
 Product.model_rebuild()
+ProductProduct.model_rebuild()

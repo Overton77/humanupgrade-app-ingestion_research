@@ -4,10 +4,19 @@ query Business($id: ID!) {
     name
     description
     website
+    mediaLinks {
+      url
+      description
+    }
     products {
       id
       name
       description
+    }
+    owners {
+      id
+      name
+      role
     }
     executives {
       role
@@ -15,11 +24,13 @@ query Business($id: ID!) {
       person {
         id
         name
+        role
       }
     }
-    owners {
+    sponsoredEpisodes {
       id
-      name
+      episodeTitle
+      channelName
     }
   }
 }
@@ -29,14 +40,38 @@ query Businesses($limit: Int, $offset: Int) {
     id
     name
     description
+    website
   }
 }
+
+# --- Product Queries ---
 
 query Product($id: ID!) {
   product(id: $id) {
     id
     name
     description
+    ingredients
+    sourceUrl
+    mediaLinks {
+      url
+      description
+    }
+    business {
+      id
+      name
+      description
+    }
+    compounds {
+      id
+      name
+      description
+    }
+    sponsorEpisodes {
+      id
+      episodeTitle
+      channelName
+    }
   }
 }
 
@@ -45,14 +80,32 @@ query Products($limit: Int, $offset: Int) {
     id
     name
     description
+    ingredients
   }
 }
+
+# --- Person Queries ---
 
 query Person($id: ID!) {
   person(id: $id) {
     id
     name
     role
+    bio
+    mediaLinks {
+      url
+      description
+    }
+    businesses {
+      id
+      name
+      description
+    }
+    episodes {
+      id
+      episodeTitle
+      channelName
+    }
   }
 }
 
@@ -64,43 +117,84 @@ query People($limit: Int, $offset: Int) {
   }
 }
 
-query Compound($id: ID!) {
-  compound(id: $id) {
+query ProductByName($name: String!) {
+  productByName(name: $name) {
     id
     name
     description
   }
 }
 
-query Compounds($limit: Int, $offset: Int) {
-  compounds(limit: $limit, offset: $offset) {
+query CompoundByName($name: String!) {
+  compoundByName(name: $name) {
     id
     name
     description
   }
 }
 
-query CaseStudy($id: ID!) {
-  caseStudy(id: $id) {
+query PersonByName($name: String!) {
+  personByName(name: $name) {
     id
-    title
-    summary
+    name
+    role
   }
 }
 
-query CaseStudies($limit: Int, $offset: Int) {
-  caseStudies(limit: $limit, offset: $offset) {
+query BusinessByName($name: String!) {
+  businessByName(name: $name) {
     id
-    title
-    summary
+    name
+    description
   }
 }
+
+# --- Episode Queries ---
 
 query Episode($id: ID!) {
   episode(id: $id) {
     id
+    channelName
+    episodeNumber
+    episodeTitle
+    episodeTranscriptUrl
+    episodePageUrl
+    webPageSummary
+
+    takeaways
+    s3TranscriptKey
+    s3TranscriptUrl
+    youtubeVideoId
+    youtubeWatchUrl
+    youtubeEmbedUrl
+    mediaLinks {
+      url
+      description
+    }
+    publishedAt
+    guests {
+      id
+      name
+      role
+    }
+
+    summaryDetailed
+    publishedSummary
+    businessLinks
+    sponsorBusinesses {
+      id
+      name
+      description
+    }
+  }
+}
+
+query EpisodeByPageUrl($pageUrl: String!) {
+  episodeByPageUrl(pageUrl: $pageUrl) {
+    id
     episodeTitle
     channelName
+    episodePageUrl
   }
 }
 
@@ -109,5 +203,99 @@ query Episodes($limit: Int, $offset: Int) {
     id
     episodeTitle
     channelName
+    episodePageUrl
+    episodeNumber
+    publishedAt
   }
 }
+
+# --- Compound Queries ---
+
+query Compound($id: ID!) {
+  compound(id: $id) {
+    id
+    name
+    description
+    aliases
+    mediaLinks {
+      url
+      description
+    }
+    products {
+      id
+      name
+      description
+    }
+    caseStudies {
+      id
+      title
+      summary
+    }
+  }
+}
+
+query Compounds($limit: Int, $offset: Int) {
+  compounds(limit: $limit, offset: $offset) {
+    id
+    name
+    description
+    aliases
+  }
+}
+
+query Protocols($limit: Int, $offset: Int) {
+  protocols(limit: $limit, offset: $offset) {
+    id
+    name
+    description
+    categories
+    goals
+  }
+}
+
+# --- CaseStudy Queries ---
+
+query CaseStudy($id: ID!) {
+  caseStudy(id: $id) {
+    id
+    title
+    summary
+    url
+    sourceType
+    mediaLinks {
+      url
+      description
+    }
+    episodes {
+      id
+      episodeTitle
+      channelName
+    }
+    compounds {
+      id
+      name
+      description
+    }
+    products {
+      id
+      name
+      description
+    }
+    protocols {
+      id
+      name
+      description
+    }
+  }
+}
+
+query CaseStudies($limit: Int, $offset: Int) {
+  caseStudies(limit: $limit, offset: $offset) {
+    id
+    title
+    summary
+    url
+  }
+}
+
+# --- Vector Search Queries ---

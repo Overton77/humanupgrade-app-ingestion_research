@@ -6,7 +6,11 @@ from pymongo import AsyncMongoClient
 from bson.objectid import ObjectId
 from bson.errors import InvalidId
 from pymongo.asynchronous.database import AsyncDatabase  # type: ignore[import]
-from pymongo.asynchronous.collection import AsyncCollection  # type: ignore[import]
+from pymongo.asynchronous.collection import AsyncCollection  # type: ignore[import] 
+
+from dotenv import load_dotenv 
+
+load_dotenv()  
 
 
 
@@ -67,7 +71,17 @@ async def get_episodes(
     episodes: List[EpisodeDoc] = []
     async for doc in cursor:
         episodes.append(doc)
-    return episodes 
+    return episodes  
+
+async def get_episodes_by_urls( 
+    urls: list[str]
+) -> List[Dict[str, Any]]: 
+    query: Dict[str, Any] = {"episodePageUrl": {"$in": urls}}
+    cursor = episodes_collection.find(query)
+    episodes: List[Dict[str, Any]] = []
+    async for doc in cursor:
+        episodes.append(doc)
+    return episodes   
 
 async def get_episode(
     episode_id: Optional[str] = None,

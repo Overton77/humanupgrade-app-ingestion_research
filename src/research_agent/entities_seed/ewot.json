@@ -1,0 +1,509 @@
+{
+  "episode_id": "692b8834004e71ed86aa1e67",
+  "episode_url": "https://daveasprey.com/1301-ewot/",
+  "research_directions": [
+    {
+      "id": "dir_692b8834004e71ed86aa1e67_entity_001",
+      "episode_id": "692b8834004e71ed86aa1e67",
+      "title": "Brad Pitzele: Background, Recovery Story, and EWOT Advocacy",
+      "guest_information": {
+        "name": "Brad Pitzele",
+        "description": "Founder of One Thousand Roads, creator of the LEO System, and advocate for Exercise With Oxygen Therapy (EWOT) following personal recovery from autoimmune illness."
+      },
+      "research_questions": [
+        "What is Brad Pitzele’s professional and personal background, including his experience with autoimmune illness and recovery?",
+        "What led Brad Pitzele to develop and promote Exercise With Oxygen Therapy (EWOT)?",
+        "What other ventures, publications, or affiliations does Brad Pitzele have in the health and biohacking space?"
+      ],
+      "primary_entities": ["person:brad_pitzele"],
+      "max_steps": 8
+    },
+    {
+      "id": "dir_692b8834004e71ed86aa1e67_entity_002",
+      "episode_id": "692b8834004e71ed86aa1e67",
+      "title": "One Thousand Roads: Company, Products, and Market Position",
+      "guest_information": {
+        "name": "Brad Pitzele",
+        "description": "Founder of One Thousand Roads, creator of the LEO System, and advocate for Exercise With Oxygen Therapy (EWOT) following personal recovery from autoimmune illness."
+      },
+      "research_questions": [
+        "What is the founding story and mission of One Thousand Roads?",
+        "What EWOT systems, masks, and related products does One Thousand Roads offer, and what are their key features?",
+        "How is One Thousand Roads positioned in the oxygen therapy and biohacking market, and what is the LEO System?",
+        "Are there any notable partnerships, endorsements, or clinical studies associated with One Thousand Roads?"
+      ],
+      "primary_entities": [
+        "business:one_thousand_roads",
+        "product:leo_system",
+        "product:ewot_system"
+      ],
+      "max_steps": 8
+    },
+    {
+      "id": "dir_692b8834004e71ed86aa1e67_entity_003",
+      "episode_id": "692b8834004e71ed86aa1e67",
+      "title": "Exercise With Oxygen Therapy (EWOT): Mechanisms, Evidence, and Safety",
+      "guest_information": {
+        "name": "Brad Pitzele",
+        "description": "Founder of One Thousand Roads, creator of the LEO System, and advocate for Exercise With Oxygen Therapy (EWOT) following personal recovery from autoimmune illness."
+      },
+      "research_questions": [
+        "What are the physiological mechanisms proposed for EWOT, and how do they differ from hyperbaric oxygen therapy?",
+        "What is the current state of clinical and scientific evidence supporting EWOT for mitochondrial function, inflammation, and chronic illness?",
+        "What are the main safety considerations, contraindications, and recommended protocols for EWOT use?"
+      ],
+      "primary_entities": [
+        "product:ewot_system",
+        "compound:oxygen",
+        "intervention:exercise_with_oxygen_therapy"
+      ],
+      "max_steps": 8
+    },
+    {
+      "id": "dir_692b8834004e71ed86aa1e67_entity_004",
+      "episode_id": "692b8834004e71ed86aa1e67",
+      "title": "LEO System and Related Biohacking Stacks: Features and Integration",
+      "guest_information": {
+        "name": "Brad Pitzele",
+        "description": "Founder of One Thousand Roads, creator of the LEO System, and advocate for Exercise With Oxygen Therapy (EWOT) following personal recovery from autoimmune illness."
+      },
+      "research_questions": [
+        "What is the LEO System, and how does it integrate with other biohacking modalities such as red light therapy, ketosis, and supplements?",
+        "What are the technical specifications and unique selling points of the LEO System compared to other EWOT solutions?",
+        "How do users and practitioners stack EWOT with other interventions for enhanced mitochondrial and cognitive benefits?"
+      ],
+      "primary_entities": [
+        "product:leo_system",
+        "intervention:red_light_therapy",
+        "intervention:ketosis",
+        "intervention:supplements"
+      ],
+      "max_steps": 8
+    }
+  ],
+  "direction_results": [
+    {
+      "direction_id": "dir_692b8834004e71ed86aa1e67_entity_001",
+      "extensive_summary": "People\n- Brad Pitzele: Brad Pitzele is a chronic illness survivor and the founder of One Thousand Roads. He has a background in engineering and a personal history of battling multiple severe health conditions, including autoimmune arthritis, malignant melanoma, Lyme disease, and Bartonella. His experience with debilitating symptoms and limited success with conventional treatments led him to explore alternative therapies. Brad's expertise lies in both the technical engineering of health devices and the practical application of Exercise with Oxygen Therapy (EWOT) for chronic illness recovery.\n\nBusinesses\n- One Thousand Roads: This company was founded by Brad Pitzele with the mission to make Exercise with Oxygen Therapy (EWOT) accessible and affordable. The business is positioned at the intersection of health technology and biohacking, targeting individuals with chronic illnesses, athletes, and those interested in anti-aging therapies. One Thousand Roads offers engineered EWOT systems designed for home and clinical use, emphasizing science-backed, non-invasive treatments.\n\nProducts\n- EWOT System by One Thousand Roads: The primary product is an Exercise with Oxygen Therapy system, which allows users to perform cardiovascular exercise while breathing concentrated oxygen. The system is engineered to be more accessible and affordable compared to existing market options. It is designed to enhance cellular oxygenation, reduce inflammation, support detoxification, and improve immune function. Pricing and specific product details are not provided in the research notes.\n\nCompounds\n- Oxygen: The key compound involved in EWOT is concentrated oxygen. The mechanism of action involves increasing the amount of oxygen available to cells during exercise, which supports cellular repair, reduces inflammation, and aids in detoxification, primarily through the lungs. This approach is based on scientific research linking oxygenation to improved health outcomes, particularly in chronic illness and cancer prevention.\n\nCase Studies\n- No specific case studies or clinical trials were referenced in the available research notes. The information is primarily based on Brad Pitzele's personal experience and the scientific rationale for EWOT.",
+      "entity_intel_ids": [
+        "person:brad_pitzele",
+        "business:one_thousand_roads",
+        "product:ewot_system"
+      ],
+      "key_findings": [
+        "Brad Pitzele is a chronic illness survivor with an engineering background who founded One Thousand Roads to make EWOT accessible.",
+        "He suffered from autoimmune arthritis, malignant melanoma, Lyme disease, and Bartonella, leading to severe symptoms and limited success with conventional treatments.",
+        "Brad developed his own EWOT system after being dissatisfied with existing market options and experiencing significant personal health improvements.",
+        "One Thousand Roads focuses on providing affordable, engineered EWOT systems for chronic illness management, athletic recovery, and anti-aging.",
+        "EWOT involves exercising while breathing concentrated oxygen, which enhances cellular oxygenation, reduces inflammation, and supports detoxification.",
+        "The scientific foundation for EWOT includes the role of oxygen in cellular repair and the link between hypoxia and cancer development.",
+        "No specific clinical trials or case studies were found in the available research; the evidence is based on personal experience and scientific rationale."
+      ],
+      "key_source_citations": [
+        {
+          "url": "https://onethousandroads.com/about-brad-pitzele/",
+          "title": "One Thousand Roads: About Brad Pitzele",
+          "description": "Brad Pitzele's personal story, health journey, and the founding of One Thousand Roads.",
+          "published_date": null,
+          "score": 9.0
+        },
+        {
+          "url": "https://onethousandroads.com/what-is-ewot/",
+          "title": "One Thousand Roads: What is EWOT?",
+          "description": "Overview of Exercise with Oxygen Therapy, its mechanisms, and benefits.",
+          "published_date": null,
+          "score": 8.0
+        }
+      ]
+    },
+    {
+      "direction_id": "dir_692b8834004e71ed86aa1e67_entity_002",
+      "extensive_summary": "**People**\n- Brad Pitzele: Founder of One Thousand Roads. He created the company after overcoming a life-threatening autoimmune illness using high-dose oxygen therapy, which he engineered himself. Pitzele's background is rooted in personal health challenges, leading to expertise in oxygen therapy and wellness technologies. He is an advocate for accessible, science-backed wellness solutions and is featured on The Human Upgrade Podcast with Dave Asprey.\n\n**Businesses**\n- One Thousand Roads: A wellness company focused on providing affordable, science-backed products and systems for individuals with chronic illnesses and health challenges. The company is positioned as a leader in accessible Exercise With Oxygen Therapy (EWOT) solutions, emphasizing customer support, affordability, and empathetic service. Their mission is to help people regain health and quality of life through enhanced oxygen utilization and mitochondrial function.\n\n**Products**\n- LEO System: An affordable, user-friendly EWOT system designed for daily home use. Developed by Brad Pitzele, it includes an oxygen concentrator (5 LPM or 10 LPM), reservoir bag, hose, and a NextGen mask. The system is intended for use with exercise equipment and is marketed for its ability to improve energy, cognitive clarity, athletic performance, and recovery. The 10 LPM model is suitable for multiple users or faster oxygen refilling and features a digital timer. The system is not FDA-approved and is intended for educational and wellness purposes.\n- 2000 Series EWOT System: Includes a 5 LPM or 10 LPM oxygen concentrator and a specially designed mask that delivers 67% more oxygen throughput than traditional masks. The mask is adjustable, durable, and available in multiple sizes. The system is designed for home use and is noted for its quiet operation and low EMF output.\n\n**Compounds**\n- Oxygen: The primary compound delivered by the EWOT systems. Mechanism of action involves increasing oxygen saturation at the cellular level, enhancing mitochondrial function, reducing inflammation, and supporting detoxification and healing. No additional compounds or ingredients are specified in the products.\n\n**Case Studies**\n- No formal clinical studies or trials are cited on the business or product websites. However, customer testimonials and anecdotal reports highlight benefits in detoxification (e.g., from mold poisoning), recovery from chronic conditions (e.g., Lyme disease), improved sleep, cognitive clarity, and physical recovery. The company references the work of Dr. Arthur Guyton on cellular oxygen deficiency and its link to aging and chronic disease, but no direct clinical trials are presented.",
+      "entity_intel_ids": [
+        "business:one_thousand_roads",
+        "product:leo_system",
+        "product:ewot_system"
+      ],
+      "key_findings": [
+        "One Thousand Roads was founded by Brad Pitzele, inspired by his personal recovery from autoimmune illness using oxygen therapy.",
+        "The company specializes in affordable, home-based Exercise With Oxygen Therapy (EWOT) systems, targeting individuals with chronic illnesses and those seeking enhanced wellness.",
+        "The LEO System is a flagship EWOT product, designed for daily home use and featuring a high-throughput, durable mask and oxygen concentrator.",
+        "EWOT systems from One Thousand Roads are marketed as more accessible and cost-effective alternatives to Hyperbaric Oxygen Therapy (HBOT).",
+        "Key benefits reported by users include improved energy, cognitive clarity, sleep, recovery, and detoxification, especially from mold and chronic conditions.",
+        "The company emphasizes science-backed approaches, referencing Dr. Arthur Guyton's work on oxygen and cellular health, but does not present formal clinical studies.",
+        "Products are not FDA-approved and are intended for educational and wellness purposes, with users advised to consult physicians before use.",
+        "The business is positioned as a leader in the biohacking and oxygen therapy market, focusing on accessibility, affordability, and customer support."
+      ],
+      "key_source_citations": [
+        {
+          "url": "https://onethousandroads.com/pages/about-us",
+          "title": "One Thousand Roads - About Us",
+          "description": "Company background, mission, and founder's story.",
+          "published_date": null,
+          "score": 9.5
+        },
+        {
+          "url": "https://onethousandroads.com/products/leo-system",
+          "title": "LEO System - One Thousand Roads",
+          "description": "Product details and customer testimonials for the LEO System.",
+          "published_date": null,
+          "score": 9.2
+        },
+        {
+          "url": "https://onethousandroads.com/products/2000-series-ewot-system",
+          "title": "2000 Series EWOT System - One Thousand Roads",
+          "description": "Technical specifications and user reviews for the 2000 Series EWOT System.",
+          "published_date": null,
+          "score": 8.8
+        },
+        {
+          "url": "https://daveasprey.com/brad-pitzele-oxygen-therapy-episode-1047/",
+          "title": "The Human Upgrade Podcast with Dave Asprey: Brad Pitzele on Oxygen Therapy",
+          "description": "Podcast episode featuring Brad Pitzele discussing the LEO System and EWOT.",
+          "published_date": "2023-10-12",
+          "score": 8.7
+        }
+      ]
+    },
+    {
+      "direction_id": "dir_692b8834004e71ed86aa1e67_entity_003",
+      "extensive_summary": "**People**\n- Dr. Manfred von Ardenne: A key figure in the development of EWOT, Dr. von Ardenne's research demonstrated that enhanced oxygen intake during exercise can restore microcirculation and optimize cellular energy production (ATP). His work forms the scientific foundation for modern EWOT systems.\n\n**Businesses**\n- While specific business names are not mentioned in the research notes, companies in the EWOT space typically provide specialized equipment for exercise with oxygen therapy, including oxygen masks, medical-grade oxygen bags, and sometimes adjustable oxygen/hypoxic generators. These businesses position themselves as providers of wellness and performance-enhancing solutions for both athletes and individuals with chronic health conditions.\n\n**Products**\n- EWOT System: This product includes a high-flow, non-restricted mask, a large medical-grade bag (approximately 900 liters) for oxygen storage, and necessary connectors. The system is designed to be used with a separate oxygen concentrator (not always included) and fitness equipment. Advanced packages may offer adjustable oxygen levels, including hypoxic training options. Pricing and specific brands are not detailed in the notes, but the system is marketed for both athletic performance and general wellness.\n\n**Compounds**\n- Oxygen: The primary compound used in EWOT. Oxygen is delivered at high purity (typically 93%) and high flow rates to ensure maximal uptake during exercise. The mechanism of action involves increasing blood oxygenation, improving microcirculation, and supporting cellular ATP production. Oxygen is the active agent in all EWOT systems.\n\n**Case Studies**\n- No specific clinical trials or case studies were cited in the research notes. However, testimonials and anecdotal reports suggest improvements in vision, walking, cognitive function, and chronic conditions. The scientific rationale is based on Dr. von Ardenne's foundational research, but direct clinical evidence from business or product websites was not provided in the extracted notes.",
+      "entity_intel_ids": [
+        "product:ewot_system",
+        "compound:oxygen",
+        "intervention:exercise_with_oxygen_therapy"
+      ],
+      "key_findings": [
+        "EWOT (Exercise With Oxygen Therapy) involves breathing high concentrations of oxygen during exercise to enhance blood oxygenation and cellular energy production.",
+        "Dr. Manfred von Ardenne's research underpins the physiological rationale for EWOT, focusing on restoring microcirculation and optimizing ATP production.",
+        "EWOT systems use a large medical-grade bag (about 900 liters) filled with 93% pure oxygen, delivered through a high-flow mask to prevent dilution with room air.",
+        "Traditional oxygen concentrators alone are insufficient for exercise needs, as exercise breathing rates can exceed 60 LPM, diluting oxygen purity if not using a reservoir system.",
+        "Advanced EWOT systems may offer adjustable oxygen levels, including hypoxic training, using specialized generators.",
+        "Reported benefits include improvements in vision, walking, cognitive function, and chronic illness symptoms, though these are primarily based on testimonials rather than published clinical trials.",
+        "Safety considerations include ensuring proper equipment use to avoid hypoxia or oxygen toxicity, but specific contraindications and protocols were not detailed in the notes."
+      ],
+      "key_source_citations": [
+        {
+          "url": "https://www.ewot.com/",
+          "title": "EWOT: Exercise With Oxygen Therapy",
+          "description": "Overview of EWOT systems, mechanisms, and user testimonials.",
+          "published_date": null,
+          "score": null
+        },
+        {
+          "url": "https://www.ewotusa.com/science/",
+          "title": "The Science Behind EWOT",
+          "description": "Scientific rationale and foundational research for EWOT, including Dr. von Ardenne's work.",
+          "published_date": null,
+          "score": null
+        }
+      ]
+    },
+    {
+      "direction_id": "dir_692b8834004e71ed86aa1e67_entity_004",
+      "extensive_summary": "**People**\n- Brad Pitzele: Founder of One Thousand Roads and creator of the LEO System. He developed the LEO System after recovering from autoimmune illness, leveraging his expertise in biohacking and functional medicine. Pitzele is recognized for his contributions to accessible, science-backed home EWOT (Exercise With Oxygen Therapy) solutions and is active in the biohacking and longevity communities.\n\n**Businesses**\n- One Thousand Roads: The company founded by Brad Pitzele, responsible for developing and marketing the LEO System. The business is positioned as a leader in affordable, home-based EWOT solutions, targeting both elite athletes and individuals with chronic health conditions. It emphasizes science-backed protocols and integration with other biohacking modalities.\n- Other EWOT Providers: Companies such as LiveO2, HyperMax, and EWOT Australia offer competing EWOT systems, with varying features, pricing, and target audiences. These businesses provide both basic and advanced EWOT setups, including adaptive contrast and altitude training options.\n\n**Products**\n- LEO System: A home-based EWOT system designed by Brad Pitzele. It includes an oxygen concentrator, large reservoir bag, high-flow mask, and tubing. The system is engineered for ease of use, affordability, and integration with other biohacking interventions. Sessions typically last 15 minutes. The LEO System is positioned as a foundational tool for mitochondrial health, energy, and cognitive optimization. Pricing is competitive with other EWOT systems, generally ranging from $1700 to $2300 for a complete setup.\n- Competing EWOT Systems: Products like the LiveO2 Standard Kit, LiveO2 Adaptive Contrast, and HyperMax EWOT system offer similar core components but differ in features such as oxygen flow rates, adaptive contrast capabilities, and suitability for athletic or brain protocols.\n\n**Compounds**\n- Oxygen: The primary compound delivered by EWOT systems, with concentrations typically around 90-94%. Oxygen acts by enhancing cellular respiration, mitochondrial function, and energy production, supporting detoxification, neuroplasticity, and inflammation reduction.\n- Supplements (stacked interventions): While not specific to the LEO System, users often combine EWOT with mitochondrial supplements (e.g., nootropics, nutrigenomics products) to target specific biological pathways for enhanced health outcomes.\n\n**Interventions**\n- Red Light Therapy: Frequently stacked with EWOT to amplify mitochondrial and cognitive benefits. Red light therapy supports cellular energy production and recovery.\n- Ketosis: Another common biohacking modality combined with EWOT. Ketosis enhances fat metabolism and mitochondrial efficiency, synergizing with oxygen therapy for improved energy and brain function.\n- Supplements: Mitochondrial and nootropic supplements are often used alongside EWOT to further support cellular health, energy, and cognitive performance.\n\n**Case Studies**\n- No formal clinical trials or published studies specific to the LEO System were found in the provided research notes. However, user and practitioner testimonials report significant improvements in energy, cognitive clarity, sleep, and recovery, particularly among athletes and individuals with chronic illnesses such as autoimmune diseases and idiopathic pulmonary fibrosis (IPF).",
+      "entity_intel_ids": [
+        "product:leo_system",
+        "intervention:red_light_therapy",
+        "intervention:ketosis",
+        "intervention:supplements"
+      ],
+      "key_findings": [
+        "The LEO System is a home-based EWOT solution developed by Brad Pitzele, designed for accessibility, affordability, and integration with other biohacking modalities.",
+        "EWOT (Exercise With Oxygen Therapy) enhances mitochondrial function, energy production, and cellular health by increasing oxygen supply during exercise.",
+        "The LEO System and similar EWOT products typically include an oxygen concentrator, large reservoir bag, high-flow mask, and tubing, with sessions lasting about 15 minutes.",
+        "EWOT is often stacked with red light therapy, ketosis, and mitochondrial supplements to amplify cognitive, metabolic, and recovery benefits.",
+        "Compared to hyperbaric oxygen therapy, EWOT is faster, more accessible, and can be performed at home without professional supervision.",
+        "Competing EWOT systems (e.g., LiveO2, HyperMax) offer features like adaptive contrast and altitude training, but the LEO System emphasizes cost-effectiveness and ease of use.",
+        "User testimonials highlight improvements in sleep, cognitive clarity, energy, and recovery, especially for athletes and those with chronic illnesses.",
+        "No formal clinical trials specific to the LEO System were found, but practitioner and user reports suggest significant quality-of-life improvements.",
+        "Oxygen is the primary compound delivered by EWOT systems, supporting mitochondrial biogenesis, neuroplasticity, and detoxification pathways."
+      ],
+      "key_source_citations": [
+        {
+          "url": "https://www.bulletproof.com/biohacking/ewot-exercise-with-oxygen-therapy/",
+          "title": "Exercise With Oxygen Therapy (EWOT): What It Is, Benefits, and How It Works",
+          "description": "Overview of EWOT, its mechanisms, and integration with biohacking modalities.",
+          "published_date": null,
+          "score": null
+        },
+        {
+          "url": "https://onethousandroads.com/leo-system/",
+          "title": "LEO System by One Thousand Roads",
+          "description": "Official product page for the LEO System, including features, pricing, and testimonials.",
+          "published_date": null,
+          "score": null
+        },
+        {
+          "url": "https://www.liveo2.com/",
+          "title": "LiveO2 Adaptive Contrast EWOT System Review",
+          "description": "Comparison of EWOT systems, including technical specifications and user experiences.",
+          "published_date": null,
+          "score": null
+        }
+      ]
+    }
+  ],
+  "extracted_entities": {
+    "businesses": [
+      {
+        "name": "One Thousand Roads",
+        "description": "Company founded by Brad Pitzele to make Exercise with Oxygen Therapy (EWOT) accessible and affordable, focusing on engineered health technology for chronic illness, athletic recovery, and anti-aging.",
+        "website": "https://onethousandroads.com",
+        "media_links": [
+          "https://onethousandroads.com/about-brad-pitzele/",
+          "https://onethousandroads.com/what-is-ewot/"
+        ]
+      },
+      {
+        "name": "One Thousand Roads",
+        "description": "A wellness company focused on providing affordable, science-backed Exercise With Oxygen Therapy (EWOT) systems for individuals with chronic illnesses and health challenges. Emphasizes accessibility, customer support, and empathetic service.",
+        "website": "https://onethousandroads.com",
+        "media_links": ["https://onethousandroads.com/pages/about-us"]
+      },
+      {
+        "name": "One Thousand Roads",
+        "description": "Company founded by Brad Pitzele, specializing in affordable, home-based Exercise With Oxygen Therapy (EWOT) solutions and the developer of the LEO System.",
+        "website": "https://onethousandroads.com",
+        "media_links": ["https://onethousandroads.com/leo-system/"]
+      },
+      {
+        "name": "LiveO2",
+        "description": "Provider of EWOT systems, including standard and adaptive contrast setups for athletic and health applications.",
+        "website": "https://www.liveo2.com/",
+        "media_links": ["https://www.liveo2.com/"]
+      },
+      {
+        "name": "HyperMax",
+        "description": "Company offering EWOT systems with a focus on high-flow oxygen delivery for home and professional use.",
+        "website": null,
+        "media_links": []
+      },
+      {
+        "name": "EWOT Australia",
+        "description": "Australian provider of EWOT systems and accessories.",
+        "website": null,
+        "media_links": []
+      }
+    ],
+    "people": [
+      {
+        "name": "Brad Pitzele",
+        "is_guest": true,
+        "bio": "Chronic illness survivor, engineer, and founder of One Thousand Roads. Developed the LEO System and advocates for Exercise with Oxygen Therapy (EWOT) after recovering from autoimmune illness, malignant melanoma, Lyme disease, and Bartonella.",
+        "role": "Founder",
+        "business_name": "One Thousand Roads",
+        "affiliations": [],
+        "media_links": ["https://onethousandroads.com/about-brad-pitzele/"]
+      },
+      {
+        "name": "Brad Pitzele",
+        "is_guest": true,
+        "bio": "Founder of One Thousand Roads, creator of the LEO System, and advocate for Exercise With Oxygen Therapy (EWOT) following personal recovery from autoimmune illness. Background in engineering wellness technologies after overcoming a life-threatening autoimmune condition using high-dose oxygen therapy.",
+        "role": "Founder",
+        "business_name": "One Thousand Roads",
+        "affiliations": [],
+        "media_links": [
+          "https://daveasprey.com/brad-pitzele-oxygen-therapy-episode-1047/"
+        ]
+      },
+      {
+        "name": "Brad Pitzele",
+        "is_guest": true,
+        "bio": "Founder of One Thousand Roads, creator of the LEO System, and advocate for Exercise With Oxygen Therapy (EWOT) following personal recovery from autoimmune illness.",
+        "role": "Founder",
+        "business_name": "One Thousand Roads",
+        "affiliations": [],
+        "media_links": []
+      },
+      {
+        "name": "Dr. Manfred von Ardenne",
+        "is_guest": false,
+        "bio": "Key figure in the development of EWOT, whose research demonstrated that enhanced oxygen intake during exercise can restore microcirculation and optimize cellular energy production (ATP).",
+        "role": "Researcher",
+        "business_name": null,
+        "affiliations": [],
+        "media_links": []
+      },
+      {
+        "name": "Brad Pitzele",
+        "is_guest": true,
+        "bio": "Founder of One Thousand Roads and creator of the LEO System. After recovering from autoimmune illness, he became an advocate for accessible, science-backed home EWOT solutions and is active in the biohacking and longevity communities.",
+        "role": "Founder",
+        "business_name": "One Thousand Roads",
+        "affiliations": [],
+        "media_links": []
+      }
+    ],
+    "products": [
+      {
+        "name": "EWOT System",
+        "description": "Exercise with Oxygen Therapy system engineered by One Thousand Roads, allowing users to perform cardiovascular exercise while breathing concentrated oxygen. Designed for home and clinical use to enhance cellular oxygenation, reduce inflammation, support detoxification, and improve immune function.",
+        "price": null,
+        "ingredients": [],
+        "compounds": [
+          {
+            "name": "Oxygen",
+            "description": "Concentrated oxygen used in EWOT to increase cellular oxygenation, support repair, reduce inflammation, and aid detoxification.",
+            "aliases": ["O2"],
+            "mechanism_of_action": "Increases the amount of oxygen available to cells during exercise, supporting cellular repair, reducing inflammation, and aiding detoxification, primarily through the lungs.",
+            "media_links": ["https://onethousandroads.com/what-is-ewot/"]
+          }
+        ],
+        "source_url": "https://onethousandroads.com/what-is-ewot/",
+        "business_name": "One Thousand Roads",
+        "media_links": ["https://onethousandroads.com/what-is-ewot/"]
+      },
+      {
+        "name": "LEO System",
+        "description": "An affordable, user-friendly Exercise With Oxygen Therapy (EWOT) system for daily home use. Includes an oxygen concentrator (5 LPM or 10 LPM), reservoir bag, hose, and NextGen mask. Designed to improve energy, cognitive clarity, athletic performance, and recovery. Not FDA-approved; intended for educational and wellness purposes.",
+        "price": "$1,700.00",
+        "ingredients": [],
+        "compounds": [
+          {
+            "name": "Oxygen",
+            "description": "The primary compound delivered by the EWOT systems, used to increase oxygen saturation at the cellular level.",
+            "aliases": [],
+            "mechanism_of_action": "Increases oxygen saturation at the cellular level, enhances mitochondrial function, reduces inflammation, and supports detoxification and healing.",
+            "media_links": []
+          }
+        ],
+        "source_url": "https://onethousandroads.com/products/leo-system",
+        "business_name": "One Thousand Roads",
+        "media_links": ["https://onethousandroads.com/products/leo-system"]
+      },
+      {
+        "name": "2000 Series EWOT System",
+        "description": "EWOT system including a 5 LPM or 10 LPM oxygen concentrator and a specially designed mask that delivers 67% more oxygen throughput than traditional masks. Designed for home use, noted for quiet operation and low EMF output.",
+        "price": null,
+        "ingredients": [],
+        "compounds": [
+          {
+            "name": "Oxygen",
+            "description": "The primary compound delivered by the EWOT systems, used to increase oxygen saturation at the cellular level.",
+            "aliases": [],
+            "mechanism_of_action": "Increases oxygen saturation at the cellular level, enhances mitochondrial function, reduces inflammation, and supports detoxification and healing.",
+            "media_links": []
+          }
+        ],
+        "source_url": "https://onethousandroads.com/products/2000-series-ewot-system",
+        "business_name": "One Thousand Roads",
+        "media_links": [
+          "https://onethousandroads.com/products/2000-series-ewot-system"
+        ]
+      },
+      {
+        "name": "EWOT System",
+        "description": "A system for Exercise With Oxygen Therapy, including a high-flow, non-restricted mask, a large medical-grade oxygen storage bag (about 900 liters), and connectors. Designed for use with a separate oxygen concentrator and fitness equipment. Advanced packages may offer adjustable oxygen levels, including hypoxic training.",
+        "price": null,
+        "ingredients": [],
+        "compounds": [
+          {
+            "name": "Oxygen",
+            "description": "The primary compound used in EWOT, delivered at high purity (typically 93%) and high flow rates to maximize uptake during exercise.",
+            "aliases": [],
+            "mechanism_of_action": "Increases blood oxygenation, improves microcirculation, and supports cellular ATP production.",
+            "media_links": []
+          }
+        ],
+        "source_url": null,
+        "business_name": null,
+        "media_links": []
+      },
+      {
+        "name": "LEO System",
+        "description": "A home-based EWOT system designed for accessibility, affordability, and integration with other biohacking modalities. Includes an oxygen concentrator, large reservoir bag, high-flow mask, and tubing. Sessions typically last 15 minutes.",
+        "price": "$1,700.00",
+        "ingredients": [],
+        "compounds": [
+          {
+            "name": "Oxygen",
+            "description": "Primary compound delivered by EWOT systems, typically at 90-94% concentration. Enhances cellular respiration, mitochondrial function, and energy production.",
+            "aliases": ["O2"],
+            "mechanism_of_action": "Increases oxygen supply during exercise, supporting mitochondrial biogenesis, neuroplasticity, detoxification, and inflammation reduction.",
+            "media_links": [
+              "https://www.bulletproof.com/biohacking/ewot-exercise-with-oxygen-therapy/"
+            ]
+          }
+        ],
+        "source_url": "https://onethousandroads.com/leo-system/",
+        "business_name": "One Thousand Roads",
+        "media_links": ["https://onethousandroads.com/leo-system/"]
+      },
+      {
+        "name": "LiveO2 Standard Kit",
+        "description": "Competing EWOT system with standard oxygen delivery for athletic and health applications.",
+        "price": null,
+        "ingredients": [],
+        "compounds": [
+          {
+            "name": "Oxygen",
+            "description": "Primary compound delivered by EWOT systems.",
+            "aliases": ["O2"],
+            "mechanism_of_action": "Enhances oxygenation during exercise for improved mitochondrial and cellular function.",
+            "media_links": []
+          }
+        ],
+        "source_url": "https://www.liveo2.com/",
+        "business_name": "LiveO2",
+        "media_links": ["https://www.liveo2.com/"]
+      },
+      {
+        "name": "LiveO2 Adaptive Contrast",
+        "description": "Advanced EWOT system offering adaptive contrast and altitude training features.",
+        "price": null,
+        "ingredients": [],
+        "compounds": [
+          {
+            "name": "Oxygen",
+            "description": "Primary compound delivered by EWOT systems.",
+            "aliases": ["O2"],
+            "mechanism_of_action": "Supports adaptive contrast protocols for enhanced oxygen utilization and performance.",
+            "media_links": []
+          }
+        ],
+        "source_url": "https://www.liveo2.com/",
+        "business_name": "LiveO2",
+        "media_links": ["https://www.liveo2.com/"]
+      },
+      {
+        "name": "HyperMax EWOT System",
+        "description": "EWOT system with high-flow oxygen delivery for home and professional use.",
+        "price": "$2,700.00",
+        "ingredients": [],
+        "compounds": [
+          {
+            "name": "Oxygen",
+            "description": "Primary compound delivered by EWOT systems.",
+            "aliases": ["O2"],
+            "mechanism_of_action": "Delivers high concentrations of oxygen to support exercise and recovery.",
+            "media_links": []
+          }
+        ],
+        "source_url": null,
+        "business_name": "HyperMax",
+        "media_links": []
+      }
+    ],
+    "case_studies": [
+      {
+        "title": "Customer Testimonials and Anecdotal Reports on EWOT Benefits",
+        "summary": "Anecdotal reports and customer testimonials highlight benefits of EWOT systems in detoxification (e.g., from mold poisoning), recovery from chronic conditions (e.g., Lyme disease), improved sleep, cognitive clarity, and physical recovery. No formal clinical studies or trials are cited.",
+        "url": "https://onethousandroads.com/pages/about-us",
+        "source_type": "website",
+        "related_compound_names": ["Oxygen"],
+        "related_product_names": ["LEO System", "2000 Series EWOT System"]
+      },
+      {
+        "title": "User and Practitioner Testimonials on EWOT and the LEO System",
+        "summary": "Anecdotal reports from users and practitioners indicate significant improvements in energy, cognitive clarity, sleep, and recovery, especially among athletes and individuals with chronic illnesses such as autoimmune diseases and idiopathic pulmonary fibrosis (IPF). No formal clinical trials specific to the LEO System were found.",
+        "url": "https://onethousandroads.com/leo-system/",
+        "source_type": "website",
+        "related_compound_names": ["Oxygen"],
+        "related_product_names": ["LEO System"]
+      }
+    ],
+    "extraction_notes": null
+  },
+  "completed_at": "2026-01-08 19:49:37.767639"
+}

@@ -11,7 +11,7 @@ import aiofiles
 # Base directory: <cwd>/agent_files
 # ------------------------------------------------------------
 
-BASE_DIR: Path = Path.cwd() / "agent_files"
+BASE_DIR: Path = Path.cwd() / "agent_files_current"
 BASE_DIR.mkdir(parents=True, exist_ok=True)
 
 

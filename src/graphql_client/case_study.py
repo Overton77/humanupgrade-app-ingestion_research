@@ -16,6 +16,45 @@ class CaseStudyCaseStudy(BaseModel):
     id: str
     title: str
     summary: str
+    url: Optional[str]
+    source_type: str = Field(alias="sourceType")
+    media_links: Optional[list["CaseStudyCaseStudyMediaLinks"]] = Field(
+        alias="mediaLinks"
+    )
+    episodes: Optional[list["CaseStudyCaseStudyEpisodes"]]
+    compounds: Optional[list["CaseStudyCaseStudyCompounds"]]
+    products: Optional[list["CaseStudyCaseStudyProducts"]]
+    protocols: Optional[list["CaseStudyCaseStudyProtocols"]]
+
+
+class CaseStudyCaseStudyMediaLinks(BaseModel):
+    url: str
+    description: Optional[str]
+
+
+class CaseStudyCaseStudyEpisodes(BaseModel):
+    id: str
+    episode_title: Optional[str] = Field(alias="episodeTitle")
+    channel_name: str = Field(alias="channelName")
+
+
+class CaseStudyCaseStudyCompounds(BaseModel):
+    id: str
+    name: str
+    description: Optional[str]
+
+
+class CaseStudyCaseStudyProducts(BaseModel):
+    id: str
+    name: str
+    description: Optional[str]
+
+
+class CaseStudyCaseStudyProtocols(BaseModel):
+    id: str
+    name: str
+    description: Optional[str]
 
 
 CaseStudy.model_rebuild()
+CaseStudyCaseStudy.model_rebuild()

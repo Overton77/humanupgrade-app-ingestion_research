@@ -3,6 +3,8 @@
 
 from typing import Optional
 
+from pydantic import Field
+
 from .base_model import BaseModel
 
 
@@ -14,6 +16,28 @@ class PersonPerson(BaseModel):
     id: str
     name: str
     role: Optional[str]
+    bio: Optional[str]
+    media_links: Optional[list["PersonPersonMediaLinks"]] = Field(alias="mediaLinks")
+    businesses: Optional[list["PersonPersonBusinesses"]]
+    episodes: Optional[list["PersonPersonEpisodes"]]
+
+
+class PersonPersonMediaLinks(BaseModel):
+    url: str
+    description: Optional[str]
+
+
+class PersonPersonBusinesses(BaseModel):
+    id: str
+    name: str
+    description: Optional[str]
+
+
+class PersonPersonEpisodes(BaseModel):
+    id: str
+    episode_title: Optional[str] = Field(alias="episodeTitle")
+    channel_name: str = Field(alias="channelName")
 
 
 Person.model_rebuild()
+PersonPerson.model_rebuild()

@@ -244,6 +244,20 @@ agent_files/
 
 personal_docs/  
 
-entity_intel_outputs/ 
+**/entity_intel_outputs/ 
 
-evidence_research_outputs/  
+**/evidence_research_outputs/   
+
+**/ignore/**  
+
+
+**/agent_files/**  
+
+**/entity_intel_outputs/**  
+
+**/evidence_research_outputs/**   
+
+**/newest_research_outputs/**   
+
+**/exports/**  
+
