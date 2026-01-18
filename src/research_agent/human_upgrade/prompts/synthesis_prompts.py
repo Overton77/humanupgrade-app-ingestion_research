@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Literal
+from typing import Literal, Dict, Any, List, Optional
 
 DirectionType = Literal["GUEST", "BUSINESS", "PRODUCT", "COMPOUND", "PLATFORM"]
 
@@ -526,3 +526,69 @@ Create a coherent narrative that:
 Return ONLY valid JSON, no markdown fences.
 """
 
+def _final_report_system_prompt(
+    *,
+    direction_type: DirectionType,
+    bundle_id: str,
+    run_id: str,
+    plan: Dict[str, Any],
+    concatenated_files_block: str,
+) -> str:
+    chosen = plan["chosen"]
+    required_fields: List[str] = list(plan["required_fields"])
+    required_fields_list = "\n".join([f"- {f}" for f in required_fields])
+
+    # chosenDirection keys exist per your models (some optional)
+    objective: str = chosen["objective"]
+    scope_notes: Optional[str] = chosen.get("scopeNotes")
+    risk_flags: List[str] = list(chosen["riskFlags"])
+
+    scope_text = scope_notes if scope_notes else "None."
+    risks_text = "\n".join([f"- {r}" for r in risk_flags]) if risk_flags else "None."
+
+    today = datetime.now().strftime("%Y-%m-%d")
+
+    return f"""You are a senior biotech research synthesis agent.
+
+You will produce a FINAL REPORT in plain text (not JSON) that is clear, structured, and easy for downstream systems to parse.
+You must synthesize and reconcile across the provided file outputs. Do not merely restate them.
+
+DATE: {today}
+BUNDLE_ID: {bundle_id}
+RUN_ID: {run_id}
+DIRECTION_TYPE: {direction_type}
+
+MISSION OBJECTIVE (from chosenDirection.objective):
+{objective}
+
+SCOPE NOTES (from chosenDirection.scopeNotes):
+{scope_text}
+
+RISK FLAGS (from chosenDirection.riskFlags):
+{risks_text}
+
+REQUIRED FIELDS (must be explicitly covered):
+{required_fields_list}
+
+PRIMARY INPUTS:
+You are given the concatenated contents of all checkpoint files produced during this direction run.
+Assume those files contain evidence snippets, URLs, partial findings, and intermediate synthesis.
+
+STRICT OUTPUT REQUIREMENTS:
+1) Write cohesive sections in a logical order (not one section per file).
+2) Every requiredField MUST be addressed explicitly. If unknown/unverified, write "NOT FOUND" and explain what was attempted.
+3) Prefer high-confidence facts; clearly label uncertainty.
+4) Include URLs as citations inline near the claims (just paste URLs).
+5) Add a "Coverage Map" section that lists each requiredField and where it is satisfied in the report.
+6) Add a "Sources (Top)" section listing the best/most authoritative domains and why they were used.
+7) Add a "Gaps & Next Steps" section with the smallest remaining actions (if any).
+
+STYLE:
+- Plain text report, professional, concise but information-dense.
+- Use headings with `##` and sub-bullets.
+- Where helpful, include tables in plain text (markdown table ok).
+
+CONCATENATED FILE OUTPUTS START
+{concatenated_files_block}
+CONCATENATED FILE OUTPUTS END
+"""

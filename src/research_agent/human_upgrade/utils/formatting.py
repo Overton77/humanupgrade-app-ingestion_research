@@ -1,5 +1,7 @@
 from typing import List, Dict, Optional
 from research_agent.human_upgrade.structured_outputs.candidates_outputs import (CandidateEntity, SeedExtraction, EntitySourceResult, CandidateSourcesConnected)
+from research_agent.human_upgrade.structured_outputs.file_outputs import FileReference
+from research_agent.agent_tools.filesystem_tools import read_file
 
 def format_list_for_prompt(items: List[str], bullet: str = "-", empty_msg: str = "(none)") -> str:
     """Format a list of strings for prompt insertion."""
@@ -137,3 +139,23 @@ def format_connected_candidates_for_prompt(candidate_sources: Optional[Candidate
     
     return "\n".join(lines)
 
+
+
+async def _concat_direction_files(file_refs: List[FileReference]) -> str:
+    """
+    Reads every file referenced in file_refs and concatenates them into one block
+    with separators, including the file description (if present).
+    """
+    parts: List[str] = []
+    for i, ref in enumerate(file_refs, start=1):
+        path = ref.file_path
+        desc = ref.description or ""
+        parts.append(f"\n\n===== FILE {i}: {path} =====")
+        if desc:
+            parts.append(f"DESCRIPTION: {desc}")
+        try:
+            content = await read_file(path)
+            parts.append(content)
+        except Exception as e:
+            parts.append(f"[ERROR READING FILE: {e}]")
+    return "\n".join(parts).strip()

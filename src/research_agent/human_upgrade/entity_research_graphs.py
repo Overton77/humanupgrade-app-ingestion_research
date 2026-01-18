@@ -23,7 +23,8 @@ Graph Compilation Order:
 """
 
 from langchain.chat_models import BaseChatModel
-from langgraph.graph import StateGraph, START, END    
+from langgraph.graph import StateGraph, START, END     
+from langgraph.types import Command 
 from langgraph.graph.state import CompiledStateGraph 
 from langchain.tools import BaseTool 
 from langgraph.prebuilt import ToolNode 
@@ -33,7 +34,7 @@ from langchain_core.messages import BaseMessage, SystemMessage, HumanMessage, To
 from langchain_openai import ChatOpenAI  
 from pydantic import BaseModel, Field  
 import operator   
-from langchain.agents import create_agent  
+from langchain.agents import create_agent, AgentState  
 from datetime import datetime 
 from dotenv import load_dotenv 
 from langchain.agents.structured_output import ProviderStrategy 
@@ -54,12 +55,15 @@ from research_agent.human_upgrade.structured_outputs.research_direction_outputs 
     PlatformFieldEnum,
 ) 
 
+from research_agent.human_upgrade.tools.think_tool import think_tool 
+from research_agent.human_upgrade.prompts.research_prompt_builders import ( 
+    _recent_file_refs,
+    get_initial_research_prompt,
+    get_reminder_research_prompt,
+) 
+from research_agent.human_upgrade.utils.formatting import _concat_direction_files
 
-from research_agent.human_upgrade.structured_outputs.todos import ( 
-    TodoList,
-    TodoListOutput,
-    convert_output_to_state,
-)   
+   
 
 from research_agent.human_upgrade.structured_outputs.file_outputs import ( 
     FileReference,
@@ -74,7 +78,8 @@ from research_agent.human_upgrade.prompts.research_prompts import (
     get_reminder_research_prompt,
 )
 from research_agent.human_upgrade.prompts.synthesis_prompts import (
-    get_direction_synthesis_prompt
+    get_direction_synthesis_prompt,
+    _final_report_system_prompt,
 )
 
 
@@ -89,12 +94,9 @@ from research_agent.human_upgrade.tools.file_system_tools import (
      agent_delete_file,
      agent_list_directory, 
      agent_search_files,
+     agent_list_outputs,
 )
-from research_agent.human_upgrade.tools.todo_list_tools import (
-  todo_update,
-  todo_read,
-  todo_get_next,
-) 
+
 
 from research_agent.human_upgrade.tools.web_search_tools import (
     wiki_tool,
@@ -103,12 +105,28 @@ from research_agent.human_upgrade.tools.web_search_tools import (
     tavily_map_research,   
  
     
+)  
+from research_agent.human_upgrade.prompts.summary_middleware_prompts import SUMMARY_PROMPT 
+from research_agent.human_upgrade.prompts.synthesis_prompts import (
+    get_direction_synthesis_prompt
+)
+
+from research_agent.agent_tools.filesystem_tools import read_file, write_file as fs_write_file  
+from pathlib import Path 
+
+
+from research_agent.human_upgrade.base_models import gpt_4_1, gpt_5_mini, gpt_5_nano, gpt_5 
+
+from langchain.agents.middleware import ( 
+    SummarizationMiddleware,   
+    AgentMiddleware,
+    dynamic_prompt, 
+    ModelRequest,  
+    before_agent, 
+    after_agent, 
 ) 
 
-from research_agent.agent_tools.filesystem_tools import read_file, write_file as fs_write_file 
 
-
-from research_agent.human_upgrade.base_models import gpt_4_1, gpt_5_mini, gpt_5_nano, gpt_5
 
 load_dotenv() 
 
@@ -116,6 +134,32 @@ load_dotenv()
 # ========================================================================
 # STATE DEFINITIONS
 # ========================================================================
+
+
+RESEARCH_FILESYSTEM_TOOLS: List[BaseTool] = [
+    agent_write_file,
+    agent_read_file,
+    agent_edit_file,
+    agent_delete_file,
+ 
+] 
+
+ALL_FILESYSTEM_TOOLS: List[BaseTool] = [   
+    agent_write_file,
+    agent_read_file,
+    agent_edit_file,
+    agent_delete_file,
+
+    agent_list_directory,
+    agent_search_files,
+    agent_list_outputs,
+]
+
+
+
+
+
+
 
 class EntityIntelResearchParentState(TypedDict, total=False):
     episode: Dict[str, Any]
@@ -150,64 +194,237 @@ class EntityIntelResearchBundleState(TypedDict, total=False):
     final_reports: Annotated[List[FileReference], operator.add]
 
 
-class EntityIntelResearchDirectionState(TypedDict, total=False): 
-    messages: Annotated[Sequence[BaseMessage], operator.add]   
-    todo_list: TodoList   
-    bundle_id: str 
-    plan: Dict[str, Any]  
-    run_id: str 
+
+
+class LastFileEvent(TypedDict, total=False):
+    """
+    Overwrite-only event metadata about the most recent file operation.
+    (We intentionally overwrite this each time.)
+    """
+    op: Literal["write", "edit", "delete", "read", "list", "search"]
+    file_path: str
+    description: str
+    entity_key: str
+    timestamp: str
+    # optional previews
+    find_text_preview: str
+    pattern: str
+    subdir: str
+
+
+class WorkspaceFile(TypedDict, total=False):
+    """
+    A lightweight snapshot of files/dirs in this agent's workspace root.
+    """
+    name: str
+    path: str               # path relative to BASE_DIR (agent_files_current)
+    is_dir: bool
+    size: Optional[int]
+
+
+class DirectionAgentState(AgentState):
+    # --- identity / plan ---
+    direction_type: DirectionType
+    bundle_id: str
+    run_id: str
+    plan: Dict[str, Any]           # {"chosen": {...}, "required_fields": [...]}
     episode: Dict[str, Any]
-    llm_calls: int 
-    tool_calls: int 
-    steps_taken: int  
-    max_steps: int
-    file_refs: Annotated[List[FileReference], operator.add]  
-    citations: Annotated[List[TavilyCitation], operator.add]          # URLs / DOIs  
-    research_notes: Annotated[List[str], operator.add]     # human-readable notes from each step 
-    final_report: FileReference
 
-    direction_type: Literal["GUEST", "BUSINESS", "PRODUCT", "COMPOUND", "PLATFORM"] 
+    # --- counters / progress ---
+    steps_taken: int
+
+    # --- accumulators (reducers) ---
+    # append list deltas returned by tools/nodes
+    file_refs: Annotated[List[FileReference], operator.add]
+    research_notes: Annotated[List[str], operator.add]
+
+    # --- final output (overwrite) ---
+    # keep as overwrite (default behavior). If you want to be strict, make it Optional[FileReference].
+    final_report: Optional[Union[FileReference, str]]
+
+    # --- convenience state for prompting/debug ---
+    # overwrite each time
+    last_file_event: Optional[LastFileEvent]
+
+    # accumulated snapshots; tools can return a list delta and it will append.
+    # NOTE: if you prefer overwrite instead of append, do NOT Annotate this.
+    workspace_files: Annotated[List[WorkspaceFile], operator.add]
 
 
 
-# ========================================================================
-# GRAPH BUILDERS (to be compiled at end)
-# ========================================================================
+async def generate_final_report_text(state: DirectionAgentState) -> str:
+    """
+    Uses gpt_5 to synthesize a final report from all checkpoint files.
+    Returns plain-text report (does NOT write to filesystem).
+    """
+    plan = state["plan"]
+    file_refs: List[FileReference] = state.get("file_refs", []) or []
 
-research_parent_graph_builder: StateGraph = StateGraph(EntityIntelResearchParentState) 
-research_subgraph_builder: StateGraph = StateGraph(EntityIntelResearchBundleState) 
-research_direction_graph_builder: StateGraph = StateGraph(EntityIntelResearchDirectionState)
+    concatenated = await _concat_direction_files(file_refs)
+
+    system_prompt = _final_report_system_prompt(
+        direction_type=state["direction_type"],
+        bundle_id=state["bundle_id"],
+        run_id=state["run_id"],
+        plan=plan,
+        concatenated_files_block=concatenated,
+    )
+
+    final_report_agent = create_agent(
+        model=gpt_5,
+        system_prompt=system_prompt,
+        tools=[],  # no tools: pure synthesis
+        middleware=[],
+    )
+
+    # The model already has the inputs in the system prompt.
+    # The user message is simply the instruction to produce the report.
+    out = await final_report_agent.ainvoke(
+        {"messages": [HumanMessage(content="Write the final report now following the requirements exactly.")]},
+    ) 
+
+    return out.text 
 
 
-# ========================================================================
-# TOOL DEFINITIONS
-# ========================================================================
 
-RESEARCH_FILESYSTEM_TOOLS: List[BaseTool] = [
-    agent_write_file,
-    agent_read_file,
-    agent_edit_file,
-    agent_delete_file,
- 
+
+def _scoped_final_report_filename(state: DirectionAgentState) -> str:
+    """
+    Matches your workspace scheme:
+      agent_files_current/<bundle_id>/<direction_type>/<run_id>/
+    We store file_path relative to BASE_DIR (agent_files_current),
+    consistent with your agent_write_file tool.
+    """
+    bundle_id = state["bundle_id"]
+    direction_type = state["direction_type"]
+    run_id = state["run_id"]
+    return str(Path(bundle_id) / direction_type / run_id / "final_report.txt")
+
+async def write_final_report_and_update_state(state: DirectionAgentState, final_text: str) -> Dict[str, Any]:
+    """
+    Writes final report to filesystem and returns overwrite updates:
+      - final_report: FileReference
+      - file_refs: append final report ref (as delta)
+      - research_notes: append note (as delta)
+    """
+    final_path = _scoped_final_report_filename(state)
+    await fs_write_file(final_path, final_text)
+
+    ref = FileReference(
+        file_path=final_path,
+        description=(
+            f"FINAL synthesized report for direction={state['direction_type']} "
+            f"bundle_id={state['bundle_id']} run_id={state['run_id']}. "
+            "Synthesizes all checkpoint reports and explicitly covers requiredFields."
+        ),
+        bundle_id=state["bundle_id"],
+        entity_key=f"final_{state['direction_type'].lower()}",
+    )
+
+    note = f"Wrote final report: {final_path}"
+
+    return {
+        "final_report": ref,          # overwrite
+        "file_refs": [ref],           # list delta (for operator.add reducer)
+        "research_notes": [note],     # list delta (for operator.add reducer)
+    }
+
+
+# ============================================================
+# AFTER_AGENT middleware hook: generate + write final report
+# ============================================================
+
+@after_agent(state_schema=DirectionAgentState, name="FinalizeDirectionReport")
+async def finalize_direction_report_after_agent(state: DirectionAgentState, runtime) -> DirectionAgentState:
+    """
+    Runs once per direction-agent invocation, after the agent completes its loop.
+    Generates a final synthesized report (gpt_5), writes it to the scoped workspace,
+    and updates state.final_report + file_refs + research_notes.
+    """
+    logger.info("🏁 after_agent: generating final synthesized report (gpt_5)")
+
+    # If you want to skip when no files exist:
+    file_refs: List[FileReference] = state.get("file_refs", []) or []
+    if not file_refs:
+        logger.warning("after_agent: no file_refs found; skipping final report generation")
+        return {"research_notes": ["Skipped final report: no checkpoint files were produced."]}
+
+    final_text = await generate_final_report_text(state)
+    updates = await write_final_report_and_update_state(state, final_text)
+
+    logger.info(f"✅ after_agent: final report written at {updates['final_report'].file_path}")
+    return updates
+
+
+
+
+@before_agent(state_schema=DirectionAgentState)
+def init_prompt_latch(state: DirectionAgentState, runtime) -> Command:
+    """
+    Runs once per agent invocation (one full agent loop).
+    Initialize latch so the first model call gets the full prompt.
+    """
+    return Command(update={"_initial_prompt_sent": False})
+
+
+@dynamic_prompt
+def biotech_direction_dynamic_prompt(request: ModelRequest) -> str:
+    """
+    - First model call: emit full prompt and flip latch to True
+    - Later model calls: emit reminder prompt
+    """
+    s = request.runtime.state
+
+    bundle_id: str = s["bundle_id"]
+    run_id: str = s["run_id"]
+    direction_type: str = s["direction_type"]
+    plan: Dict[str, Any] = s["plan"]
+
+    # Optional: display only
+    steps_taken: int = int(s.get("steps_taken", 0) or 0)
+    entity_context: str = s.get("entity_context", "")
+    max_web_tool_calls_hint: int = int(s.get("max_web_tool_calls_hint", 18) or 18)
+
+    # First model call of this agent invocation
+    if s.get("_initial_prompt_sent") is False:
+        s["_initial_prompt_sent"] = True
+        return get_initial_research_prompt(
+            bundle_id=bundle_id,
+            run_id=run_id,
+            direction_type=direction_type,
+            plan=plan,
+            entity_context=entity_context,
+            max_web_tool_calls_hint=max_web_tool_calls_hint,
+        )
+
+    # Subsequent calls
+    recent_files_block = _recent_file_refs(s, limit=10)
+    return get_reminder_research_prompt(
+        bundle_id=bundle_id,
+        run_id=run_id,
+        direction_type=direction_type,
+        plan=plan,
+        recent_files_block=recent_files_block,
+        steps_taken=steps_taken,
+    )
+
+summarizer = SummarizationMiddleware(
+    model=gpt_5_mini,                
+    trigger=[("tokens", 220_000), ("messages", 120)],
+    keep=("messages", 20),
+    summary_prompt=SUMMARY_PROMPT,
+    trim_tokens_to_summarize=20_000,          
+) 
+
+direction_agent_middlewares: List[AgentMiddleware] = [ 
+
+    init_prompt_latch, 
+     summarizer,
+    biotech_direction_dynamic_prompt,
+   
+    finalize_direction_report_after_agent, 
+    
 ] 
-
-ALL_FILESYSTEM_TOOLS: List[BaseTool] = [   
-    agent_write_file,
-    agent_read_file,
-    agent_edit_file,
-    agent_delete_file,
-
-    agent_list_directory,
-    agent_search_files,
-]
-
-
-
-TODO_TOOLS: List[BaseTool] = [
-    todo_update,
-    todo_read,
-    todo_get_next,
-]  
 
 
 ALL_RESEARCH_TOOLS: List[BaseTool] = [
@@ -215,7 +432,32 @@ ALL_RESEARCH_TOOLS: List[BaseTool] = [
     tavily_search_research,
     tavily_extract_research,
     tavily_map_research,
-] + RESEARCH_FILESYSTEM_TOOLS + TODO_TOOLS
+] + RESEARCH_FILESYSTEM_TOOLS 
+
+def create_direction_agent(name: str, model: BaseChatModel,  
+tools: List[BaseTool], state_schema: DirectionAgentState, middleware: List[AgentMiddleware]) -> CompiledStateGraph: 
+
+
+    """
+    Create a direction agent with the given model, tools, state schema, and middleware.
+    """ 
+
+    agent: CompiledStateGraph = create_agent( 
+        model=model, 
+        tools=tools, 
+        state_schema=state_schema, 
+        middleware=middleware,  
+        name=name,
+    ) 
+
+    return agent  
+
+
+
+
+research_parent_graph_builder: StateGraph = StateGraph(EntityIntelResearchParentState) 
+research_subgraph_builder: StateGraph = StateGraph(EntityIntelResearchBundleState) 
+
 
 
 # ========================================================================
@@ -466,48 +708,70 @@ async def run_direction_node(
     logger.info(f"➡️  Bundle {bundle_id}: running direction {idx+1}/{len(queue)} {direction_type}")
 
     # Build the direction subgraph state
-    direction_state: EntityIntelResearchDirectionState = {
+    direction_state: DirectionAgentState = {
         "direction_type": direction_type,
-        "messages": [], 
-        "todo_list": None, 
-        "llm_calls": 0,
-        "tool_calls": 0,
-        "steps_taken": 0,
-        "max_steps": 30,  # Configurable max steps per direction
-        "file_refs": [],
-        "citations": [],
-        "research_notes": [], 
-        "final_report": None, 
-        "plan": plan,
-        "run_id": run_id,
         "bundle_id": bundle_id,
+        "run_id": run_id,
+        "plan": plan,
         "episode": state.get("episode", {}),
-    }
+
+        "steps_taken": 0,
+
+        # reducers (operator.add) expect list deltas
+        "file_refs": [],
+        "research_notes": [],
+
+        # overwrite fields
+        "final_report": None,
+        "last_file_event": None,
+
+        # If you are using workspace_files as an accumulator, start empty
+        "workspace_files": [],
+
+        # AgentState base
+        "messages": [],
+    }  
+
+    DirectionAgent: CompiledStateGraph = create_direction_agent( 
+        name=f"{direction_type}_direction_agent",
+        model=gpt_5_mini,
+        tools=ALL_RESEARCH_TOOLS,
+        state_schema=DirectionAgentState,
+        middleware=direction_agent_middlewares,
+    )
 
     # Invoke the real DirectionResearchSubGraph
-    out = await ResearchDirectionSubGraph.ainvoke(direction_state)
+    out: Dict[str, Any] = await DirectionAgent.ainvoke(direction_state)
 
-    # Merge results (file_refs/messages) back up to bundle state
-    merged_file_refs: List[FileReference] = out.get("file_refs", [])
-    merged_messages: List[BaseMessage] = out.get("messages", [])
-    merged_notes: List[str] = out.get("research_notes", []) 
-    final_report: FileReference | None = out.get("final_report", None)
-    
-    steps: int = out.get("steps_taken", 0)
-    llm_calls: int = out.get("llm_calls", 0)
-    tool_calls: int = out.get("tool_calls", 0)
-    logger.info(f"   ✓ Direction {direction_type} complete: {len(merged_file_refs)} files, {steps} steps, {llm_calls} LLM calls, {tool_calls} tool calls") 
+    merged_file_refs: List[FileReference] = out.get("file_refs", []) or []
+    merged_notes: List[str] = out.get("research_notes", []) or []
+
+    # After-agent finalizer should set this (FileReference OR str depending on your type)
+    final_report = out.get("final_report", None)
+
+    steps: int = int(out.get("steps_taken", 0) or 0)
+    logger.info(
+        f"   ✓ Direction {direction_type} complete: "
+        f"{len(merged_file_refs)} files, {steps} steps"
+    )
 
     if merged_notes:
         logger.info(f"    Notes: {merged_notes[-1]}")
 
-    # final_reports is Annotated[List[FileReference], operator.add] - must return list
-    final_reports_list: List[FileReference] = [final_report] if final_report else []
+    # Parent state has Annotated[List[FileReference], operator.add] so return LIST delta
+    final_reports_list: List[FileReference] = []
+    if isinstance(final_report, FileReference):
+        final_reports_list = [final_report]
+    # If your after-agent stored a string (path), you can optionally normalize here:
+    # elif isinstance(final_report, str) and final_report:
+    #     final_reports_list = [FileReference(file_path=final_report, description="Final report", bundle_id=bundle_id, entity_key=f"final_{direction_type.lower()}")]
 
     return {
         "file_refs": merged_file_refs,
-        "messages": merged_messages, 
-        "final_reports": final_reports_list, 
+        "final_reports": final_reports_list,
+        # optionally bubble notes up if you want:
+        # "structured_outputs": [],  # unchanged here 
+        # merged_messages
     }
 
 
@@ -553,491 +817,6 @@ research_subgraph_builder.add_conditional_edges(
 research_subgraph_builder.add_edge("finalize_bundle", END)
 
 
-# ========================================================================
-# DIRECTION SUBGRAPH - ResearchDirectionSubGraph
-# ========================================================================
-# Performs actual research for one direction using LLM + tools loop
 
-async def generate_todos_node(state: EntityIntelResearchDirectionState) -> EntityIntelResearchDirectionState: 
-    """
-    Generate a TodoList for this research direction using structured LLM output.
-    Extracts objective, entity names, starter sources from the plan.
-    """
-    plan: Dict[str, Any] = state.get("plan", {})
-    direction_type: DirectionType = state.get("direction_type")
-    bundle_id: str = state.get("bundle_id", "unknown")
-    episode: Dict[str, Any] = state.get("episode", {})
-    
-    # Extract chosen direction (the LLM's output)
-    chosen: Union[GuestDirectionOutputFinal, BusinessDirectionOutputFinal, ProductsDirectionOutputFinal, CompoundsDirectionOutputFinal, PlatformsDirectionOutputFinal] = plan.get('chosen', {})
-    
-    # Extract relevant episode context
-    episode_context: str = f"Episode: {episode.get('title', 'N/A')}"
-    if episode.get("guest_name"):
-        episode_context += f" | Guest: {episode.get('guest_name')}"
-    
-    # Extract objective
-    objective: str = chosen.get('objective', f'Complete research for {direction_type}')
-    
-    # Extract entity names based on direction type
-    entity_names: List[str] = []
-    if direction_type == "GUEST":
-        entity_names = [chosen.get('guestCanonicalName', 'Unknown Guest')]
-    elif direction_type == "BUSINESS":
-        entity_names = chosen.get('businessNames', ['Unknown Business'])
-    elif direction_type == "PRODUCT":
-        entity_names = chosen.get('productNames', ['Unknown Product'])
-    elif direction_type == "COMPOUND":
-        entity_names = chosen.get('compoundNames', ['Unknown Compound'])
-    elif direction_type == "PLATFORM":
-        entity_names = chosen.get('platformNames', ['Unknown Platform'])
-    
-    entity_names_str: str = ", ".join(entity_names) if entity_names else "Unknown Entity"
-    
-    # Extract starter sources
-    starter_sources: List[StarterSource] = chosen.get('starterSources', [])
-    if starter_sources:
-        sources_str: str = "\n".join([
-            f"- {s.get('url', 'N/A')} ({s.get('sourceType', 'UNKNOWN')}) - {s.get('reason', 'No reason provided')}"
-            for s in starter_sources
-        ])
-    else:
-        sources_str: str = "No specific starter sources provided. Use general web search."
-    
-    # Extract required fields and create summary
-    required_fields: List[Union[GuestFieldEnum, BusinessFieldEnum, ProductFieldEnum, CompoundFieldEnum, PlatformFieldEnum]] = plan.get('required_fields', [])
-    # Convert enum values to readable strings if needed
-    required_fields_list: List[str] = [str(f.value) if hasattr(f, 'value') else str(f) for f in required_fields]
-    required_fields_summary: str = ", ".join(required_fields_list[:10])  # Limit to first 10 for readability
-    if len(required_fields_list) > 10:
-        required_fields_summary += f" (and {len(required_fields_list) - 10} more)"
-    
-    # Format the todo generation prompt
-    todo_prompt_formatted: str = todo_generation_prompt.format(
-        bundle_id=bundle_id,
-        direction_type=direction_type,
-        episode_context=episode_context,
-        objective=objective,
-        entity_names=entity_names_str,
-        starter_sources=sources_str,
-        required_fields_summary=required_fields_summary
-    )
-    
-    logger.info(f"🧠 Generating TodoList for {direction_type} in bundle {bundle_id}")
-    
-    todo_agent: CompiledStateGraph = create_agent(
-        gpt_5_mini,
-        response_format=ProviderStrategy(TodoListOutput), 
-        name="todo_list_generation_agent",
-    )
-    
-    response = await todo_agent.ainvoke(
-        {"messages": [{"role": "user", "content": todo_prompt_formatted}]}
-    )
-    
-    # Get minimal LLM output
-    todo_list_output: TodoListOutput = response["structured_response"]
-    
-    # Convert to full TodoList with temporal data and counts
-    todo_list_final: TodoList = convert_output_to_state(todo_list_output) 
-
-    await save_json_artifact(
-        todo_list_final.model_dump(),
-        bundle_id,
-        "todo_list",
-        suffix=f"{direction_type}_{datetime.now(timezone.utc).isoformat()}",
-    )
-    
-    logger.info(f"✅ Generated {todo_list_final.totalTodos} todos for {direction_type}")
-    
-    return {
-        "todo_list": todo_list_final,
-        "llm_calls": state.get("llm_calls", 0) + 1,
-    }  
-
-
-# Inside of the tools we have to do something with messages at the checkpointing level 
-
-
-async def perform_direction_research_node(state: EntityIntelResearchDirectionState) -> EntityIntelResearchDirectionState: 
-    """
-    Main research loop node: calls the LLM with tools to work on todos.
-    Uses llm_calls counter to determine whether to use full or reminder prompt.
-    """
-    todo_list: TodoList = state.get("todo_list")
-    messages: List[BaseMessage] = state.get("messages", [])
-    run_id: str = state.get("run_id", "unknown")
-    direction_type: DirectionType = state.get("direction_type", "UNKNOWN")
-    plan: Dict[str, Any] = state.get("plan", {})
-    episode: Dict[str, Any] = state.get("episode", {})
-    bundle_id: str = state.get("bundle_id", "unknown")
-    steps_taken: int = state.get("steps_taken", 0)
-    llm_calls: int = state.get("llm_calls", 0)
-    
-    # Build todo summary
-    todo_summary: str = "\n".join([
-        f"- [{t.status.upper()}] {t.id}: {t.description} (Priority: {t.priority or 'MEDIUM'})" 
-        for t in (todo_list.todos if todo_list else [])
-    ]) if todo_list else "No todos available"
-    
-    # Add completion counts
-    if todo_list:
-        todo_summary: str = f"""Total: {todo_list.totalTodos} | Completed: {todo_list.completedCount} | In Progress: {todo_list.inProgressCount} | Pending: {todo_list.pendingCount}
-
-{todo_summary}"""
-    
-    # Build entity context
-    entity_name: str = plan.get('chosen', {}).get('entityName', 'Unknown Entity')
-    entity_context: str = f"{entity_name}"
-    if episode.get('title'):
-        entity_context += f" (Episode: {episode.get('title')})"
-    
-    # Determine which prompt to use based on llm_calls
-    # First call (llm_calls == 0 after increment in generate_todos): use MAIN prompt
-    # Subsequent calls: use REMINDER prompt
-    if llm_calls <= 1:
-        # First research call - use comprehensive prompt
-        max_steps: int = state.get("max_steps", 30)
-        research_prompt: str = get_main_research_prompt(
-            bundle_id=bundle_id,
-            direction_type=direction_type,
-            plan=plan,
-            todo_summary=todo_summary,
-            entity_context=entity_context,
-            max_steps=max_steps
-        )
-        logger.info(f"🔬 Research INITIAL call for {direction_type} (run_id={run_id})")
-    else:
-        # Subsequent calls - use reminder prompt
-        tool_calls_count: int = state.get("tool_calls", 0)
-        research_prompt: str = get_reminder_research_prompt( 
-            bundle_id=bundle_id,
-            direction_type=direction_type,
-            todo_summary=todo_summary,
-            steps_taken=steps_taken,
-            llm_calls=llm_calls,
-            tool_calls=tool_calls_count
-        )
-        logger.info(f"🔬 Research step {steps_taken + 1} for {direction_type} (llm_calls={llm_calls}, run_id={run_id})")
-    
-    model_with_research_tools: BaseChatModel = gpt_5_mini.bind_tools(ALL_RESEARCH_TOOLS)
-    
-    # Handle message history correctly
-    if not messages:
-        # First call: store the initial prompt and response in state
-        messages_to_send: List[BaseMessage] = [HumanMessage(content=research_prompt)]
-        response_message = await model_with_research_tools.ainvoke(messages_to_send)
-        
-        # Log if model wants to call tools
-        response_tool_calls = getattr(response_message, "tool_calls", []) or []
-        if response_tool_calls:
-            tool_names = [tc.get("name", "unknown") for tc in response_tool_calls]
-            logger.info(f"   → LLM requesting {len(response_tool_calls)} tool(s): {', '.join(tool_names[:3])}{'...' if len(tool_names) > 3 else ''}")
-        
-        # Return both prompt and response to store in state
-        return {
-            "messages": [HumanMessage(content=research_prompt), response_message],
-            "llm_calls": llm_calls + 1,
-        }
-    else:
-        # Subsequent calls: prepend ephemeral reminder prompt, but only return response
-        # This keeps the reminder out of state (it's dynamic) while maintaining conversation history
-        messages_to_send: List[BaseMessage] = [HumanMessage(content=research_prompt)] + messages
-        response_message = await model_with_research_tools.ainvoke(messages_to_send)
-        
-        # Log if model wants to call tools
-        response_tool_calls = getattr(response_message, "tool_calls", []) or []
-        if response_tool_calls:
-            tool_names = [tc.get("name", "unknown") for tc in response_tool_calls]
-            logger.info(f"   → LLM requesting {len(response_tool_calls)} tool(s): {', '.join(tool_names[:3])}{'...' if len(tool_names) > 3 else ''}")
-        
-        # Only return the response (reminder prompt is ephemeral, not stored)
-        return {
-            "messages": [response_message],
-            "llm_calls": llm_calls + 1,
-        }
-
-
-
-
-research_tools_prebuilt_node: ToolNode = ToolNode(ALL_RESEARCH_TOOLS)
-
-
-async def research_tools_node(
-    state: EntityIntelResearchDirectionState,
-) -> EntityIntelResearchDirectionState:
-    """
-    Execute tool calls requested by the last AI message via ToolNode.
-
-    Assumes StateGraph-style inputs/outputs:
-      - input:  {"messages": [...] , ...}
-      - output: {"messages": [ToolMessage, ...]}
-    """
-    messages: List[BaseMessage] = state.get("messages") or []
-    if not messages:
-        return {"messages": []}
-
-    last_message: BaseMessage = messages[-1]
-    tool_calls: List[Dict[str, Any]] | List[ToolMessage] = getattr(last_message, "tool_calls", None) or []
-    if not tool_calls:
-        return {"messages": []}
-
-    direction_type: DirectionType | str = state.get("direction_type", "UNKNOWN")
-
-    tool_names: List[str] = [tc.get("name", "unknown") for tc in tool_calls]
-    tool_ids: List[str] = [tc.get("id", "no-id") for tc in tool_calls]
-    logger.info(
-        f"🔧 [{direction_type}] Executing {len(tool_calls)} tool call(s): "
-        f"{', '.join(tool_names[:3])}{'...' if len(tool_names) > 3 else ''}"
-    )
-    logger.debug(f"   Tool call IDs: {tool_ids[:3]}{'...' if len(tool_ids) > 3 else ''}")
-
-    # ToolNode can return either a dict with {"messages": [...]} or a list directly
-    result = await research_tools_prebuilt_node.ainvoke(state)
-    
-    # Handle both return types (dict or list)
-    if isinstance(result, dict):
-        tool_messages: List[ToolMessage] = result.get("messages", [])
-    elif isinstance(result, list):
-        tool_messages: List[ToolMessage] = result
-    else:
-        logger.error(f"Unexpected result type from ToolNode: {type(result)}")
-        tool_messages: List[ToolMessage] = []
-    
-    logger.info(f"   ✓ Tool execution complete: {len(tool_messages)} result message(s)")
-    for i, msg in enumerate(tool_messages[:3]):
-        if hasattr(msg, "name") and hasattr(msg, "content"):
-            content = str(msg.content)
-            preview = content[:100] + "..." if len(content) > 100 else content
-            logger.debug(f"      [{i+1}] {msg.name}: {preview}")
-
-    # Decide what you want tool_calls to mean:
-    # Option A (recommended): count tool CALLS executed (matches "total tool calls executed")
-    total_tool_calls: int = state.get("tool_calls", 0) + len(tool_calls)
-
-    # Return only the delta; your messages reducer will append these ToolMessages
-    return {
-        "messages": tool_messages,
-        "tool_calls": total_tool_calls,
-    }
-
-
-def should_continue_research(state: EntityIntelResearchDirectionState) -> Literal["research_tools_node", "perform_research", "finalize_research"]:
-    """
-    Determine next step in research loop:
-    - If there are tool calls -> execute them
-    - If max steps reached -> finalize
-    - If all todos complete -> finalize
-    - Otherwise -> continue research
-    """
-    messages: List[BaseMessage] = state.get("messages", [])
-    if not messages:
-        return "finalize_research"
-    
-    last_message: BaseMessage = messages[-1]
-    tool_calls: List[Dict[str, Any]] | List[ToolMessage] = getattr(last_message, "tool_calls", []) or []
-    
-    # If model wants to call tools, execute them
-    if tool_calls:
-        return "research_tools_node"
-    
-    # Check if we've hit max steps
-    max_steps: int = state.get("max_steps", 30)
-    steps_taken: int = state.get("steps_taken", 0)
-    if steps_taken >= max_steps:
-        logger.warning(f"⚠️  Max steps ({max_steps}) reached, finalizing research")
-        return "finalize_research"
-    
-    # Check if all todos are complete
-    todo_list: TodoList = state.get("todo_list")
-    if todo_list and todo_list.completedCount == todo_list.totalTodos and todo_list.totalTodos > 0:
-        logger.info(f"✅ All todos complete ({todo_list.completedCount}/{todo_list.totalTodos}), finalizing")
-        return "finalize_research"
-    
-    # Continue research
-    return "perform_research"  
-
-
-
-async def finalize_research_node(state: EntityIntelResearchDirectionState) -> EntityIntelResearchDirectionState:
-    """
-    Finalize the research for this direction by synthesizing all file_refs into a final report.
-    
-    Strategy:
-    1. Group file_refs by entity_key
-    2. Read all files for each entity
-    3. Use LLM to synthesize into ONE final report per entity
-    4. Save final report(s) and add to structured_outputs
-    """
-    direction_type: DirectionType | str = state.get("direction_type")
-    run_id: str = state.get("run_id", "unknown")
-    bundle_id: str = state.get("bundle_id", "unknown")
-    todo_list: TodoList = state.get("todo_list")
-    steps_taken: int = state.get("steps_taken", 0)
-    llm_calls: int = state.get("llm_calls", 0)
-    tool_calls: int = state.get("tool_calls", 0)
-    file_refs: List[FileReference] = state.get("file_refs", [])
-    citations: List[TavilyCitation] = state.get("citations", [])
-    plan: Dict[str, Any] = state.get("plan", {})
-    
-    logger.info(f"""
-🏁 Finalizing Research: {direction_type} (run_id={run_id})
-   Steps: {steps_taken} | LLM Calls: {llm_calls} | Tool Calls: {tool_calls}
-   Files Created: {len(file_refs)} | Citations: {len(citations)}
-   Todos: {todo_list.completedCount if todo_list else 0}/{todo_list.totalTodos if todo_list else 0} completed
-""")
-    
-    # If no files were created, just log and return
-    if not file_refs:
-        logger.warning(f"⚠️  No files created for {direction_type}, skipping synthesis")
-        return {
-            "research_notes": [f"Completed {direction_type} with no file outputs"],
-        }
-    
-    # Group file_refs by entity_key
-    files_by_entity: Dict[str, List[FileReference]] = {}
-    for file_ref in file_refs:
-        entity_key: str = file_ref.entity_key or "unknown_entity"
-        if entity_key not in files_by_entity:
-            files_by_entity[entity_key] = []
-        files_by_entity[entity_key].append(file_ref)
-    
-    logger.info(f"📁 Grouped {len(file_refs)} files into {len(files_by_entity)} entities")
-    
-    # Read all files and create content string for synthesis
-    files_content_parts: List[str] = []
-    for entity_key, refs in files_by_entity.items():
-        files_content_parts.append(f"\n## Entity: {entity_key}\n")
-        for ref in refs:
-            try:
-                content = await read_file(ref.file_path)
-                files_content_parts.append(f"""
-        ### File: {ref.file_path}
-        Description: {ref.description or 'N/A'}
-            Content:
-            {content}
-            ---
-            """)
-            except FileNotFoundError:
-                logger.warning(f"File not found: {ref.file_path}")
-            except Exception as e:
-                logger.error(f"Error reading {ref.file_path}: {e}")
-    
-    files_content: str = "\n".join(files_content_parts)
-    
-    # Extract objective and required fields from plan
-    objective: str = plan.get('chosen', {}).get('objective', f'Complete research for {direction_type}')
-    required_fields: List[Union[GuestFieldEnum, BusinessFieldEnum, ProductFieldEnum, CompoundFieldEnum, PlatformFieldEnum]] = plan.get('required_fields', [])
-    entity_names: List[str] = list(files_by_entity.keys())
-    
-    # Generate direction-specific synthesis prompt
-    synthesis_prompt: str = get_direction_synthesis_prompt(
-        direction_type=direction_type,
-        objective=objective,
-        entity_names=entity_names,
-        files_content=files_content,
-        required_fields=required_fields
-    )
-    
-    logger.info(f"🧠 Synthesizing final report for {direction_type}")
-    
-    # Call LLM for synthesis
-    synthesis_model: BaseChatModel = gpt_5
-    synthesis_response = await synthesis_model.ainvoke([
-        HumanMessage(content=synthesis_prompt)
-    ])
-    
-    # Get the synthesized report content
-    final_report_narrative: str = synthesis_response.text
-    
-    # Build complete report with metadata header
-   
-    current_date: str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    
-    metadata_header: str = f"""---
-RESEARCH REPORT METADATA
-Direction: {direction_type}
-Bundle ID: {bundle_id}
-Run ID: {run_id}
-Research Date: {current_date}
-Objective: {objective}
-Entities Researched: {', '.join(entity_names)}
-Files Synthesized: {len(file_refs)}
-Required Fields: {', '.join(required_fields)}
-Research Quality:
-  - Steps Taken: {steps_taken}
-  - LLM Calls: {llm_calls}
-  - Tool Calls: {tool_calls}
-  - Total Sources: {len(citations)}
-  - Todos Completed: {todo_list.completedCount if todo_list else 0}/{todo_list.totalTodos if todo_list else 0}
----
-
-"""
-    
-    final_report_content: str = metadata_header + final_report_narrative
-    
-    # Save final report as markdown
-    final_report_filename: str = f"final_report_{direction_type.lower()}_{bundle_id}.md"
-    final_report_ref: FileReference = FileReference(
-        file_path=final_report_filename,
-        description=f"Final synthesized {direction_type} report for {', '.join(entity_names)}",
-        bundle_id=bundle_id,
-        entity_key=f"synthesis_{direction_type.lower()}"
-    )
-    
-    try:
-        await fs_write_file(final_report_filename, final_report_content)
-        logger.info(f"✅ Final report saved: {final_report_filename} ({len(final_report_content)} chars)")
-    except Exception as e:
-        logger.error(f"❌ Failed to save final report: {e}")
-    
-    summary_note = f"Synthesized {len(files_by_entity)} entities into final {direction_type} report"
-    
-    return {
-        "research_notes": [summary_note],
-        "file_refs": [final_report_ref],
-        "llm_calls": llm_calls + 1,
-        "final_report": final_report_ref,
-    }
-
-
-# -----------------------------
-# Direction Subgraph - Wire up nodes and edges
-# -----------------------------
-
-research_direction_graph_builder.add_node("generate_todos", generate_todos_node)
-research_direction_graph_builder.add_node("perform_research", perform_direction_research_node)
-research_direction_graph_builder.add_node("research_tools_node", research_tools_node)
-research_direction_graph_builder.add_node("finalize_research", finalize_research_node)
-
-research_direction_graph_builder.set_entry_point("generate_todos")
-
-# After generating todos, start research
-research_direction_graph_builder.add_edge("generate_todos", "perform_research")
-
-# After research node, check if we should continue, execute tools, or finalize
-research_direction_graph_builder.add_conditional_edges(
-    "perform_research",
-    should_continue_research,
-    {
-        "research_tools_node": "research_tools_node",
-        "perform_research": "perform_research",
-        "finalize_research": "finalize_research",
-    },
-)
-
-# After executing tools, go back to research node
-research_direction_graph_builder.add_edge("research_tools_node", "perform_research")
-
-# After finalization, end
-research_direction_graph_builder.add_edge("finalize_research", END)
-
-
-# ========================================================================
-# COMPILE ALL GRAPHS - Must be done after all nodes and edges are added
-# ========================================================================
-
-# Compile in order: innermost subgraph first, then middle, then parent
-ResearchDirectionSubGraph: CompiledStateGraph = research_direction_graph_builder.compile()
 BundleResearchSubGraph: CompiledStateGraph = research_subgraph_builder.compile()
 BundlesParentGraph: CompiledStateGraph = research_parent_graph_builder.compile()
