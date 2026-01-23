@@ -237,6 +237,10 @@ checkpoints.db
 
 .env  
 
+**/personal_docs/**  
+
+**/archives/**  
+
 
 research_outputs/ 
 
@@ -260,4 +264,4 @@ personal_docs/
 **/newest_research_outputs/**   
 
 **/exports/**  
-
+**/scripts/** 

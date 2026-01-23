@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from typing import Optional, List, Literal
 from research_agent.human_upgrade.structured_outputs.enums_literals import EntityTypeHint
 from research_agent.human_upgrade.structured_outputs.enums_literals import SourceType, ValidationLevel
@@ -133,12 +133,20 @@ class ProductWithCompounds(BaseModel):
         default=None,
         description="Short note explaining why these compounds are linked to the product (or ambiguity).",
     )
-    compoundLinkConfidence: float = Field(
+    compoundLinkConfidence: Optional[float] = Field(
         default=0.75,
         ge=0.0,
         le=1.0,
         description="How confident we are that compounds truly belong to this product (not just the business).",
     )
+    
+    @field_validator('compoundLinkConfidence', mode='before')
+    @classmethod
+    def ensure_confidence_default(cls, v: Optional[float]) -> float:
+        """Ensure compoundLinkConfidence defaults to 0.75 if None is provided."""
+        if v is None:
+            return 0.75
+        return v
 
 
 class BusinessBundle(BaseModel):

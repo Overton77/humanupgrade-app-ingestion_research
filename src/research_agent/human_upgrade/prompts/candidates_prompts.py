@@ -114,7 +114,8 @@ Return JSON that matches the CandidateSourcesConnected schema:
     - products: list of ProductWithCompounds
       - product: EntitySourceResult
       - compounds: list of EntitySourceResult (ONLY if clearly tied to that product)
-      - compoundLinkNotes + compoundLinkConfidence
+      - compoundLinkNotes: Optional note explaining the compound-product link
+      - compoundLinkConfidence: REQUIRED float between 0.0 and 1.0 (default 0.75 if uncertain)
     - platforms: list of EntitySourceResult
     - mentionedCompounds: compounds mentioned for the business but not clearly tied to a product
     - notes

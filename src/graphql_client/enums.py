@@ -47,6 +47,21 @@ class EvidenceRefType(str, Enum):
     External = "External"
 
 
+class SeedDirectionType(str, Enum):
+    Guest = "Guest"
+    Business = "Business"
+    Product = "Product"
+    Compound = "Compound"
+    Platform = "Platform"
+    CaseStudy = "CaseStudy"
+
+
+class SeedFileRefKind(str, Enum):
+    checkpoint = "checkpoint"
+    final_report = "final_report"
+    merged_seed_doc = "merged_seed_doc"
+
+
 class ArticleSourceType(str, Enum):
     human_upgrade = "human_upgrade"
     external = "external"

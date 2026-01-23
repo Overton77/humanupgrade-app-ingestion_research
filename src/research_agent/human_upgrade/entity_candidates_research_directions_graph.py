@@ -3,7 +3,8 @@ Candidate and Research Directions Graph for Entity Intel
 """
 
 from langgraph.graph import StateGraph, START, END   
-from langgraph.graph.state import CompiledStateGraph
+from langgraph.graph.state import CompiledStateGraph 
+from datetime import datetime
 
 from typing_extensions import TypedDict
 from typing import  Dict, Any, List
@@ -22,7 +23,8 @@ from research_agent.human_upgrade.structured_outputs.candidates_outputs import (
  
     CandidateSourcesConnected,
    SeedExtraction,
-)  
+)   
+from langchain_core.runnables import RunnableConfig
 from langchain.tools import BaseTool 
 
 from research_agent.human_upgrade.logger import logger
@@ -39,9 +41,14 @@ from research_agent.human_upgrade.tools.web_search_tools import (
     
 ) 
 
-from research_agent.human_upgrade.utils.formatting import format_seed_extraction_for_prompt, format_connected_candidates_for_prompt
+from research_agent.human_upgrade.utils.formatting import format_seed_extraction_for_prompt, format_connected_candidates_for_prompt 
+from research_agent.human_upgrade.intel_mongo_nodes import ( 
+    persist_candidates_node, 
+    persist_research_plans_node,
+)
 
-from research_agent.human_upgrade.base_models import gpt_4_1, gpt_5_mini, gpt_5_nano, gpt_5 
+from research_agent.human_upgrade.base_models import gpt_4_1, gpt_5_mini, gpt_5_nano, gpt_5  
+from research_agent.human_upgrade.persistence.checkpointer_and_store import get_persistence
 import os 
 
 load_dotenv() 
@@ -59,23 +66,39 @@ pull_prompt_names: Dict[str, str] = {
 }
 
 
-
-class EntityIntelCandidateAndResearchDirectionsState(TypedDict, total=False):  
+class EntityIntelCandidateAndResearchDirectionsState(TypedDict, total=False):
     """State for a single entity candidate and research directions."""
     # Core tool-loop plumbing
-    llm_calls: int # if needed 
-    tool_calls: int  # if needed 
+    llm_calls: int
+    tool_calls: int
 
     # Episode context
-    episode: Dict[str, Any] 
+    episode: Dict[str, Any]
 
-    
-  
-    seed_extraction: SeedExtraction 
-    candidate_sources: CandidateSourcesConnected 
-    research_directions: EntityBundlesListFinal 
-    
-    steps_taken: int  # if needed 
+    # Existing outputs
+    seed_extraction: SeedExtraction
+    candidate_sources: CandidateSourcesConnected
+    research_directions: EntityBundlesListFinal
+
+    # ----------------------------
+    # NEW: Intel orchestration
+    # ----------------------------
+
+    # Stable per-run identifiers (set once, reused across nodes)
+    intel_run_id: str
+    intel_pipeline_version: str
+
+    # Outputs from persist_candidates_node
+    candidate_entity_ids: List[str]          # candidateEntityId values inserted for this run
+    dedupe_group_map: Dict[str, str]         # entityKey -> dedupeGroupId
+
+    # Outputs from persist_research_plans_node
+    research_plan_ids: List[str]             # planId values inserted
+
+    # Optional: error capture if you want
+    error: str
+
+    steps_taken: int
     
 
 
@@ -170,7 +193,7 @@ async def candidate_sources_node(state: EntityIntelCandidateAndResearchDirection
         middleware=[
             SummarizationMiddleware(
                 model="gpt-4.1",
-                trigger=("tokens", 300000),
+                trigger=("tokens", 170000),
                 keep=("messages", 20),
             )
         ],
@@ -211,8 +234,8 @@ async def generate_research_directions_node(state: EntityIntelCandidateAndResear
     Step 1: LLM generates EntityBundlesListOutputA (objectives + starter sources for each bundle)
     Step 2: We compile to EntityBundlesListFinal (add deterministic required fields)
     """
-    candidate_sources: CandidateSourcesConnected = state.get("candidate_sources")
-    if candidate_sources is None:
+    candidate_sources: CandidateSourcesConnected = state.get("candidate_sources", CandidateSourcesConnected(connected=[]))
+    if not candidate_sources.connected:
         logger.error("❌ candidate_sources is None in research_directions_node")
         raise ValueError("candidate_sources is required but was not found in state")
 
@@ -251,7 +274,14 @@ async def generate_research_directions_node(state: EntityIntelCandidateAndResear
         len(bundles_list_output_a.bundles),
     ) 
 
-    compiled_bundles_list: EntityBundlesListFinal = compile_bundles_list(bundles_list_output_a)
+    compiled_bundles_list: EntityBundlesListFinal = compile_bundles_list(bundles_list_output_a) 
+
+    await save_json_artifact(
+        compiled_bundles_list.model_dump(),
+        "test_run",
+        "research_directions_compiled_bundles_list",
+        suffix=episode_url.replace("/", "_")[:30] + "_" + datetime.now().strftime("%Y%m%d_%H%M%S"),
+    )
     
     logger.info(
         "✅ Research directions complete: %s bundles compiled with required fields",
@@ -274,22 +304,36 @@ async def generate_research_directions_node(state: EntityIntelCandidateAndResear
 # BUILD SUBGRAPH
 # ============================================================================
 
-entity_research_directions_subgraph_builder: StateGraph = StateGraph(EntityIntelCandidateAndResearchDirectionsState)
+def build_entity_research_directions_builder() -> StateGraph:
+    builder: StateGraph = StateGraph(EntityIntelCandidateAndResearchDirectionsState)
+
+    builder.add_node("seed_extraction", seed_extraction_node)
+    builder.add_node("candidate_sources", candidate_sources_node)
+    builder.add_node("generate_research_directions", generate_research_directions_node)
+    builder.add_node("persist_candidates", persist_candidates_node)
+    builder.add_node("persist_research_plans", persist_research_plans_node)
+    builder.set_entry_point("seed_extraction")
+    builder.add_edge("seed_extraction", "candidate_sources") 
+    builder.add_edge("candidate_sources", "persist_candidates")  
+    builder.add_edge("candidate_sources", "generate_research_directions") 
+    builder.add_edge("generate_research_directions", "persist_research_plans")
+    builder.add_edge("generate_research_directions", END)
+
+    return builder
 
 
 
-entity_research_directions_subgraph_builder.add_node("seed_extraction", seed_extraction_node)
-entity_research_directions_subgraph_builder.add_node("candidate_sources", candidate_sources_node)
-entity_research_directions_subgraph_builder.add_node("generate_research_directions", generate_research_directions_node)
+async def make_entity_research_directions_graph(config: RunnableConfig) -> CompiledStateGraph:
+    """
+    Graph factory for LangSmith Studio / LangGraph CLI.
+    Called per run; we reuse process-wide store/checkpointer.
+    """
+    store, checkpointer = await get_persistence()
 
-entity_research_directions_subgraph_builder.set_entry_point("seed_extraction") 
-
-entity_research_directions_subgraph_builder.add_edge("seed_extraction", "candidate_sources")
-entity_research_directions_subgraph_builder.add_edge("candidate_sources", "generate_research_directions")
-entity_research_directions_subgraph_builder.add_edge("generate_research_directions", END)
-
-
-entity_research_directions_subgraph: CompiledStateGraph = entity_research_directions_subgraph_builder.compile()
-
-
-
+    # IMPORTANT: checkpoint namespace is provided at runtime via config["configurable"]["checkpoint_ns"]
+    # so compile once with the saver; per-run separation happens via config.
+    graph: CompiledStateGraph = build_entity_research_directions_builder().compile(
+        checkpointer=checkpointer,
+        store=store,
+    )
+    return graph

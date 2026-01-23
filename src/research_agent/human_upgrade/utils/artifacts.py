@@ -3,6 +3,7 @@ import os
 import uuid
 import json
 import aiofiles
+import aiofiles.os
 from typing import Any
 
 from research_agent.human_upgrade.logger import logger
@@ -23,7 +24,7 @@ def get_current_date_string() -> str:
 # ============================================================================
 
 def sanitize_filename(filename: str) -> str:
-    """
+    r"""
     Sanitize a filename by replacing invalid Windows characters.
     
     Windows doesn't allow: < > : " / \ | ? *

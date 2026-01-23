@@ -43,6 +43,21 @@ enum EvidenceRefType {
   External
 }
 
+enum SeedDirectionType {
+  Guest
+  Business
+  Product
+  Compound
+  Platform
+  CaseStudy
+}
+
+enum SeedFileRefKind {
+  checkpoint
+  final_report
+  merged_seed_doc
+}
+
 union ProtocolStepItemEntity = Product | Compound
 
 type ProtocolStepItem {
@@ -79,6 +94,29 @@ type SafetyBucket {
   contraindications: [String!]!
   interactions: [String!]!
   notes: String
+}
+
+type SeedFileRef {
+  filePath: String
+  s3Key: String
+  sha256: String
+  kind: SeedFileRefKind
+}
+
+type SeedProvenance {
+  planId: String
+  bundleId: String
+  runId: String
+  executionRunId: String
+  pipelineVersion: String
+  episodeId: ID
+  episodeUrl: String
+  entityKey: String
+  directionType: SeedDirectionType
+  dedupeGroupId: String
+  source: [SeedFileRef!]
+  seededAt: DateTime
+  seededBy: String
 }
 
 type UserProtocol {
@@ -134,6 +172,29 @@ input SafetyBucketInput {
   contraindications: [String!]
   interactions: [String!]
   notes: String
+}
+
+input SeedFileRefInput {
+  filePath: String
+  s3Key: String
+  sha256: String
+  kind: SeedFileRefKind
+}
+
+input SeedProvenanceUpsertInput {
+  planId: String!
+  bundleId: String
+  runId: String
+  executionRunId: String
+  pipelineVersion: String
+  episodeId: ID
+  episodeUrl: String
+  entityKey: String
+  directionType: SeedDirectionType
+  dedupeGroupId: String
+  source: [SeedFileRefInput!]
+  seededAt: DateTime
+  seededBy: String
 }
 
 input CreateUserProtocolInput {
@@ -377,6 +438,7 @@ input BusinessCreateRelationsInput {
   productsNested: [BusinessProductNestedInput!]
   sponsorEpisodesNested: [BusinessEpisodeNestedInput!]
   executives: [BusinessExecutiveRelationInput!]
+  seed: SeedProvenanceUpsertInput
 }
 
 input BusinessUpdateWithIdsInput {
@@ -390,6 +452,7 @@ input BusinessUpdateWithIdsInput {
   productIds: [ID!]
   productNames: [String!]
   sponsorEpisodeIds: [ID!]
+  seed: SeedProvenanceUpsertInput
 }
 
 input BusinessOwnerNestedInput {
@@ -483,6 +546,7 @@ input BusinessUpsertRelationFieldsInput {
 
   sponsorEpisodeIds: [ID!]
   sponsorEpisodesNested: [BusinessEpisodeNestedInput!]
+  seed: SeedProvenanceUpsertInput
 }
 
 # --- Product Inputs ---
@@ -499,6 +563,7 @@ input ProductCreateWithIdsInput {
   compoundNames: [String!]
   compoundsNested: [ProductCompoundNestedInput!]
   protocolIds: [ID!]
+  seed: SeedProvenanceUpsertInput
 }
 
 input ProductUpdateWithIdsInput {
@@ -513,6 +578,7 @@ input ProductUpdateWithIdsInput {
   compoundNames: [String!]
   compoundsNested: [ProductCompoundNestedInput!]
   protocolIds: [ID!]
+  seed: SeedProvenanceUpsertInput
 }
 
 input ProductCompoundNestedInput {
@@ -550,6 +616,7 @@ input ProductUpsertRelationFieldsInput {
   compoundsNested: [ProductCompoundNestedInput!]
   protocolIds: [ID!]
   protocolsNested: [ProductProtocolNestedInput!]
+  seed: SeedProvenanceUpsertInput
 }
 
 # --- Person Inputs ---
@@ -559,6 +626,7 @@ input PersonCreateInput {
   role: String
   bio: String
   mediaLinks: [MediaLinkInput!]
+  seed: SeedProvenanceUpsertInput
 }
 
 input PersonUpdateInput {
@@ -567,6 +635,7 @@ input PersonUpdateInput {
   role: String
   bio: String
   mediaLinks: [MediaLinkInput!]
+  seed: SeedProvenanceUpsertInput
 }
 
 # --- Episode Inputs ---
@@ -719,6 +788,7 @@ input CompoundCreateWithIdsInput {
   aliases: [String!]
   mediaLinks: [MediaLinkInput!]
   productIds: [ID!]
+  seed: SeedProvenanceUpsertInput
 }
 
 input CompoundUpdateWithIdsInput {
@@ -728,6 +798,7 @@ input CompoundUpdateWithIdsInput {
   aliases: [String!]
   mediaLinks: [MediaLinkInput!]
   productIds: [ID!]
+  seed: SeedProvenanceUpsertInput
 }
 
 input CompoundProductNestedInput {
@@ -744,6 +815,7 @@ input CompoundUpdateRelationFieldsInput {
 
   productIds: [ID!]
   productsNested: [CompoundProductNestedInput!]
+  seed: SeedProvenanceUpsertInput
 }
 
 type User {
@@ -895,6 +967,7 @@ input CaseStudyCreateWithOptionalIdsInput {
   compoundNames: [String!]
   productIds: [ID!]
   productNames: [String!]
+  seed: SeedProvenanceUpsertInput
 }
 
 input CaseStudyUpdateWithOptionalIdsInput {
@@ -909,6 +982,7 @@ input CaseStudyUpdateWithOptionalIdsInput {
   compoundNames: [String!]
   productIds: [ID!]
   productNames: [String!]
+  seed: SeedProvenanceUpsertInput
 }
 
 type UserDeleteResult {

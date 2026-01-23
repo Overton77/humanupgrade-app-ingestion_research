@@ -2,7 +2,9 @@ from langchain.tools import tool, ToolRuntime
 from langchain_community.tools import WikipediaQueryRun  
 from langchain_community.utilities import WikipediaAPIWrapper    
 from pathlib import Path 
-from typing import Optional, Literal, Union, List, Tuple 
+from typing import Optional, Literal, Union, List, Tuple, Annotated
+from langgraph.types import Command
+from langchain.messages import ToolMessage
 from research_agent.agent_tools.tavily_functions import (
     tavily_search,
     format_tavily_search_response,
@@ -12,7 +14,6 @@ from research_agent.agent_tools.tavily_functions import (
     format_tavily_map_response,
 )   
 from research_agent.human_upgrade.structured_outputs.sources_and_search_summary_outputs import TavilyCitation
-from research_agent.human_upgrade.tools.utils.runtime_helpers import increment_steps, write_citations
 from research_agent.human_upgrade.tools.utils.web_search_helpers import summarize_tavily_web_search, summarize_tavily_extract, format_tavily_summary_results
 from research_agent.human_upgrade.logger import logger 
 from research_agent.human_upgrade.utils.artifacts import save_json_artifact, save_text_artifact
@@ -39,10 +40,21 @@ _wikipedia_tool_instance = WikipediaQueryRun(api_wrapper=wikipedia_api_wrapper)
     description="Search Wikipedia for information about a topic. Useful for finding general knowledge, biographical information, company histories, and scientific concepts.",
     parse_docstring=False,
 )
-async def wiki_search_tool(query: str) -> str:
+async def wiki_search_tool(runtime: ToolRuntime, query: str) -> Command:
     """Search Wikipedia for information about a topic."""
+    result = await _wikipedia_tool_instance.ainvoke(query)
     
-    return await _wikipedia_tool_instance.ainvoke(query)
+    # Increment steps
+    steps = int(runtime.state.get("steps_taken", 0) or 0) + 1
+    logger.info(f"📊 Step {steps}")
+    
+    # Return Command with state updates
+    return Command(
+        update={
+            "steps_taken": steps,
+            "messages": [ToolMessage(content=result, tool_call_id=runtime.tool_call_id)],
+        }
+    )
 
 wiki_tool = wiki_search_tool
 
@@ -248,13 +260,32 @@ async def tavily_map_validation(
 )
 async def tavily_search_research(
     runtime: ToolRuntime,
-    query: str,
-    max_results: int = 5,
-    search_depth: Literal["basic", "advanced"] = "basic",
-    topic: Optional[Literal["general", "news", "finance"]] = "general",
-    include_images: bool = False,
-    include_raw_content: bool | Literal["markdown", "text"] = False,
-) -> str:
+    # --- tavily_search_research args ---
+    query: Annotated[
+        str,
+        "Search query (be specific: entity + requiredField + evidence terms + site: filters when useful)."
+    ],
+    max_results: Annotated[
+        int,
+        "Max results to return (keeps noise + context down)."
+    ] = 5,
+    search_depth: Annotated[
+        Literal["basic", "advanced"],
+        "basic=cheaper/faster; advanced=deeper evidence (use for key claims)."
+    ] = "basic",
+    topic: Annotated[
+        Optional[Literal["general", "news", "finance"]],
+        "Domain filter for retrieval; use 'news' for recent coverage."
+    ] = "general",
+    include_images: Annotated[
+        bool,
+        "Include image URLs (rarely needed for research checkpoints)."
+    ] = False,
+    include_raw_content: Annotated[
+        bool | Literal["markdown", "text"],
+        "Include page content for each result; prefer False to avoid bloat (True→markdown)."
+    ] = False,
+) -> Command:
     """Search the web using Tavily."""
     search_results, citations = await _tavily_search_impl(
         query=query,
@@ -265,11 +296,19 @@ async def tavily_search_research(
         include_raw_content=include_raw_content,
     ) 
 
-    # These are cheap synchronous operations - call them directly
-    increment_steps(runtime)
-    write_citations(runtime, citations)
-
-    return search_results
+    # Increment steps and track citations
+    steps = int(runtime.state.get("steps_taken", 0) or 0) + 1
+    logger.info(f"📊 Step {steps}")
+    logger.info(f"📊 Citations written: {len(citations)}")
+    
+    # Return Command with state updates
+    return Command(
+        update={
+            "steps_taken": steps,
+            "messages": [ToolMessage(content=search_results, tool_call_id=runtime.tool_call_id)],
+            # Note: citations would need a reducer in state schema if you want to track them
+        }
+    )
 
 
 @tool(
@@ -278,14 +317,36 @@ async def tavily_search_research(
 )
 async def tavily_extract_research(
     runtime: ToolRuntime,
-    urls: Union[str, List[str]],
-    query: Optional[str] = None,
-    chunks_per_source: int = 3,
-    extract_depth: Literal["basic", "advanced"] = "basic",
-    include_images: bool = False,
-    include_favicon: bool = False,
-    format: Literal["markdown", "text"] = "markdown",
-) -> str:
+    # --- tavily_extract_research args ---
+    urls: Annotated[
+        Union[str, List[str]],
+        "1 URL or a list of URLs to extract from (usually top 3–5 from search)."
+    ],
+    query: Annotated[
+        Optional[str],
+        "CRITICAL: extraction filter—list missing requiredFields/keywords so only relevant chunks return."
+    ] = None,
+    chunks_per_source: Annotated[
+        int,
+        "How many relevant chunks to pull per URL (higher = more coverage + more tokens)."
+    ] = 3,
+    extract_depth: Annotated[
+        Literal["basic", "advanced"],
+        "basic=cheaper; advanced=better for dense/long pages (use when needed)."
+    ] = "basic",
+    include_images: Annotated[
+        bool,
+        "Include images found on the page (usually unnecessary)."
+    ] = False,
+    include_favicon: Annotated[
+        bool,
+        "Include site favicon URL in results (cosmetic)."
+    ] = False,
+    format: Annotated[
+        Literal["markdown", "text"],
+        "Output format for extracted content; markdown is usually best for readability/citations."
+    ] = "markdown",
+) -> Command:
     """Extract content from URLs using Tavily."""
     extract_results, citations = await _tavily_extract_impl(
         urls=urls,
@@ -297,11 +358,18 @@ async def tavily_extract_research(
         format=format,
     )
 
-    # These are cheap synchronous operations - call them directly
-    increment_steps(runtime)
-    write_citations(runtime, citations)
-
-    return extract_results
+    # Increment steps and track citations
+    steps = int(runtime.state.get("steps_taken", 0) or 0) + 1
+    logger.info(f"📊 Step {steps}")
+    logger.info(f"📊 Citations written: {len(citations)}")
+    
+    # Return Command with state updates
+    return Command(
+        update={
+            "steps_taken": steps,
+            "messages": [ToolMessage(content=extract_results, tool_call_id=runtime.tool_call_id)],
+        }
+    )
 
 
 @tool(
@@ -310,21 +378,32 @@ async def tavily_extract_research(
 )
 async def tavily_map_research(
     runtime: ToolRuntime,
-    url: str,
-    instructions: Optional[str] = None,
-    max_depth: int = 1,
-    max_breadth: int = 20,
-    limit: int = 25,
-) -> str:
+    # --- tavily_map_research args ---
+    url: Annotated[str, "Root URL to map (authoritative site/home/docs root)."],
+    instructions: Annotated[Optional[str], "CRITICAL: natural-language guidance that steers which internal URLs are discovered/returned."] = None,
+    max_depth: Annotated[int, "How many link-hops from the root to explore (depth grows cost fast)."] = 1,
+    max_breadth: Annotated[int, "Max links to follow per level/page (controls horizontal explosion)."] = 15,
+    limit: Annotated[int, "Hard cap on total URLs returned/processed (prevents runaway maps)."] = 25,
+) -> Command:
     """Map a website using Tavily."""
-    increment_steps(runtime)  
-
-    return await _tavily_map_impl(
+    # Increment steps
+    steps = int(runtime.state.get("steps_taken", 0) or 0) + 1
+    logger.info(f"📊 Step {steps}")
+    
+    map_results = await _tavily_map_impl(
         url=url,
         instructions=instructions,
         max_depth=max_depth,
         max_breadth=max_breadth,
         limit=limit,
+    )
+    
+    # Return Command with state updates
+    return Command(
+        update={
+            "steps_taken": steps,
+            "messages": [ToolMessage(content=map_results, tool_call_id=runtime.tool_call_id)],
+        }
     )
 
 

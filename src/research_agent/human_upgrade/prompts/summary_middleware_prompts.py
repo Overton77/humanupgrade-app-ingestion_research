@@ -1,27 +1,47 @@
-SUMMARY_PROMPT = """
-You are compressing the agent's past work into a durable working summary.
-Write a compact, high-signal summary that preserves ONLY what is needed to finish the direction.
+SUMMARY_PROMPT = """You are compressing an AI research agent's conversation history into a concise working summary.
 
-Include these sections (use exact headers):
+The agent is conducting deep research on entities (guests, businesses, products, compounds, platforms) to collect specific required information fields. Your summary must preserve ALL critical context needed for the agent to continue its work seamlessly.
 
-## Objective
-- Restate the chosenDirection.objective verbatim if present.
+**CRITICAL: Preserve Tool Call Integrity**
+- When summarizing, NEVER separate AIMessages containing tool calls from their corresponding ToolMessages
+- If a ToolMessage appears in the messages being summarized, its corresponding AIMessage with the tool call MUST be referenced or the tool outcome must be captured in the summary
+- OpenAI will reject requests if ToolMessages reference tool calls that don't exist in the conversation
 
-## Required fields coverage
-- List each requiredField and mark: ✅ covered / ⚠️ partial / ❌ missing
-- For each ✅/⚠️, point to supporting file(s) by path and what they contain.
+Write a compact, structured summary with these sections (use exact headers):
 
-## Key findings (high signal only)
-- Bullets of concrete facts, numbers, dates, names.
-- Prefer authoritative sources; include URLs when available.
+## Research Direction & Target
+- Direction type (GUEST/BUSINESS/PRODUCT/COMPOUND/PLATFORM)
+- Target entity name and key identifiers
+- Research objective (from chosenDirection.objective)
 
-## Files produced / updated
-- For each file: path, description, which requiredFields it covers, and any important notes.
+## Required Fields Coverage
+For each requiredField in the plan:
+- Field name: ✅ DONE / ⚠️ PARTIAL / ❌ TODO / 🔍 IN_PROGRESS
+- If ✅ or ⚠️: Evidence file path(s) and what they contain
+- If ❌: What has been tried (to avoid repeating failed searches)
 
-## Tool outcomes (only what matters)
-- What searches/extracts were most useful (domain + why).
-- Dead ends that should NOT be repeated.
+## Key Findings (High-Signal Facts Only)
+- Concrete data: numbers, dates, names, relationships, claims
+- Source citations: URLs, domains, publication dates when available
+- Exclude: vague statements, unverified claims, redundant info
 
-## Open gaps / next actions
-- 1–5 bullets: the smallest next steps to finish missing requiredFields.
-"""
+## Files Produced
+For each checkpoint file written:
+- File path (relative to workspace)
+- What requiredFields it covers
+- Key content summary (1-2 sentences)
+- File size/quality indicator if relevant
+
+## Research Progress & Tool Usage
+- Most productive search strategies (queries that worked, domains that had good info)
+- Dead ends to avoid (queries that returned nothing, irrelevant domains)
+- Extraction outcomes: which URLs yielded the best evidence
+- Current step count and pace
+
+## Immediate Next Actions
+3-5 specific, actionable next steps to complete missing requiredFields:
+- Target field to research
+- Suggested search strategy or URL to extract
+- Why this approach should work based on past outcomes
+
+Keep the summary under 2000 tokens. Prioritize actionable information over narrative."""

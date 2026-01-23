@@ -1,7 +1,7 @@
 from typing import List, Dict, Optional
 from research_agent.human_upgrade.structured_outputs.candidates_outputs import (CandidateEntity, SeedExtraction, EntitySourceResult, CandidateSourcesConnected)
 from research_agent.human_upgrade.structured_outputs.file_outputs import FileReference
-from research_agent.agent_tools.filesystem_tools import read_file
+from research_agent.agent_tools.file_system_functions import read_file
 
 def format_list_for_prompt(items: List[str], bullet: str = "-", empty_msg: str = "(none)") -> str:
     """Format a list of strings for prompt insertion."""

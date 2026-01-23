@@ -25,6 +25,49 @@ Both subgraphs use a suite of research tools including:
 - **PubMed** - Scientific literature search
 - **Wikipedia** - Reference information
 
+## AWS AgentCore Integration ⭐
+
+This project is now integrated with **AWS AgentCore** for production deployment!
+
+### Quick Start (5 minutes)
+
+```bash
+# 1. Test locally
+python agentcore_entrypoint.py
+
+# 2. Deploy to AWS
+agentcore deploy
+
+# 3. Invoke your agent
+agentcore invoke '{"workflow": "full", "episode_url": "https://daveasprey.com/1296-qualia-greg-kelly/"}'
+```
+
+### Documentation
+
+- 🚀 **[Quick Start Guide](AGENTCORE_QUICKSTART.md)** - Get started in 5 minutes
+- 📖 **[Deployment Guide](AGENTCORE_DEPLOYMENT_GUIDE.md)** - Comprehensive deployment documentation
+- 📊 **[Summary](AGENTCORE_SUMMARY.md)** - What's included and how it works
+- ⚡ **[Cheat Sheet](AGENTCORE_CHEATSHEET.md)** - Quick reference for common commands
+- 🔀 **[Multi-Project Guide](AGENTCORE_MULTI_PROJECT_GUIDE.md)** - When to split into multiple projects
+
+### What You Get
+
+- ✅ **One-command deployment** to AWS
+- ✅ **Built-in memory & sessions** for tracking research across episodes
+- ✅ **Auto-scaling** containers (ARM64/Graviton)
+- ✅ **CloudWatch logging** + LangSmith tracing
+- ✅ **API Gateway** with IAM authentication
+- ✅ **Production-ready** infrastructure
+
+### Make Commands
+
+```bash
+make -f Makefile.agentcore help          # Show all commands
+make -f Makefile.agentcore deploy        # Deploy to AWS
+make -f Makefile.agentcore invoke-test   # Test your deployment
+make -f Makefile.agentcore logs          # View CloudWatch logs
+```
+
 ## Status
 
-🚧 **In Progress** - The system runs successfully and performs summarization, evidence research, and entity research correctly, but development is ongoing.
+✅ **Production Ready** - The system is fully integrated with AWS AgentCore and ready for deployment. Development continues for additional features.

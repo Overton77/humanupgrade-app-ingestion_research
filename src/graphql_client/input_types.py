@@ -20,6 +20,8 @@ from .enums import (
     ProtocolTimeOfDay,
     SavedEntityType,
     SaveSource,
+    SeedDirectionType,
+    SeedFileRefKind,
     TimeBudget,
     UserGoalType,
     UserProtocolStatus,
@@ -65,6 +67,31 @@ class SafetyBucketInput(BaseModel):
     contraindications: Optional[list[str]] = None
     interactions: Optional[list[str]] = None
     notes: Optional[str] = None
+
+
+class SeedFileRefInput(BaseModel):
+    file_path: Optional[str] = Field(alias="filePath", default=None)
+    s_3_key: Optional[str] = Field(alias="s3Key", default=None)
+    sha_256: Optional[str] = Field(alias="sha256", default=None)
+    kind: Optional[SeedFileRefKind] = None
+
+
+class SeedProvenanceUpsertInput(BaseModel):
+    plan_id: str = Field(alias="planId")
+    bundle_id: Optional[str] = Field(alias="bundleId", default=None)
+    run_id: Optional[str] = Field(alias="runId", default=None)
+    execution_run_id: Optional[str] = Field(alias="executionRunId", default=None)
+    pipeline_version: Optional[str] = Field(alias="pipelineVersion", default=None)
+    episode_id: Optional[str] = Field(alias="episodeId", default=None)
+    episode_url: Optional[str] = Field(alias="episodeUrl", default=None)
+    entity_key: Optional[str] = Field(alias="entityKey", default=None)
+    direction_type: Optional[SeedDirectionType] = Field(
+        alias="directionType", default=None
+    )
+    dedupe_group_id: Optional[str] = Field(alias="dedupeGroupId", default=None)
+    source: Optional[list["SeedFileRefInput"]] = None
+    seeded_at: Optional[Any] = Field(alias="seededAt", default=None)
+    seeded_by: Optional[str] = Field(alias="seededBy", default=None)
 
 
 class CreateUserProtocolInput(BaseModel):
@@ -187,6 +214,7 @@ class BusinessCreateRelationsInput(BaseModel):
         alias="sponsorEpisodesNested", default=None
     )
     executives: Optional[list["BusinessExecutiveRelationInput"]] = None
+    seed: Optional["SeedProvenanceUpsertInput"] = None
 
 
 class BusinessUpdateWithIdsInput(BaseModel):
@@ -204,6 +232,7 @@ class BusinessUpdateWithIdsInput(BaseModel):
     sponsor_episode_ids: Optional[list[str]] = Field(
         alias="sponsorEpisodeIds", default=None
     )
+    seed: Optional["SeedProvenanceUpsertInput"] = None
 
 
 class BusinessOwnerNestedInput(BaseModel):
@@ -316,6 +345,7 @@ class BusinessUpsertRelationFieldsInput(BaseModel):
     sponsor_episodes_nested: Optional[list["BusinessEpisodeNestedInput"]] = Field(
         alias="sponsorEpisodesNested", default=None
     )
+    seed: Optional["SeedProvenanceUpsertInput"] = None
 
 
 class ProductCreateWithIdsInput(BaseModel):
@@ -334,6 +364,7 @@ class ProductCreateWithIdsInput(BaseModel):
         alias="compoundsNested", default=None
     )
     protocol_ids: Optional[list[str]] = Field(alias="protocolIds", default=None)
+    seed: Optional["SeedProvenanceUpsertInput"] = None
 
 
 class ProductUpdateWithIdsInput(BaseModel):
@@ -352,6 +383,7 @@ class ProductUpdateWithIdsInput(BaseModel):
         alias="compoundsNested", default=None
     )
     protocol_ids: Optional[list[str]] = Field(alias="protocolIds", default=None)
+    seed: Optional["SeedProvenanceUpsertInput"] = None
 
 
 class ProductCompoundNestedInput(BaseModel):
@@ -397,6 +429,7 @@ class ProductUpsertRelationFieldsInput(BaseModel):
     protocols_nested: Optional[list["ProductProtocolNestedInput"]] = Field(
         alias="protocolsNested", default=None
     )
+    seed: Optional["SeedProvenanceUpsertInput"] = None
 
 
 class PersonCreateInput(BaseModel):
@@ -406,6 +439,7 @@ class PersonCreateInput(BaseModel):
     media_links: Optional[list["MediaLinkInput"]] = Field(
         alias="mediaLinks", default=None
     )
+    seed: Optional["SeedProvenanceUpsertInput"] = None
 
 
 class PersonUpdateInput(BaseModel):
@@ -416,6 +450,7 @@ class PersonUpdateInput(BaseModel):
     media_links: Optional[list["MediaLinkInput"]] = Field(
         alias="mediaLinks", default=None
     )
+    seed: Optional["SeedProvenanceUpsertInput"] = None
 
 
 class EpisodeCreateWithIdsInput(BaseModel):
@@ -609,6 +644,7 @@ class CompoundCreateWithIdsInput(BaseModel):
         alias="mediaLinks", default=None
     )
     product_ids: Optional[list[str]] = Field(alias="productIds", default=None)
+    seed: Optional["SeedProvenanceUpsertInput"] = None
 
 
 class CompoundUpdateWithIdsInput(BaseModel):
@@ -620,6 +656,7 @@ class CompoundUpdateWithIdsInput(BaseModel):
         alias="mediaLinks", default=None
     )
     product_ids: Optional[list[str]] = Field(alias="productIds", default=None)
+    seed: Optional["SeedProvenanceUpsertInput"] = None
 
 
 class CompoundProductNestedInput(BaseModel):
@@ -639,6 +676,7 @@ class CompoundUpdateRelationFieldsInput(BaseModel):
     products_nested: Optional[list["CompoundProductNestedInput"]] = Field(
         alias="productsNested", default=None
     )
+    seed: Optional["SeedProvenanceUpsertInput"] = None
 
 
 class CaseStudyCreateWithOptionalIdsInput(BaseModel):
@@ -654,6 +692,7 @@ class CaseStudyCreateWithOptionalIdsInput(BaseModel):
     compound_names: Optional[list[str]] = Field(alias="compoundNames", default=None)
     product_ids: Optional[list[str]] = Field(alias="productIds", default=None)
     product_names: Optional[list[str]] = Field(alias="productNames", default=None)
+    seed: Optional["SeedProvenanceUpsertInput"] = None
 
 
 class CaseStudyUpdateWithOptionalIdsInput(BaseModel):
@@ -670,6 +709,7 @@ class CaseStudyUpdateWithOptionalIdsInput(BaseModel):
     compound_names: Optional[list[str]] = Field(alias="compoundNames", default=None)
     product_ids: Optional[list[str]] = Field(alias="productIds", default=None)
     product_names: Optional[list[str]] = Field(alias="productNames", default=None)
+    seed: Optional["SeedProvenanceUpsertInput"] = None
 
 
 class UserProtocolsFilterInput(BaseModel):
@@ -758,6 +798,7 @@ class VectorSearchArgs(BaseModel):
 
 
 ProtocolStepGroupInput.model_rebuild()
+SeedProvenanceUpsertInput.model_rebuild()
 CreateUserProtocolInput.model_rebuild()
 UpdateUserProtocolInput.model_rebuild()
 UserProfileUpsertInput.model_rebuild()
@@ -789,4 +830,6 @@ CompoundCreateWithIdsInput.model_rebuild()
 CompoundUpdateWithIdsInput.model_rebuild()
 CompoundProductNestedInput.model_rebuild()
 CompoundUpdateRelationFieldsInput.model_rebuild()
+CaseStudyCreateWithOptionalIdsInput.model_rebuild()
+CaseStudyUpdateWithOptionalIdsInput.model_rebuild()
 HumanUpgradeEpisodeSearchInput.model_rebuild()

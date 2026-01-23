@@ -8,20 +8,6 @@ from langchain.messages import ToolMessage
 from langgraph.types import Command
 
 
-# ============================================================
-# IMPORTANT: plan shape in AgentState (EXACT)
-# ============================================================
-# plan = {
-#   "chosen": <dict from chosenDirection.model_dump()>,
-#   "required_fields": [<enum values as strings>]
-# }
-# ============================================================
-
-
-# -----------------------------
-# Helpers (NO fallbacks; exact keys)
-# -----------------------------
-
 def _objective(plan: Dict[str, Any]) -> str:
     return plan["chosen"]["objective"]
 
@@ -110,6 +96,15 @@ def _recent_file_refs(state: Dict[str, Any], limit: int = 6) -> str:
     return "\n".join(lines)
 
 
+def _recent_thought(state: Dict[str, Any]) -> str:
+    """Extract the most recent thought/reflection from state."""
+    thoughts = state.get("thoughts") or []
+    if not thoughts:
+        return None
+    # Return only the most recent thought
+    return thoughts[-1]
+
+
 # -----------------------------
 # Prompt builders
 # -----------------------------
@@ -123,227 +118,123 @@ def get_initial_research_prompt(
     entity_context: str = "",
     max_web_tool_calls_hint: int = 18,
 ) -> str:
-    """
-    Full first-turn mission prompt. Sent once only.
-    Uses EXACT plan keys:
-      plan["chosen"] and plan["required_fields"]
-    """
     current_date = datetime.now().strftime("%Y-%m-%d")
 
     chosen = plan["chosen"]
-    objective = plan["chosen"]["objective"]
+    objective = chosen["objective"]
     required_fields = list(plan["required_fields"])
 
     targets_text = _chosen_direction_targets(direction_type, chosen)
-    starter_sources_text = _format_starter_sources(chosen, limit=8)
-    scope_risks_text = _format_scope_and_risks(chosen)
-    required_fields_text = _format_required_fields(required_fields)
 
-    return f"""# Advanced Biotech Research Agent — Direction Run
+    # Keep requiredFields readable but not huge
+    required_fields_text = ", ".join(required_fields[:25]) + (f" … (+{len(required_fields)-25})" if len(required_fields) > 25 else "")
+
+    starter_sources_text = _format_starter_sources(chosen, limit=6)
+    scope_risks_text = _format_scope_and_risks(chosen)
+
+    return f"""You are a tool-using research agent. Your job is to gather evidence and write checkpoint reports to the workspace.
 
 Date: {current_date}
-Bundle: {bundle_id}
-Run: {run_id}
-Direction: {direction_type}
+Bundle: {bundle_id} | Run: {run_id} | Direction: {direction_type}
 
-## Targets
+TARGETS:
 {targets_text}
 
-## Context
-You are an advanced biotech research agent performing evidence-based research to extract structured knowledge.
-Your job is to research efficiently, cite sources, and create high-quality checkpoint reports in the file system.
-
-Entity context:
-{entity_context or "(none provided)"}
-
-## chosenDirection
-Objective:
+OBJECTIVE:
 {objective}
 
-Starter sources (ranked, not exhaustive):
+REQUIRED FIELDS (track progress in the ledger; checkpoints can cover multiple fields):
+{required_fields_text}
+
+CONTEXT (if any):
+{entity_context or "(none provided)"}
+
+STARTER SOURCES (optional starting points, not exhaustive):
 {starter_sources_text}
 
 {scope_risks_text}
 
-## requiredFields (you MUST cover these explicitly in your written reports)
-{required_fields_text}
+OPERATING CONTRACT (follow strictly):
+- You are in a tool-calling loop.
+- Default workflow: think_tool → tavily_search_research(advanced) → tavily_extract_research(query=missing_fields) → agent_write_file(covered_fields=[...]).
+- Write a checkpoint after every 2–3 web calls OR when you have enough evidence for ≥1 requiredField.
+- A single checkpoint file MAY cover MULTIPLE requiredFields when evidence overlaps.
+- Keep moving: prefer authoritative sources; avoid long detours.
+- Web budget guideline: ~{max_web_tool_calls_hint} calls total.
 
----
+CRITICAL RULES:
+1) FIRST action MUST be think_tool (no free-text response).
+2) Every tavily_extract_research MUST include query listing the missing fields you want.
+3) Every checkpoint MUST call agent_write_file with covered_fields=[...] so the ledger stays correct.
 
-# Operating Principles (keep the loop tight)
+NOW: Call think_tool with:
+- entity = primary target name
+- required_fields = 1–3 fields you will tackle next (can be multiple)
+- next_actions = 1–3 tool-sized steps (e.g., search query, extract, write)
+""".strip()
 
-## Tool-call discipline & stop conditions
-- Favor fewer, higher-signal tool calls over many low-signal calls.
-- Web tool call budget (guideline): try to stay under ~{max_web_tool_calls_hint} total web calls for this direction.
-- Stop unfruitful lines quickly:
-  - After 2 searches on the same sub-question without improved evidence: change query strategy (constraints/synonyms/source type).
-  - After 3 total attempts on the same missing requiredField with weak evidence: pause that field, record what you tried, and pivot.
-  - If a field is genuinely unavailable: explicitly write "NOT FOUND" + what you tried + best proxy sources, then move on.
+def _format_focus(state: Dict[str, Any]) -> str:
+    f = state.get("current_focus") or {}
+    ent = (f.get("entity") or "").strip()
+    field = (f.get("field") or "").strip()
+    if ent or field:
+        return f'Current focus: entity="{ent}", field="{field}"'
+    return "Current focus: (not set) — pick the next highest-value missing requiredField(s) and call think_tool."
 
-## Checkpointing (plain-text reports)
-- Write intermediate summaries to the file system as you make progress.
-- These must be plain text and read like an internal research report with sections.
-- Your reports should be so clear that downstream structured extraction is easy:
-  - include a section per requiredField (or grouped sections if they naturally cluster)
-  - include granular detail and concrete facts/numbers where possible
-  - include sources as URLs under each claim/field
-  - clearly distinguish confirmed facts vs likely/inferred vs unknown
 
----
+def _format_required_fields_status_compact(
+    plan: Dict[str, Any],
+    state: Dict[str, Any],
+    max_lines: int = 18,
+    max_missing_preview: int = 8,
+) -> str:
+    required = list(plan.get("required_fields") or [])
+    rfs = state.get("required_fields_status") or {}
 
-# Tools
+    counts = {"todo": 0, "in_progress": 0, "done": 0, "not_found": 0}
+    missing: List[str] = []
+    outstanding_lines: List[str] = []
 
-## ✅ Reflection tool
-think_tool(reflection: str)
+    for f in required:
+        entry = rfs.get(f) or {}
+        status = entry.get("status", "todo")
+        if status not in counts:
+            status = "todo"
+        counts[status] += 1
 
-Use to:
-- plan next 1–3 actions
-- identify which requiredFields are still missing
-- decide whether to search, extract, map, wiki, or write/edit a report
-Use it especially when switching fields or when stuck.
+        if status in ("todo", "in_progress"):
+            missing.append(f)
 
-## ✅ Wikipedia tool (fast grounding / disambiguation)
-wiki_tool(query: str)
+        if status != "done":
+            notes = (entry.get("notes") or "").strip()
+            files = entry.get("evidence_files") or []
+            files_tail = ", ".join(files[-2:]) if files else ""
+            line = f"- {f}: {status}"
+            if files_tail:
+                line += f" | files: {files_tail}"
+            if notes:
+                line += f" | notes: {notes}"
+            outstanding_lines.append(line)
 
-Use when:
-- you need quick background on unfamiliar terms/entities
-- you need definitions or historical context
-- you want to disambiguate names before searching
-Do NOT use as the only evidence for novel/controversial claims; use it to guide targeted research.
+    missing_preview = ", ".join(missing[:max_missing_preview]) if missing else "(none)"
+    outstanding_lines = outstanding_lines[:max_lines]
 
-## ✅ Web research tools (Tavily)
+    return (
+        f"Ledger counts: done={counts['done']} | in_progress={counts['in_progress']} | "
+        f"todo={counts['todo']} | not_found={counts['not_found']}\n"
+        f"Next missing candidates: {missing_preview}\n"
+        "Outstanding (non-done):\n"
+        + ("\n".join(outstanding_lines) if outstanding_lines else "(none)")
+    )
+def _cap(s: str, n: int) -> str:
+    s = (s or "").strip()
+    return s if len(s) <= n else s[: n - 3] + "..."
 
-### tavily_search_research
-tavily_search_research(
-  query: str,
-  max_results: int = 5,
-  search_depth: "basic" | "advanced" = "basic",
-  topic: "general" | "news" | "finance" = "general",
-  include_images: bool = False,
-  include_raw_content: bool | "markdown" | "text" = False
-)
 
-How to write high-signal queries (patterns you SHOULD use):
-- Field-driven: "<target> <requiredField>"
-- Add authoritative constraints early:
-  - site:pubmed.ncbi.nlm.nih.gov
-  - site:clinicaltrials.gov
-  - site:nih.gov
-  - filetype:pdf review
-- Add disambiguation terms:
-  - synonyms / aliases / brand names
-  - affiliation / institution / title
-- Add evidence terms:
-  - "randomized trial", "systematic review", "meta-analysis"
-  - "adverse events", "contraindications", "safety", "dosing"
-  - "mechanism of action", "pharmacokinetics", "half-life"
 
-Search workflow:
-1) Start with 1–2 high-signal searches (field-driven + constraints).
-2) Choose the best 2–4 sources from the results.
-3) Extract in a batch (do not keep searching forever).
-
-### tavily_extract_research
-tavily_extract_research(
-  urls: str | list[str],
-  query: str | None = None,
-  chunks_per_source: int = 3,
-  extract_depth: "basic" | "advanced" = "basic",
-  include_images: bool = False,
-  include_favicon: bool = False,
-  format: "markdown" | "text" = "markdown"
-)
-
-Rules:
-- Batch 3–5 URLs per call whenever possible.
-- Use query to force extraction toward requiredFields:
-  - query="Extract facts relevant to requiredFields: {', '.join(required_fields)}. Include numbers/dates. Include limitations. Include citations."
-- If extraction is weak, do ONE revised search with better constraints rather than repeatedly extracting random URLs.
-
-### tavily_map_research
-tavily_map_research(
-  url: str,
-  instructions: str | None = None,
-  max_depth: int = 1,
-  max_breadth: int = 20,
-  limit: int = 25
-)
-
-Use when:
-- you found an authoritative domain and want its internal relevant pages
-- instructions should be explicit about what to find (e.g., bios, trials, safety, patents, press, publications)
-Avoid mapping unvalidated domains.
-
----
-
-# File System Tools (checkpointing)
-
-## agent_write_file
-agent_write_file(
-  filename: str,
-  content: str,
-  description: str,
-  bundle_id: str = "",
-  entity_key: str = ""
-)
-
-What to write (plain text, detailed, sectioned report):
-- Title
-- Objective (restated)
-- Coverage map: list requiredFields and mark which are covered in this file
-- Findings by requiredField (use this exact pattern):
-  - requiredField: <fieldName>
-    - Evidence: (facts, numbers, dates)
-    - Sources: (URLs)
-    - Confidence: high/med/low + why
-- Gaps / unknowns (explicit)
-- Next steps (1–3)
-
-Description MUST be extremely informative (do NOT be vague):
-Include:
-- target entity(ies)
-- direction_type
-- which requiredFields are covered
-- what evidence types were used (PubMed, trials registry, company site, LinkedIn, patents, etc.)
-- what is still missing (if anything)
-
-Good description example:
-"Plain-text report for {direction_type} targets. Covers requiredFields: X, Y, Z with evidence from PubMed + ClinicalTrials.gov + official site. Includes quantified outcomes and safety notes. Remaining gaps: <missingFields>."
-
-## agent_read_file(filename: str)
-Use to avoid duplicating work.
-
-## agent_edit_file(filename: str, find_text: str, replace_text: str, count: int = -1)
-Prefer editing/augmenting existing files over creating duplicates.
-
-## agent_list_outputs
-agent_list_outputs()
-
-Use when:
-- you are about to conclude/finalize
-- you need a reminder of what files exist and what each contains
-- you want to confirm the research artifacts you produced
-
-This returns a friendly list of all file_refs with descriptions (plus a quick snapshot of workspace_files if present).
-
----
-
-# Recommended Loop
-1) think_tool: pick the next missing requiredField(s).
-2) wiki_tool if grounding/disambiguation is needed.
-3) tavily_search_research: 1–2 searches; select 2–4 best sources.
-4) tavily_extract_research: batch extract; focus on missing fields.
-5) agent_write_file: checkpoint a plain-text report with sections per requiredField.
-6) Repeat until requiredFields are covered.
-
-When you believe you're done:
-- Call agent_list_outputs() and confirm:
-  1) which requiredFields are fully covered
-  2) which files you produced (paths + descriptions)
-- Then respond with a final confirmation message (no more tool calls unless truly needed).
-
-Start now. Your next action should be think_tool planning the first 1–3 moves.
-"""
+def _cap(s: str, n: int) -> str:
+    s = (s or "").strip()
+    return s if len(s) <= n else s[: n - 3] + "..."
 
 
 def get_reminder_research_prompt(
@@ -352,18 +243,20 @@ def get_reminder_research_prompt(
     run_id: str,
     direction_type: str,
     plan: Dict[str, Any],
-    recent_files_block: str,
+    state: Dict[str, Any],
     steps_taken: int,
 ) -> str:
-    """
-    Compact reminder prompt injected on subsequent turns.
-    Uses EXACT plan keys:
-      plan["chosen"] and plan["required_fields"]
-    """
     current_date = datetime.now().strftime("%Y-%m-%d")
-    objective = plan["chosen"]["objective"]
-    required_fields = list(plan["required_fields"])
-    required_fields_text = ", ".join(required_fields)
+    chosen = plan["chosen"]
+    objective = chosen["objective"]
+
+    targets_text = _chosen_direction_targets(direction_type, chosen)
+    focus_line = _format_focus(state)
+    ledger_block = _format_required_fields_status_compact(plan, state)
+    recent_files_block = _recent_file_refs(state, limit=5)
+
+    last_plan = state.get("last_plan") or _recent_thought(state) or ""
+    last_plan = _cap(last_plan, 1200)
 
     urgency = ""
     if steps_taken >= 18:
@@ -371,48 +264,30 @@ def get_reminder_research_prompt(
     elif steps_taken >= 12:
         urgency = "Urgency: MED — prioritize direct evidence for missing requiredFields."
 
-    return f"""Research loop reminder.
+    return f"""
+RESEARCH REMINDER (tool-calling loop)
 
 Date: {current_date}
 Bundle: {bundle_id} | Run: {run_id} | Direction: {direction_type} | Step: {steps_taken}
 Objective: {objective}
-requiredFields: {required_fields_text}
+Targets: {targets_text}
+{focus_line}
 {urgency}
 
-Recent files (do not duplicate; edit/extend if needed):
+Progress ledger (update via think_tool; this is the source of truth):
+{ledger_block}
+
+Last plan (follow unless ledger suggests better missing fields):
+{last_plan}
+
+Recent checkpoint files (do not duplicate; extend coverage):
 {recent_files_block}
 
-Query tactics (use these to improve signal fast):
-- Field-driven: "<target> <missing requiredField>"
-- Add authority constraints: site:pubmed.ncbi.nlm.nih.gov, site:clinicaltrials.gov, site:nih.gov, filetype:pdf
-- Add evidence terms: "systematic review", "meta-analysis", "randomized trial", "adverse events", "contraindications"
-- Add disambiguation: synonyms / aliases / brand names / affiliation
-- Stop quickly: after 2 searches without better evidence, change strategy or pivot fields
+Guardrails:
+- Default workflow: tavily_search_research(advanced) → tavily_extract_research(query=missing_fields) → agent_write_file(checkpoint).
+- Write a checkpoint after every 2–3 web calls OR once you can substantiate ≥1 requiredField.
+- One checkpoint file MAY cover MULTIPLE requiredFields when evidence overlaps.
+- If unsure what to do next: think_tool(entity, required_fields=[...], next_actions=[...]) then execute.
 
-Tool quick reference:
-- think_tool(reflection)
-- wiki_tool(query)
-- tavily_search_research(query, max_results=5, search_depth="basic|advanced", topic="general|news|finance")
-- tavily_extract_research(urls=[...], query=None, chunks_per_source=3, extract_depth="basic|advanced")
-- tavily_map_research(url, instructions=None, max_depth=1, limit=25)
-- agent_write_file(filename, content, description, bundle_id, entity_key)
-- agent_read_file(filename)
-- agent_edit_file(filename, find_text, replace_text, count=-1)
-- agent_list_outputs()
-
-Decision points (pick ONE and act now):
-1) Write a checkpoint report:
-   - If you can cover any requiredFields with evidence, write a plain-text sectioned report now.
-2) Think/refocus:
-   - If you’re unsure what’s missing or what to do next, run think_tool and choose the next 1–3 actions.
-3) Gather targeted evidence:
-   - If specific requiredFields are missing, do the smallest possible search/extract to fill them, then write a checkpoint.
-4) Conclude/finalize:
-   - If most/all requiredFields are satisfied:
-     a) call agent_list_outputs()
-     b) confirm which requiredFields are covered
-     c) confirm which files you produced (paths + descriptions)
-     d) respond with a final confirmation message
-5) Pivot away from an unfruitful thread:
-   - If repeated searches/extracts aren’t improving evidence, stop that line and pivot to a different missing requiredField.
-"""
+NEXT STEP: Either write a checkpoint now from existing evidence, or run search→extract for the next missing field(s).
+""".strip()
