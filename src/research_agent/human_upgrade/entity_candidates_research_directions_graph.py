@@ -159,7 +159,7 @@ async def seed_extraction_node(state: EntityIntelCandidateAndResearchDirectionsS
 
 
 async def candidate_sources_node(state: EntityIntelCandidateAndResearchDirectionsState) -> EntityIntelCandidateAndResearchDirectionsState:
-    seed_extraction: SeedExtraction = state.get("seed_extraction")
+    seed_extraction: SeedExtraction | None = state.get("seed_extraction", None)
     if seed_extraction is None:
         logger.error("❌ seed_extraction is None in candidate_sources_node")
         raise ValueError("seed_extraction is required but was not found in state")
@@ -291,13 +291,6 @@ async def generate_research_directions_node(state: EntityIntelCandidateAndResear
     return {
         "research_directions": compiled_bundles_list,
     }
-
-
-
-
-
-
-
 
 
 # ============================================================================

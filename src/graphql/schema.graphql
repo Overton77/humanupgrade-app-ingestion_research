@@ -49,7 +49,8 @@ enum SeedDirectionType {
   Product
   Compound
   Platform
-  CaseStudy
+  CaseStudy 
+  Person 
 }
 
 enum SeedFileRefKind {
@@ -461,6 +462,7 @@ input BusinessOwnerNestedInput {
   role: String
   bio: String
   mediaLinks: [MediaLinkInput!]
+  seed: SeedProvenanceUpsertInput
 }
 
 input BusinessProductNestedInput {
@@ -522,6 +524,7 @@ input BusinessExecutiveNestedInput {
   title: String
   role: String
   mediaLinks: [MediaLinkInput!]
+  seed: SeedProvenanceUpsertInput
 }
 
 input BusinessUpsertRelationFieldsInput {
@@ -587,6 +590,7 @@ input ProductCompoundNestedInput {
   description: String
   aliases: [String!]
   mediaLinks: [MediaLinkInput!]
+  seed: SeedProvenanceUpsertInput
 }
 
 input ProductProtocolNestedInput {

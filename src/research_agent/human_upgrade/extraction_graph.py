@@ -31,7 +31,10 @@ from research_agent.human_upgrade.prompts.entity_extraction_prompts import (
     PRODUCT_COMPOUND_PROMPT,
 )
 from research_agent.clients.graphql_client import make_client_from_env
-from research_agent.human_upgrade.utils.graphql_seeding import seed_from_extraction_output
+from research_agent.human_upgrade.utils.graphql_seeding import (
+    seed_from_extraction_output,
+    build_seed_provenance,
+)
 
 
 # ----------------------------
@@ -109,6 +112,20 @@ async def join_reports_text_from_mongo_paths(reports: List[FileReference]) -> st
 
 
 def _safe_get(d: Dict[str, Any], path: List[str]) -> Any:
+    """
+    Safely navigate nested dictionaries by a list of keys.
+    
+    Example:
+        _safe_get(doc, ["a", "b", "c"]) is equivalent to doc["a"]["b"]["c"]
+        but returns None if any intermediate key is missing or not a dict.
+    
+    Args:
+        d: The dictionary to navigate
+        path: List of keys to follow (e.g., ["payload", "connectedBundle", "connected"])
+    
+    Returns:
+        The value at the nested path, or None if any key is missing or intermediate value is not a dict
+    """
     cur: Any = d
     for k in path:
         if not isinstance(cur, dict):
@@ -118,6 +135,15 @@ def _safe_get(d: Dict[str, Any], path: List[str]) -> Any:
 
 
 def _parse_final_reports_from_plan_doc(plan_doc: Dict[str, Any]) -> List[FileReference]:
+    """
+    Extract finalReports from plan_doc.execution.finalReports.
+    
+    The MongoDB document structure is:
+        plan_doc["execution"]["finalReports"] -> List[FileReference dicts]
+    
+    Returns empty list if execution or finalReports is missing.
+    """
+    # Navigate: plan_doc -> execution -> finalReports
     raw = _safe_get(plan_doc, ["execution", "finalReports"]) or []
     out: List[FileReference] = []
     if not isinstance(raw, list):
@@ -134,7 +160,18 @@ def _parse_final_reports_from_plan_doc(plan_doc: Dict[str, Any]) -> List[FileRef
 
 
 def _extract_connected_bundle_connected(candidate_run_doc: Dict[str, Any]) -> Any:
-    # candidate_run_doc.payload.connectedBundle.connected
+    """
+    Extract the connected bundle array from candidate_run_doc.
+    
+    The MongoDB document structure is:
+        candidate_run_doc["payload"]["connectedBundle"]["connected"] -> List[ConnectedNode dicts]
+    
+    This is the array of connected nodes (guest + businesses + products + compounds + platforms)
+    that was created by the entity candidates research directions graph.
+    
+    Returns None if any part of the path is missing.
+    """
+    # Navigate: candidate_run_doc -> payload -> connectedBundle -> connected
     connected = _safe_get(candidate_run_doc, ["payload", "connectedBundle", "connected"])
     return connected
 
@@ -170,17 +207,25 @@ async def load_docs_node(state: StructuredSeedState) -> StructuredSeedState:
         errors.append(f"Candidate run not found for runId={run_id}")
         return {"errors": errors}
 
+    # Extract bundleId (can be at top level or in directions.bundleId)
     bundle_id = plan_doc.get("bundleId") or (plan_doc.get("directions") or {}).get("bundleId") or ""
     if not bundle_id:
         errors.append(f"bundleId missing on planId={plan_id}")
 
+    # Extract finalReports from plan_doc.execution.finalReports
+    # These are the synthesized research reports for each direction (GUEST, BUSINESS, PRODUCT, COMPOUND, PLATFORM)
     final_reports = _parse_final_reports_from_plan_doc(plan_doc)
     if not final_reports:
         errors.append(f"No execution.finalReports found on planId={plan_id}")
 
+    # Extract connected bundle from candidate_run_doc.payload.connectedBundle.connected
+    # This is the original connected bundle structure with guest, businesses, products, compounds, platforms
+    # It's needed to provide context to the extraction agents
     connected_bundle_connected = _extract_connected_bundle_connected(cand_doc)
     if connected_bundle_connected is None:
         errors.append(f"payload.connectedBundle.connected missing on candidate runId={run_id}")
+    elif not isinstance(connected_bundle_connected, list):
+        errors.append(f"payload.connectedBundle.connected is not a list on candidate runId={run_id}")
 
     return {
         "plan_doc": plan_doc,
@@ -259,7 +304,22 @@ async def extract_guest_business_node(
     state: StructuredSeedState,
     config: RunnableConfig,
 ) -> StructuredSeedState:
+    """
+    Extract guest and business entities from the connected bundle and final reports.
+    
+    Inputs:
+        - connected_bundle_connected: The original connected bundle structure (List[ConnectedNode])
+        - guest_report_text: Text from final GUEST report
+        - business_report_text: Text from final BUSINESS report
+    
+    Output:
+        - guest_business_extraction: Structured extraction with guest and business data
+    """
     connected = state.get("connected_bundle_connected")
+    # connected is a List[ConnectedNode] where each node has:
+    #   - guest: EntityRef
+    #   - businesses: List[BusinessBundle] (each with business, products, platforms)
+    #   - notes: Optional[str]
     connected_bundle_json = json.dumps(connected or [], ensure_ascii=False, indent=2)
 
     prompt = GUEST_BUSINESS_PROMPT.format(
@@ -301,7 +361,20 @@ async def extract_product_compound_node(
     state: StructuredSeedState,
     config: RunnableConfig,
 ) -> StructuredSeedState:
+    """
+    Extract product and compound entities from the connected bundle and final reports.
+    
+    Inputs:
+        - connected_bundle_connected: The original connected bundle structure (List[ConnectedNode])
+        - product_compound_report_text: Text from final PRODUCT and COMPOUND reports
+    
+    Output:
+        - product_compound_extraction: Structured extraction with products, compounds, and links
+    """
     connected = state.get("connected_bundle_connected")
+    # connected is a List[ConnectedNode] where each node has:
+    #   - businesses: List[BusinessBundle] (each with products containing compounds)
+    #   The products are nested under businesses, and compounds are nested under products
     connected_bundle_json = json.dumps(connected or [], ensure_ascii=False, indent=2)
 
     prompt = PRODUCT_COMPOUND_PROMPT.format(
@@ -356,7 +429,7 @@ async def finalize_structured_seed(state: StructuredSeedState) -> StructuredSeed
         errors.append("Missing product_compound_extraction in state")
         return {"errors": errors}
     
-    # Get episode URL from plan_doc
+    # Get episode URL from plan_doc (top-level field: episodeUrl)
     episode_url = plan_doc.get("episodeUrl")
     if not episode_url:
         errors.append("Missing episodeUrl in plan_doc")
@@ -365,6 +438,42 @@ async def finalize_structured_seed(state: StructuredSeedState) -> StructuredSeed
     # Get business name for lookup (optional)
     business_data = guest_business_extraction.get("business", {})
     business_name = business_data.get("canonical_name")
+    
+    # Extract seed provenance metadata from state
+    plan_id = state.get("plan_id")
+    if not plan_id:
+        errors.append("Missing plan_id in state (required for seed provenance)")
+        return {"errors": errors}
+    
+    bundle_id = state.get("bundle_id")
+    run_id = state.get("run_id")
+    final_reports = state.get("final_reports", [])
+    
+    # Get execution metadata from plan_doc
+    execution = plan_doc.get("execution", {})
+    execution_run_id = execution.get("executionRunId")
+    pipeline_version = plan_doc.get("pipelineVersion")
+    episode_id = plan_doc.get("episodeId")
+    
+    # Build seed provenance (base version, direction_type will be set per entity type)
+    # Note: plan_id is required, other fields are optional
+    try:
+        seed_provenance = build_seed_provenance(
+            plan_id=plan_id,
+            bundle_id=bundle_id,
+            run_id=run_id,
+            execution_run_id=execution_run_id,
+            pipeline_version=pipeline_version,
+            episode_id=episode_id,
+            episode_url=episode_url,
+            final_reports=final_reports,
+        )
+        logger.info(f"✅ Built seed provenance: planId={plan_id}, bundleId={bundle_id}, runId={run_id}")
+    except Exception as e:
+        error_msg = f"Failed to build seed provenance: {e}"
+        logger.exception(error_msg)
+        errors.append(error_msg)
+        return {"errors": errors}
     
     # Create GraphQL client
     client = make_client_from_env()
@@ -377,6 +486,7 @@ async def finalize_structured_seed(state: StructuredSeedState) -> StructuredSeed
             product_compound_extraction=product_compound_extraction,
             episode_url=episode_url,
             business_name=business_name,
+            seed_provenance=seed_provenance,
         )
         
         logger.info(f"✅ Seeding complete: business_id={seeding_result.get('business', {}).get('business_id')}")

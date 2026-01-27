@@ -243,6 +243,7 @@ class BusinessOwnerNestedInput(BaseModel):
     media_links: Optional[list["MediaLinkInput"]] = Field(
         alias="mediaLinks", default=None
     )
+    seed: Optional["SeedProvenanceUpsertInput"] = None
 
 
 class BusinessProductNestedInput(BaseModel):
@@ -314,6 +315,7 @@ class BusinessExecutiveNestedInput(BaseModel):
     media_links: Optional[list["MediaLinkInput"]] = Field(
         alias="mediaLinks", default=None
     )
+    seed: Optional["SeedProvenanceUpsertInput"] = None
 
 
 class BusinessUpsertRelationFieldsInput(BaseModel):
@@ -394,6 +396,7 @@ class ProductCompoundNestedInput(BaseModel):
     media_links: Optional[list["MediaLinkInput"]] = Field(
         alias="mediaLinks", default=None
     )
+    seed: Optional["SeedProvenanceUpsertInput"] = None
 
 
 class ProductProtocolNestedInput(BaseModel):

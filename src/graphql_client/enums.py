@@ -54,6 +54,7 @@ class SeedDirectionType(str, Enum):
     Compound = "Compound"
     Platform = "Platform"
     CaseStudy = "CaseStudy"
+    Person = "Person"
 
 
 class SeedFileRefKind(str, Enum):

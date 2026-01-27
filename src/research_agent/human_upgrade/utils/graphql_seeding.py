@@ -6,6 +6,7 @@ to upsert businesses, products, compounds, and update episodes.
 """
 
 from typing import Any, Dict, List, Optional
+from datetime import datetime, timezone
 from graphql_client.client import Client
 from graphql_client.input_types import (
     BusinessUpsertRelationFieldsInput,
@@ -16,8 +17,94 @@ from graphql_client.input_types import (
     ProductCompoundNestedInput,
     EpisodeUpdateRelationFieldsInput,
     MediaLinkInput,
+    SeedProvenanceUpsertInput,
+    SeedFileRefInput,
 )
+from graphql_client.enums import SeedFileRefKind, SeedDirectionType
 from research_agent.clients.graphql_client import make_client_from_env
+
+
+def build_seed_provenance(
+    *,
+    plan_id: str,
+    bundle_id: Optional[str] = None,
+    run_id: Optional[str] = None,
+    execution_run_id: Optional[str] = None,
+    pipeline_version: Optional[str] = None,
+    episode_id: Optional[str] = None,
+    episode_url: Optional[str] = None,
+    direction_type: Optional[str] = None,
+    final_reports: Optional[List[Any]] = None,
+) -> SeedProvenanceUpsertInput:
+    """
+    Build a SeedProvenanceUpsertInput from extraction graph state.
+    
+    Args:
+        plan_id: Required plan ID from intel_research_plans
+        bundle_id: Bundle ID from the research plan
+        run_id: Run ID from intel_candidate_runs
+        execution_run_id: Execution run ID from plan execution metadata
+        pipeline_version: Pipeline version string
+        episode_id: Episode ID (ObjectId as string)
+        episode_url: Episode URL
+        direction_type: Direction type (Guest, Business, Product, Compound, Platform)
+        final_reports: List of FileReference objects to convert to source file refs
+    
+    Returns:
+        SeedProvenanceUpsertInput ready to be passed to entity upsert operations
+    """
+    # Convert final_reports to SeedFileRefInput
+    source: Optional[List[SeedFileRefInput]] = None
+    if final_reports:
+        source = []
+        for report in final_reports:
+            # Handle both FileReference objects and dicts
+            file_path = getattr(report, "file_path", None) or (report.get("file_path") if isinstance(report, dict) else None)
+            if file_path:
+                # Determine kind based on file path or entity_key
+                kind = SeedFileRefKind.final_report
+                entity_key = getattr(report, "entity_key", None) or (report.get("entity_key") if isinstance(report, dict) else None)
+                if entity_key and "checkpoint" in entity_key.lower():
+                    kind = SeedFileRefKind.checkpoint
+                elif "merged" in file_path.lower() or "seed" in file_path.lower():
+                    kind = SeedFileRefKind.merged_seed_doc
+                
+                source.append(
+                    SeedFileRefInput(
+                        file_path=file_path,
+                        kind=kind,
+                    )
+                )
+    
+    # Map direction_type string to enum if needed
+    direction_type_enum = None
+    if direction_type:
+        # Normalize to match enum values (capitalize first letter)
+        direction_type_normalized = direction_type.capitalize()
+        # Map to enum
+        direction_map = {
+            "Guest": SeedDirectionType.Guest,
+            "Business": SeedDirectionType.Business,
+            "Product": SeedDirectionType.Product,
+            "Compound": SeedDirectionType.Compound,
+            "Platform": SeedDirectionType.Platform,
+            "Casestudy": SeedDirectionType.CaseStudy,
+        }
+        direction_type_enum = direction_map.get(direction_type_normalized)
+    
+    return SeedProvenanceUpsertInput(
+        plan_id=plan_id,
+        bundle_id=bundle_id,
+        run_id=run_id,
+        execution_run_id=execution_run_id,
+        pipeline_version=pipeline_version,
+        episode_id=episode_id,
+        episode_url=episode_url,
+        direction_type=direction_type_enum,
+        source=source,
+        seeded_at=datetime.now(timezone.utc),
+        seeded_by="human-upgrade-research-agent",
+    )
 
 
 def _convert_media_links(media_links: Optional[List[Dict[str, Any]]]) -> List[MediaLinkInput]:
@@ -48,6 +135,7 @@ async def upsert_business_with_relations(
     *,
     business_id: Optional[str] = None,
     business_name: Optional[str] = None,
+    seed: Optional[SeedProvenanceUpsertInput] = None,
 ) -> Dict[str, Any]:
     """
     Upsert a Business with executives (no owners - that feature will be added later).
@@ -66,6 +154,24 @@ async def upsert_business_with_relations(
     executives_nested: Optional[List[BusinessExecutiveNestedInput]] = None
     if people_data:
         executives_nested = []
+        
+        # Create Person seed provenance if business seed is provided
+        person_seed = None
+        if seed:
+            person_seed = SeedProvenanceUpsertInput(
+                plan_id=seed.plan_id,
+                bundle_id=seed.bundle_id,
+                run_id=seed.run_id,
+                execution_run_id=seed.execution_run_id,
+                pipeline_version=seed.pipeline_version,
+                episode_id=seed.episode_id,
+                episode_url=seed.episode_url,
+                direction_type=SeedDirectionType.Guest,  # Executives are guests
+                source=seed.source,
+                seeded_at=seed.seeded_at,
+                seeded_by=seed.seeded_by,
+            )
+        
         for person in people_data:
             if not person.get("canonical_name"):
                 continue
@@ -82,6 +188,10 @@ async def upsert_business_with_relations(
             exec_media_links = _convert_media_links(person.get("media_links"))
             if exec_media_links:
                 exec_input_dict["media_links"] = exec_media_links
+            
+            # Add seed provenance to executive (Person) if provided
+            if person_seed:
+                exec_input_dict["seed"] = person_seed
             
             executives_nested.append(BusinessExecutiveNestedInput(**exec_input_dict))
     
@@ -116,6 +226,10 @@ async def upsert_business_with_relations(
     if business_id is not None:
         business_input_dict["id"] = business_id
     
+    # Add seed provenance if provided
+    if seed:
+        business_input_dict["seed"] = seed
+    
     business_input = BusinessUpsertRelationFieldsInput(**business_input_dict)
     
     # Execute mutation
@@ -128,12 +242,14 @@ async def upsert_business_with_relations(
     business = result.upsert_business_with_relations
     
     # Extract IDs for return
+    executive_ids = [
+        exec.person.id for exec in (business.executives or [])
+    ]
+    
     return {
         "business_id": business.id,
         "business_name": business.name,
-        "executive_ids": [
-            exec.person.id for exec in (business.executives or [])
-        ],
+        "executive_ids": executive_ids,
     }
 
 
@@ -143,6 +259,9 @@ async def upsert_products_with_compounds(
     compounds_data: List[Dict[str, Any]],
     product_compound_links: List[Dict[str, Any]],
     business_id: str,
+    *,
+    product_seed: Optional[SeedProvenanceUpsertInput] = None,
+    compound_seed: Optional[SeedProvenanceUpsertInput] = None,
 ) -> List[Dict[str, Any]]:
     """
     Upsert Products with their associated Compounds.
@@ -200,6 +319,10 @@ async def upsert_products_with_compounds(
                     if compound_media_links:
                         compound_input_dict["media_links"] = compound_media_links
                     
+                    # Add seed provenance to compound if provided
+                    if compound_seed:
+                        compound_input_dict["seed"] = compound_seed
+                    
                     compounds_nested.append(ProductCompoundNestedInput(**compound_input_dict))
         
         # Convert price from string to float if needed
@@ -237,6 +360,10 @@ async def upsert_products_with_compounds(
         
         if compounds_nested:
             product_input_dict["compounds_nested"] = compounds_nested
+        
+        # Add seed provenance to product if provided
+        if product_seed:
+            product_input_dict["seed"] = product_seed
         
         product_input = ProductUpsertRelationFieldsInput(**product_input_dict)
         
@@ -354,6 +481,7 @@ async def seed_from_extraction_output(
     episode_url: Optional[str] = None,
     business_id: Optional[str] = None,
     business_name: Optional[str] = None,
+    seed_provenance: Optional[SeedProvenanceUpsertInput] = None,
 ) -> Dict[str, Any]:
     """
     Complete seeding workflow: upsert business, products, compounds, and update episode.
@@ -382,21 +510,72 @@ async def seed_from_extraction_output(
     product_compound_links = product_compound_extraction.get("product_compound_links", [])
     
     # Step 1: Upsert business with executives (no owners for now)
+    # Use seed provenance with direction_type="Business" for business
+    business_seed = None
+    if seed_provenance:
+        business_seed = SeedProvenanceUpsertInput(
+            plan_id=seed_provenance.plan_id,
+            bundle_id=seed_provenance.bundle_id,
+            run_id=seed_provenance.run_id,
+            execution_run_id=seed_provenance.execution_run_id,
+            pipeline_version=seed_provenance.pipeline_version,
+            episode_id=seed_provenance.episode_id,
+            episode_url=seed_provenance.episode_url,
+            direction_type=SeedDirectionType.Business,
+            source=seed_provenance.source,
+            seeded_at=seed_provenance.seeded_at,
+            seeded_by=seed_provenance.seeded_by,
+        )
+    
     business_result = await upsert_business_with_relations(
         client=client,
         business_data=business_data,
         people_data=people_data,
         business_id=business_id,
         business_name=business_name,
+        seed=business_seed,
     )
     
     # Step 2: Upsert products with compounds
+    # Use seed provenance with direction_type="Product" for products and "Compound" for compounds
+    product_seed = None
+    compound_seed = None
+    if seed_provenance:
+        product_seed = SeedProvenanceUpsertInput(
+            plan_id=seed_provenance.plan_id,
+            bundle_id=seed_provenance.bundle_id,
+            run_id=seed_provenance.run_id,
+            execution_run_id=seed_provenance.execution_run_id,
+            pipeline_version=seed_provenance.pipeline_version,
+            episode_id=seed_provenance.episode_id,
+            episode_url=seed_provenance.episode_url,
+            direction_type=SeedDirectionType.Product,
+            source=seed_provenance.source,
+            seeded_at=seed_provenance.seeded_at,
+            seeded_by=seed_provenance.seeded_by,
+        )
+        compound_seed = SeedProvenanceUpsertInput(
+            plan_id=seed_provenance.plan_id,
+            bundle_id=seed_provenance.bundle_id,
+            run_id=seed_provenance.run_id,
+            execution_run_id=seed_provenance.execution_run_id,
+            pipeline_version=seed_provenance.pipeline_version,
+            episode_id=seed_provenance.episode_id,
+            episode_url=seed_provenance.episode_url,
+            direction_type=SeedDirectionType.Compound,
+            source=seed_provenance.source,
+            seeded_at=seed_provenance.seeded_at,
+            seeded_by=seed_provenance.seeded_by,
+        )
+    
     products_result = await upsert_products_with_compounds(
         client=client,
         products_data=products_data,
         compounds_data=compounds_data,
         product_compound_links=product_compound_links,
         business_id=business_result["business_id"],
+        product_seed=product_seed,
+        compound_seed=compound_seed,
     )
     
     # Step 3: Update episode with guest
