@@ -1,100 +1,89 @@
 from typing import Literal, Union, List, Dict, Any, Optional
 from tavily import AsyncTavilyClient  
 from datetime import datetime  
-import asyncio 
+import asyncio   
+
+
 
 async def tavily_search(
     client: AsyncTavilyClient,
     query: str,
-    max_results: int = 5,  
-
+    max_results: int = 5,
     search_depth: Literal["basic", "advanced"] = "basic",
     topic: Optional[Literal["general", "news", "finance"]] = None,
     include_images: bool = False,
-    include_raw_content: bool | Literal["markdown", "text"] = False, 
-    start_date: Optional[str] = None,  
-    end_date: Optional[str] = None, 
+    include_raw_content: bool | Literal["markdown", "text"] = False,
+    include_domains: Optional[List[str]] = None,
+    exclude_domains: Optional[List[str]] = None,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """
-    Async wrapper around Tavily's search method.
+    if not isinstance(query, str) or not query.strip():
+        raise ValueError("tavily_search: query must be non-empty")
 
-    Args:
-        query: Natural-language search query.
-        max_results: Max number of results to return.
-        search_depth: 'basic' (faster, fewer pages) or 'advanced' (more thorough).
-        topic: Optional topic hint for Tavily (e.g., 'news', 'academic').
-        include_answer: Whether Tavily should include its own synthesized answer.
-        include_images: Whether to include image results.
-        include_raw_content: Whether to include raw page text content.
-        include_domains: If set, focus search on these domains (whitelist).
-        exclude_domains: If set, avoid these domains (blacklist).
-        start_date: Optional start date for search.
-        end_date: Optional end date for search.
-    Returns:
-        A dict with Tavily's response (answer, results, etc.).
-    """
-   
+    # NOTE: explicit keyword args only; only pass domain args if not None
+    if include_domains is not None or exclude_domains is not None:
+        return await client.search(
+            query=query,
+            max_results=max_results,
+            search_depth=search_depth,
+            topic=topic,
+            include_images=include_images,
+            include_raw_content=include_raw_content,
+            include_domains=include_domains,
+            exclude_domains=exclude_domains,
+            start_date=start_date,
+            end_date=end_date,
+        )
 
-    # Tavily async client uses `search` as well, just awaited.
-    result = await client.search( 
-
+    return await client.search(
         query=query,
         max_results=max_results,
         search_depth=search_depth,
         topic=topic,
         include_images=include_images,
         include_raw_content=include_raw_content,
-      
         start_date=start_date,
         end_date=end_date,
     )
-    return result  
 
 async def tavily_search_multiple(
     client: AsyncTavilyClient,
     queries: List[str],
-    max_results: int = 5,  
-
+    max_results: int = 5,
     search_depth: Literal["basic", "advanced"] = "basic",
     topic: Optional[Literal["general", "news", "finance"]] = None,
     include_images: bool = False,
     include_raw_content: bool | Literal["markdown", "text"] = False,
     include_domains: Optional[List[str]] = None,
-    exclude_domains: Optional[List[str]] = None, 
-    start_date: Optional[str] = None,  
-    end_date: Optional[str] = None, 
-) -> Dict[str, Any]:
-    """
-    Async wrapper around Tavily's search method.
+    exclude_domains: Optional[List[str]] = None,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    concurrency: int = 5,
+) -> List[Dict[str, Any]]:
+    sem = asyncio.Semaphore(concurrency)
 
-    Args:
-        client: An initialized AsyncTavilyClient instance.
-        query: Natural-language search query.
-        max_results: Max number of results to return.
-        search_depth: 'basic' (faster, fewer pages) or 'advanced' (more thorough).
-        topic: Optional topic hint for Tavily (e.g., 'news', 'academic').
-        include_answer: Whether Tavily should include its own synthesized answer.
-        include_images: Whether to include image results.
-        include_raw_content: Whether to include raw page text content.
-        include_domains: If set, focus search on these domains (whitelist).
-        exclude_domains: If set, avoid these domains (blacklist).
+    async def _one(q: str) -> Dict[str, Any]:
+        async with sem:
+            res = await tavily_search(
+                client=client,
+                query=q,
+                max_results=max_results,
+                search_depth=search_depth,
+                topic=topic,
+                include_images=include_images,
+                include_raw_content=include_raw_content,
+                include_domains=include_domains,
+                exclude_domains=exclude_domains,
+                start_date=start_date,
+                end_date=end_date,
+            )
+            # preserve query
+            res["__query"] = q
+            return res
 
-    Returns:
-        A dict with Tavily's response (answer, results, etc.).
-    """
-   
-
-    # Tavily async client uses `search` as well, just awaited.   
-     
-
-    results = await asyncio.gather(*[client.search(query=query, max_results=max_results, search_depth=search_depth, topic=topic, include_images=include_images, include_raw_content=include_raw_content, 
-     include_domains=include_domains, exclude_domains=exclude_domains, start_date=start_date, end_date=end_date) for query in queries])
- 
-
-
-   
-    return results 
-
+    cleaned = [q.strip() for q in queries if isinstance(q, str) and q.strip()]
+    return await asyncio.gather(*[_one(q) for q in cleaned])
 
 def format_tavily_search_response(
     response: Dict[str, Any] | List[Dict[str, Any]],
@@ -218,36 +207,18 @@ async def tavily_extract(
     client: AsyncTavilyClient,
     urls: Union[str, List[str]],
     query: Optional[str] = None,
-    chunks_per_source: int = None,
+    chunks_per_source: int = 3,
     extract_depth: Literal["basic", "advanced"] = "basic",
     include_images: bool = False,
     include_favicon: bool = False,
     format: Literal["markdown", "text"] = "markdown",
 ) -> Dict[str, Any]:
-    """
-    Async wrapper around Tavily's extract method.
-
-    ✅ No **kwargs dict passed into the SDK (avoids Tavily SDK signature issues).
-    ✅ Only passes chunks_per_source when query is provided.
-    ✅ Normalizes urls to List[str].
-
-    Works with tavily-python>=0.7.13
-    """
-
-    # Normalize urls → List[str]
-    urls_list: List[str]
-    if isinstance(urls, str):
-        urls_list = [urls]
-    else:
-        urls_list = urls
-
-    # Remove empties / invalids
+    urls_list = [urls] if isinstance(urls, str) else list(urls or [])
     urls_list = [u for u in urls_list if isinstance(u, str) and u.strip()]
     if not urls_list:
         raise ValueError("tavily_extract: urls must contain at least one valid URL.")
 
-    # Pass only supported args, explicitly (like search)
-    if query:
+    if query and query.strip():
         return await client.extract(
             urls=urls_list,
             query=query,
@@ -258,7 +229,6 @@ async def tavily_extract(
             format=format,
         )
 
-    # query is None → do NOT pass query/chunks_per_source
     return await client.extract(
         urls=urls_list,
         extract_depth=extract_depth,
@@ -266,7 +236,6 @@ async def tavily_extract(
         include_favicon=include_favicon,
         format=format,
     )
-
 
 async def tavily_map(
     client: AsyncTavilyClient,

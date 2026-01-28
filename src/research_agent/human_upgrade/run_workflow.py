@@ -113,7 +113,7 @@ EPISODE_URLS= [
 
 ]  
 
-test_run_episode = "https://daveasprey.com/1296-qualia-greg-kelly/"
+test_run_episode = "https://daveasprey.com/1301-ewot/"
 
 
 
@@ -382,7 +382,7 @@ async def run_full_entity_intel_workflow(
 if __name__ == "__main__":
  
 
-    final_state = asyncio.run(run_entity_intel_directions_only("https://daveasprey.com/1353-vinia-bioharvest/"), loop_factory=make_selector_loop)  
+    final_state = asyncio.run(run_entity_intel_directions_only(test_run_episode), loop_factory=make_selector_loop)  
 
  
 

@@ -22,7 +22,9 @@ from research_agent.human_upgrade.structured_outputs.research_direction_outputs 
 from research_agent.human_upgrade.structured_outputs.candidates_outputs import ( 
  
     CandidateSourcesConnected,
-   SeedExtraction,
+    OfficialStarterSources,
+    SeedExtraction,
+    DomainCatalogSet,
 )   
 from langchain_core.runnables import RunnableConfig
 from langchain.tools import BaseTool 
@@ -30,7 +32,9 @@ from langchain.tools import BaseTool
 from research_agent.human_upgrade.logger import logger
 from research_agent.human_upgrade.utils.artifacts import save_json_artifact, save_text_artifact 
 from research_agent.human_upgrade.prompts.seed_prompts import PROMPT_OUTPUT_A_SEED_EXTRACTION
-from research_agent.human_upgrade.prompts.candidates_prompts import PROMPT_OUTPUT_A2_CONNECTED_CANDIDATE_SOURCES
+from research_agent.human_upgrade.prompts.candidates_prompts import ( 
+    PROMPT_OUTPUT_A2_CONNECTED_CANDIDATE_SOURCES, PROMPT_NODE_A_OFFICIAL_STARTER_SOURCES, PROMPT_NODE_B_DOMAIN_CATALOGS 
+    )
 from research_agent.human_upgrade.prompts.research_directions_prompts import PROMPT_OUTPUT_A3_ENTITY_RESEARCH_DIRECTIONS
 from research_agent.clients.langsmith_client import pull_prompt_from_langsmith 
 from research_agent.human_upgrade.tools.web_search_tools import (
@@ -45,6 +49,7 @@ from research_agent.human_upgrade.utils.formatting import format_seed_extraction
 from research_agent.human_upgrade.intel_mongo_nodes import ( 
     persist_candidates_node, 
     persist_research_plans_node,
+    persist_domain_catalogs_node,
 )
 
 from research_agent.human_upgrade.base_models import gpt_4_1, gpt_5_mini, gpt_5_nano, gpt_5  
@@ -93,9 +98,13 @@ class EntityIntelCandidateAndResearchDirectionsState(TypedDict, total=False):
     dedupe_group_map: Dict[str, str]         # entityKey -> dedupeGroupId
 
     # Outputs from persist_research_plans_node
-    research_plan_ids: List[str]             # planId values inserted
+    research_plan_ids: List[str]    
+    
+    official_starter_sources: OfficialStarterSources          
+    domain_catalogs: DomainCatalogSet  
+    domain_catalog_set_id: str
+    domain_catalog_extracted_at: datetime | str 
 
-    # Optional: error capture if you want
     error: str
 
     steps_taken: int
@@ -111,7 +120,23 @@ VALIDATION_TOOLS: List[BaseTool] = [
 ]
 
 
+OFFICIAL_STARTER_TOOLS = [
+    tavily_search_validation,
+    tavily_extract_validation,  
+    wiki_tool,                 
+]
 
+DOMAIN_CATALOG_TOOLS = [
+    tavily_map_validation,
+    tavily_extract_validation,  
+] 
+
+CONNECTED_TOOLS = [
+        wiki_tool,
+        tavily_search_validation,  # fallback only 
+        tavily_extract_validation,  # primary
+        # tavily_map_validation,    # intentionally omitted in Node C
+    ]
 
 async def seed_extraction_node(state: EntityIntelCandidateAndResearchDirectionsState) -> EntityIntelCandidateAndResearchDirectionsState:  
     episode: Dict[str, Any] = state.get("episode", {})
@@ -145,12 +170,11 @@ async def seed_extraction_node(state: EntityIntelCandidateAndResearchDirectionsS
     seed_extraction_output: SeedExtraction = response["structured_response"]
     
     logger.info(
-        "✅ Seed extraction complete: guests=%s businesses=%s products=%s compounds=%s platforms=%s",
+        "✅ Seed extraction complete: guests=%s businesses=%s products=%s compounds=%s",
         len(seed_extraction_output.guest_candidates) if seed_extraction_output.guest_candidates else 0,
         len(seed_extraction_output.business_candidates) if seed_extraction_output.business_candidates else 0,
         len(seed_extraction_output.product_candidates) if seed_extraction_output.product_candidates else 0,
         len(seed_extraction_output.compound_candidates) if seed_extraction_output.compound_candidates else 0,
-        len(seed_extraction_output.platform_candidates) if seed_extraction_output.platform_candidates else 0,
     )
 
     return { 
@@ -158,45 +182,144 @@ async def seed_extraction_node(state: EntityIntelCandidateAndResearchDirectionsS
     }  
 
 
-async def candidate_sources_node(state: EntityIntelCandidateAndResearchDirectionsState) -> EntityIntelCandidateAndResearchDirectionsState:
-    seed_extraction: SeedExtraction | None = state.get("seed_extraction", None)
+
+
+async def official_sources_node(
+    state: EntityIntelCandidateAndResearchDirectionsState,
+) -> EntityIntelCandidateAndResearchDirectionsState:
+    seed_extraction: SeedExtraction | None = state.get("seed_extraction")
+    if seed_extraction is None:
+        raise ValueError("seed_extraction is required")
+
+    episode: Dict[str, Any] = state.get("episode", {})
+    episode_url: str = episode.get("episodePageUrl", "unknown")
+
+    formatted_fields: Dict[str, str] = format_seed_extraction_for_prompt(seed_extraction)
+
+    prompt = PROMPT_NODE_A_OFFICIAL_STARTER_SOURCES.format(
+        episode_url=episode_url,
+        guest_candidates=formatted_fields["guest_candidates"],
+        business_candidates=formatted_fields["business_candidates"],
+        product_candidates=formatted_fields["product_candidates"],
+    )
+
+    agent = create_agent(
+        gpt_5_mini,
+        tools=OFFICIAL_STARTER_TOOLS,
+        response_format=ProviderStrategy(OfficialStarterSources),
+        name="official_sources_agent",
+    )
+
+    response = await agent.ainvoke({"messages": [{"role": "user", "content": prompt}]})
+    official_sources: OfficialStarterSources = response["structured_response"]
+
+    await save_json_artifact(
+        official_sources.model_dump(),
+        "test_run",
+        "official_starter_sources",
+        suffix=episode_url.replace("/", "_")[:30],
+    )
+
+    return {"official_starter_sources": official_sources}
+
+
+async def domain_catalogs_node(
+    state: EntityIntelCandidateAndResearchDirectionsState,
+) -> EntityIntelCandidateAndResearchDirectionsState:
+    official_sources: OfficialStarterSources | None = state.get("official_starter_sources")
+    if official_sources is None:
+        raise ValueError("official_starter_sources is required for domain_catalogs_node")
+
+    episode: Dict[str, Any] = state.get("episode", {})
+    episode_url: str = episode.get("episodePageUrl", "unknown")
+
+    prompt = PROMPT_NODE_B_DOMAIN_CATALOGS.format(
+        episode_url=episode_url,
+        official_starter_sources_json=official_sources.model_dump_json(indent=2),
+    )
+
+    agent = create_agent(
+        gpt_5_mini,
+        tools=DOMAIN_CATALOG_TOOLS,
+        response_format=ProviderStrategy(DomainCatalogSet),
+        name="domain_catalogs_agent",
+    )
+
+    response = await agent.ainvoke({"messages": [{"role": "user", "content": prompt}]})
+    domain_catalogs: DomainCatalogSet = response["structured_response"]
+
+    await save_json_artifact(
+        domain_catalogs.model_dump(),
+        "test_run",
+        "domain_catalogs",
+        suffix=episode_url.replace("/", "_")[:30],
+    )
+
+    return {"domain_catalogs": domain_catalogs}
+
+
+async def candidate_sources_node(
+    state: EntityIntelCandidateAndResearchDirectionsState,
+) -> EntityIntelCandidateAndResearchDirectionsState:
+    seed_extraction: SeedExtraction | None = state.get("seed_extraction")
     if seed_extraction is None:
         logger.error("❌ seed_extraction is None in candidate_sources_node")
         raise ValueError("seed_extraction is required but was not found in state")
 
-    episode_url: str = (state.get("episode") or {}).get("episodePageUrl", "unknown")
+    official_starter_sources: OfficialStarterSources | None = state.get("official_starter_sources")
+    if official_starter_sources is None:
+        logger.error("❌ official_starter_sources is None in candidate_sources_node")
+        raise ValueError("official_starter_sources is required but was not found in state")
+
+    domain_catalogs: DomainCatalogSet | None = state.get("domain_catalogs")
+    if domain_catalogs is None:
+        logger.error("❌ domain_catalogs is None in candidate_sources_node")
+        raise ValueError("domain_catalogs is required but was not found in state")
+
+    episode: Dict[str, Any] = state.get("episode", {})
+    episode_url: str = episode.get("episodePageUrl", "unknown")
 
     logger.info(
-        "📋 Processing candidate sources: guests=%s businesses=%s products=%s",
+        "📋 Candidate sources (Node C): guests=%s businesses=%s products=%s | domains=%s catalogs=%s",
         len(seed_extraction.guest_candidates),
         len(seed_extraction.business_candidates),
         len(seed_extraction.product_candidates),
+        len(official_starter_sources.domainTargets or []),
+        len(domain_catalogs.catalogs or []),
     )
 
+    # Keep this: it provides readable seed context and helps with disambiguation
     formatted_fields: Dict[str, str] = format_seed_extraction_for_prompt(seed_extraction)
 
+    # Inject Node A + Node B artifacts into Node C prompt.
+    # These make Node C "mostly deterministic": prioritize extract from known pages.
     candidate_sources_prompt: str = PROMPT_OUTPUT_A2_CONNECTED_CANDIDATE_SOURCES.format(
         episode_url=episode_url,
         guest_candidates=formatted_fields["guest_candidates"],
         business_candidates=formatted_fields["business_candidates"],
         product_candidates=formatted_fields["product_candidates"],
-        platform_candidates=formatted_fields["platform_candidates"],
         compound_candidates=formatted_fields["compound_candidates"],
         evidence_claim_hooks=formatted_fields["evidence_claim_hooks"],
         notes=formatted_fields["notes"],
+
+        official_starter_sources_json=official_starter_sources.model_dump_json(indent=2),
+        domain_catalogs_json=domain_catalogs.model_dump_json(indent=2),
     )
+
+   
+
 
     candidate_sources_agent: CompiledStateGraph = create_agent(
         gpt_5_mini,
-        tools=VALIDATION_TOOLS,
+        tools=CONNECTED_TOOLS,
         response_format=ProviderStrategy(CandidateSourcesConnected),
-        middleware=[
-            SummarizationMiddleware(
-                model="gpt-4.1",
-                trigger=("tokens", 170000),
-                keep=("messages", 20),
-            )
-        ],
+        # middleware=[
+        #     SummarizationMiddleware(
+        #         model="gpt-4.1",
+        #         trigger=("tokens", 170000),
+        #         keep=("messages", 20),
+        #     )
+        # ],
         name="candidate_sources_agent",
     )
 
@@ -206,7 +329,10 @@ async def candidate_sources_node(state: EntityIntelCandidateAndResearchDirection
 
     candidate_sources_output: CandidateSourcesConnected = response["structured_response"]
 
-    logger.info("✅ Candidate sources complete: connected_bundles=%s", len(candidate_sources_output.connected))
+    logger.info(
+        "✅ Candidate sources complete: connected_bundles=%s",
+        len(candidate_sources_output.connected),
+    )
 
     try:
         await save_json_artifact(
@@ -221,11 +347,7 @@ async def candidate_sources_node(state: EntityIntelCandidateAndResearchDirection
             "error": str(e),
         }
 
-    # Return partial state update (LangGraph merges it)
-    return {
-        "candidate_sources": candidate_sources_output,
-    }
-
+    return {"candidate_sources": candidate_sources_output}
 
 async def generate_research_directions_node(state: EntityIntelCandidateAndResearchDirectionsState) -> EntityIntelCandidateAndResearchDirectionsState:
     """
@@ -301,12 +423,19 @@ def build_entity_research_directions_builder() -> StateGraph:
     builder: StateGraph = StateGraph(EntityIntelCandidateAndResearchDirectionsState)
 
     builder.add_node("seed_extraction", seed_extraction_node)
-    builder.add_node("candidate_sources", candidate_sources_node)
+    builder.add_node("candidate_sources", candidate_sources_node) 
+    builder.add_node("official_sources", official_sources_node)
+    builder.add_node("domain_catalogs", domain_catalogs_node)
+    builder.add_node("persist_domain_catalogs", persist_domain_catalogs_node)
     builder.add_node("generate_research_directions", generate_research_directions_node)
     builder.add_node("persist_candidates", persist_candidates_node)
     builder.add_node("persist_research_plans", persist_research_plans_node)
     builder.set_entry_point("seed_extraction")
-    builder.add_edge("seed_extraction", "candidate_sources") 
+    builder.add_edge("seed_extraction", "official_sources") 
+    builder.add_edge("official_sources", "domain_catalogs") 
+    builder.add_edge("domain_catalogs", "persist_domain_catalogs") 
+
+    builder.add_edge("persist_domain_catalogs", "candidate_sources")
     builder.add_edge("candidate_sources", "persist_candidates")  
     builder.add_edge("candidate_sources", "generate_research_directions") 
     builder.add_edge("generate_research_directions", "persist_research_plans")

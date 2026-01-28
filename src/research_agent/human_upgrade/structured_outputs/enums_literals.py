@@ -1,7 +1,7 @@
 from enum import Enum
 from typing import Literal 
 
-DirectionType = Literal["GUEST", "BUSINESS", "PRODUCT", "COMPOUND", "PLATFORM"]
+DirectionType = Literal["GUEST", "BUSINESS", "PRODUCT", "COMPOUND"]
 
 class SourceType(str, Enum):
     """Types of sources that can provide evidence for extracted entities."""

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import uuid
 from typing import Any, Dict, List
-
+from datetime import datetime
 from research_agent.human_upgrade.logger import logger
 
 # Your DB singleton
@@ -19,6 +19,7 @@ from research_agent.retrieval.intel_mongo_helpers import (
     upsert_candidate_run,
     upsert_dedupe_group_and_add_member,
     upsert_research_plan,
+    persist_domain_catalog_set_artifact,
 )
 
 from research_agent.human_upgrade.structured_outputs.candidates_outputs import CandidateSourcesConnected
@@ -27,6 +28,63 @@ from research_agent.human_upgrade.structured_outputs.research_direction_outputs 
 
 PIPELINE_VERSION_DEFAULT = "entity-intel-v1"
 
+
+async def persist_domain_catalogs_node(state: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Writes:
+      - intel_artifacts (DomainCatalogSet)
+
+    Returns:
+      - domain_catalog_set_id
+      - domain_catalog_extracted_at
+
+    Safe behavior:
+      - If state has no domain_catalogs, no-op (returns empty dict)
+    """
+    db = _humanupgrade_db
+    await ensure_intel_indexes(db)
+
+    domain_catalogs = state.get("domain_catalogs")
+    if domain_catalogs is None:
+        logger.info("ℹ️ No domain_catalogs present in state; skipping artifact persist.")
+        return {}
+
+    episode = state.get("episode") or {}
+    episode_id = str(episode.get("id") or episode.get("_id") or "")
+    episode_url = episode.get("episodePageUrl") or "unknown"
+
+    run_id = state.get("intel_run_id")
+    if not run_id:
+        # If you want strictness, raise; but no-op is also fine.
+        raise ValueError("intel_run_id required before persisting domain catalogs")
+
+    pipeline_version = state.get("intel_pipeline_version") or PIPELINE_VERSION_DEFAULT
+
+    # pydantic -> dict
+    if hasattr(domain_catalogs, "model_dump"):
+        payload = domain_catalogs.model_dump()
+    else:
+        payload = domain_catalogs
+
+    artifact_meta = await persist_domain_catalog_set_artifact(
+        db=db,
+        run_id=run_id,
+        episode_id=episode_id,
+        episode_url=episode_url,
+        pipeline_version=pipeline_version,
+        domain_catalog_set_payload=payload,
+    )
+
+    logger.info(
+        "✅ Persisted domain catalog artifact: runId=%s artifactId=%s",
+        run_id,
+        artifact_meta["domainCatalogSetId"],
+    )
+
+    return {
+        "domain_catalog_set_id": artifact_meta["domainCatalogSetId"],
+        "domain_catalog_extracted_at": artifact_meta["domainCatalogExtractedAt"],
+    }
 
 async def persist_candidates_node(state: Dict[str, Any]) -> Dict[str, Any]:
     """
@@ -40,7 +98,10 @@ async def persist_candidates_node(state: Dict[str, Any]) -> Dict[str, Any]:
       - candidate_entity_ids
     """
     db = _humanupgrade_db
-    await ensure_intel_indexes(db)
+    await ensure_intel_indexes(db) 
+
+    domain_catalog_set_id: str = state.get("domain_catalog_set_id")
+    domain_catalog_extracted_at: datetime | str = state.get("domain_catalog_extracted_at")
 
     episode = state.get("episode") or {}
     episode_id = str(episode.get("id") or episode.get("_id") or "")
@@ -61,6 +122,8 @@ async def persist_candidates_node(state: Dict[str, Any]) -> Dict[str, Any]:
         episode_url=episode_url,
         pipeline_version=pipeline_version,
         status="running",
+        domain_catalog_set_id=domain_catalog_set_id,
+        domain_catalog_extracted_at=domain_catalog_extracted_at,
     )
 
     connected_payload = candidate_sources.model_dump()
@@ -78,6 +141,8 @@ async def persist_candidates_node(state: Dict[str, Any]) -> Dict[str, Any]:
             "connectedBundleHash": payload_hash,
             "connectedBundle": connected_payload,
         },
+        domain_catalog_set_id=domain_catalog_set_id,
+        domain_catalog_extracted_at=domain_catalog_extracted_at,
     )
 
     # rerun safety
@@ -125,6 +190,8 @@ async def persist_candidates_node(state: Dict[str, Any]) -> Dict[str, Any]:
             "candidateEntityCount": len(candidate_docs),
             "dedupeGroupCount": len(set(dedupe_group_map.values())),
         },
+        domain_catalog_set_id=domain_catalog_set_id,
+        domain_catalog_extracted_at=domain_catalog_extracted_at,
     )
 
     logger.info(

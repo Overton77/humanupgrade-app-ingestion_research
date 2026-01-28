@@ -22,21 +22,19 @@ Graph Compilation Order:
    (innermost first, then middle, then outermost)
 """
 
-from langchain.chat_models import BaseChatModel
+
 from langgraph.graph import StateGraph, START, END   
 from langgraph.store.base import BaseStore
 from langgraph.checkpoint.base import BaseCheckpointSaver 
 from langchain_core.runnables import RunnableConfig
 
 from research_agent.human_upgrade.persistence.checkpointer_and_store import get_persistence   
-from langgraph.types import Command 
+
 from langgraph.graph.state import CompiledStateGraph 
 from langchain.tools import BaseTool 
-from langgraph.prebuilt import ToolNode 
 from typing_extensions import TypedDict, Annotated  
-from typing import List, Dict, Any, Optional, Sequence, Literal, Union
+from typing import List, Dict, Any, Optional, Literal, Union
 from langchain_core.messages import BaseMessage, SystemMessage, HumanMessage, ToolMessage, AnyMessage, AIMessage
-from langchain_openai import ChatOpenAI  
 from pydantic import BaseModel, Field  
 import operator   
 from langchain.agents import create_agent, AgentState  
@@ -44,23 +42,8 @@ from datetime import datetime
 from dotenv import load_dotenv 
 from langchain.agents.structured_output import ProviderStrategy 
 from research_agent.human_upgrade.structured_outputs.enums_literals import DirectionType
-from research_agent.human_upgrade.structured_outputs.research_direction_outputs import ( 
-    EntityBundlesListFinal,
-   
-    EntityBundleDirectionsFinal,
-    GuestDirectionOutputFinal,
-    BusinessDirectionOutputFinal,
-    ProductsDirectionOutputFinal,
-    CompoundsDirectionOutputFinal,
-    PlatformsDirectionOutputFinal,
-    StarterSource,
-    GuestFieldEnum,
-    BusinessFieldEnum,
-    ProductFieldEnum,
-    CompoundFieldEnum,
-    PlatformFieldEnum,
-    compile_bundles_list,
-) 
+from research_agent.human_upgrade.structured_outputs.research_direction_outputs import EntityBundleDirectionsFinal
+ 
 
 from research_agent.human_upgrade.tools.think_tool import think_tool 
 from research_agent.human_upgrade.prompts.research_prompt_builders import ( 
@@ -78,17 +61,11 @@ from research_agent.agent_tools.file_system_functions import (
    
 
 from research_agent.human_upgrade.structured_outputs.file_outputs import ( 
-    FileReference,
+    FileReference
 )  
-from datetime import datetime, timezone 
 
-from research_agent.human_upgrade.structured_outputs.sources_and_search_summary_outputs import TavilyCitation
 
-from research_agent.human_upgrade.prompts.todo_prompts import todo_generation_prompt
-from research_agent.human_upgrade.prompts.synthesis_prompts import (
-    get_direction_synthesis_prompt,
-    _final_report_system_prompt,
-)
+from research_agent.human_upgrade.prompts.synthesis_prompts import _final_report_system_prompt
 
 
 from research_agent.human_upgrade.logger import logger
@@ -97,10 +74,9 @@ from research_agent.human_upgrade.utils.artifacts import save_json_artifact, sav
 from research_agent.clients.langsmith_client import pull_prompt_from_langsmith 
 from research_agent.human_upgrade.tools.file_system_tools import (
      agent_write_file,
-     agent_read_file,
      agent_edit_file,
      agent_delete_file,
-     agent_list_directory, 
+  
      agent_search_files,
      agent_list_outputs,
 )
@@ -115,9 +91,7 @@ from research_agent.human_upgrade.tools.web_search_tools import (
     
 )  
 from research_agent.human_upgrade.prompts.summary_middleware_prompts import SUMMARY_PROMPT 
-from research_agent.human_upgrade.prompts.synthesis_prompts import (
-    get_direction_synthesis_prompt
-)
+
 
 from research_agent.agent_tools.file_system_functions import read_file, write_file as fs_write_file  
 from pathlib import Path  
@@ -125,13 +99,7 @@ from research_agent.human_upgrade.utils.graph_namespaces import with_checkpoint_
 import json
 import asyncio 
 from research_agent.retrieval.async_mongo_client import _humanupgrade_db 
-from research_agent.retrieval.intel_mongo_helpers import (
-    find_plan_by_id,
-    find_plans,
-    claim_next_plan,
-    set_plan_status,
-    mark_plan_execution_meta,
-)
+
 
 from research_agent.human_upgrade.base_models import gpt_4_1, gpt_5_mini, gpt_5_nano, gpt_5 
 
@@ -163,8 +131,8 @@ RESEARCH_FILESYSTEM_TOOLS: List[BaseTool] = [
 
 ALL_FILESYSTEM_TOOLS: List[BaseTool] = [   
     agent_write_file,
-    # agent_read_file,  # REMOVED: not needed, write returns description
-    # agent_edit_file,  # REMOVED: too complex, just write new files
+    # agent_read_file,  # REMOVED: for now 
+    # agent_edit_file,  # REMOVED: for now 
     agent_delete_file,
     agent_search_files,
     agent_list_outputs,
@@ -180,7 +148,7 @@ class EntityIntelResearchBundleState(TypedDict, total=False):
 
     bundle_id: str  
 
-    direction_queue: List[Literal["GUEST", "BUSINESS", "PRODUCT", "COMPOUND", "PLATFORM"]]  
+    direction_queue: List[Literal["GUEST", "BUSINESS", "PRODUCT", "COMPOUND"]]  
 
     direction_index: int 
 
@@ -500,7 +468,8 @@ ALL_RESEARCH_TOOLS: List[BaseTool] = [
     wiki_tool,
     tavily_search_research,
     tavily_extract_research,
-    tavily_map_research,
+    tavily_map_research, 
+    think_tool, 
 ] + RESEARCH_FILESYSTEM_TOOLS 
 
 
@@ -547,8 +516,7 @@ def build_direction_queue(bundle: EntityBundleDirectionsFinal) -> List[Direction
         queue.append("PRODUCT")
     if bundle.compoundsDirection is not None:
         queue.append("COMPOUND")
-    if bundle.platformsDirection is not None:
-        queue.append("PLATFORM")
+   
 
     return queue
 
@@ -588,14 +556,12 @@ def select_direction_plan(bundle: EntityBundleDirectionsFinal, direction_type: D
             "required_fields": [f.value for f in bundle.compoundsDirection.requiredFields],
         }
 
-    if direction_type == "PLATFORM":
-        if bundle.platformsDirection is None:
-            raise ValueError("bundle.platformsDirection is None but direction_type=PLATFORM")
-        return {
-            "chosen": bundle.platformsDirection.chosenDirection.model_dump(),
-            "required_fields": [f.value for f in bundle.platformsDirection.requiredFields],
-        }
+ 
 
+
+# Add Human In The Loop Here. Can be in init_bundle or another node 
+# Retrieve memory / call db to see what is currently had on the entities in the bundle 
+# add an interrupt from langgraph and I will respond with confirmation or denial to continue with the research 
 
 async def init_bundle_research_node(
     state: EntityIntelResearchBundleState,

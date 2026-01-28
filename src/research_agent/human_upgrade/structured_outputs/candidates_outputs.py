@@ -57,10 +57,6 @@ class SeedExtraction(BaseModel):
         default_factory=list,
         description="Products explicitly mentioned (e.g., supplements, devices, services).",
     )
-    platform_candidates: List[CandidateEntity] = Field(
-        default_factory=list,
-        description="Platforms/technologies/process names (e.g., 'Botanical Synthesis').",
-    )
     compound_candidates: List[CandidateEntity] = Field(
         default_factory=list,
         description="Compounds/biomolecules/ingredients mentioned as strings only.",
@@ -78,17 +74,105 @@ class SeedExtraction(BaseModel):
     )
 
 
-class OutputAEnvelope(BaseModel):
+OfficialKind = Literal[
+    "business_primary_domain",
+    "business_shop_or_storefront",
+    "business_products_or_catalog",
+    "business_about_or_team",
+    "product_official_domain",
+    "product_official_page",
+    "guest_official_profile",
+    "third_party_disambiguation"
+]
+
+class OfficialStarterSource(BaseModel):
     """
-    Envelope to keep a stable top-level contract for LangGraph steps.
+    A single official starter source URL that Node B can map / extract.
+    """
+    kind: OfficialKind = Field(..., description="What this URL represents (domain root, shop, products page, etc.).")
+    url: str = Field(..., min_length=1, description="Absolute URL (https://...).")
+    domain: str = Field(..., min_length=1, description="Normalized domain (e.g., example.com).")
+    label: str = Field(..., min_length=1, description="Short human label (e.g., 'Official homepage', 'Shop', 'Products').")
+    confidence: float = Field(..., ge=0.0, le=1.0, description="Confidence this is official and correctly matched.")
+    evidence: List[str] = Field(default_factory=list, description="1–4 short signals why this is official/correct.")
+
+class OfficialEntityTargets(BaseModel):
+    """
+    Official starter sources for one entity name.
+    """
+    inputName: str = Field(..., min_length=1)
+    normalizedName: str = Field(..., min_length=1)
+    typeHint: str = Field(..., description="EntityTypeHint as string to avoid enum coupling here.")
+    sources: List[OfficialStarterSource] = Field(default_factory=list)
+    notes: Optional[str] = None
+
+class OfficialStarterSources(BaseModel):
+    """
+    Node A output: a small set of official roots + key pages to enable Node B mapping/catalog expansion.
+    """
+    episodePageUrl: str = Field(...)
+
+    # Usually 1 guest
+    guests: List[OfficialEntityTargets] = Field(default_factory=list)
+
+    # This is the main focus
+    businesses: List[OfficialEntityTargets] = Field(default_factory=list)
+
+    # Only include product targets if they appear to be brands with separate official sites/pages
+    products: List[OfficialEntityTargets] = Field(default_factory=list)
+
+    # Convenience: Node B can map these directly, in order
+    domainTargets: List[str] = Field(
+        default_factory=list,
+        description="Ordered list of domains (or root URLs) that should be mapped in Node B."
+    )
+
+    globalNotes: Optional[str] = None
+
+
+class DomainCatalog(BaseModel):
+    """
+    Node B output: mapping + enumeration results for one official domain.
+    This is the breadth step: collect product index URLs and product page URLs.
     """
 
-    output_type: Literal["SeedExtraction"] = "SeedExtraction"
-    seed: SeedExtraction  
+    baseDomain: str = Field(..., description="Normalized domain, e.g. 'example.com' or 'shop.example.com'")
+
+    mappedFromUrl: Optional[str] = Field(
+        default=None,
+        description="The root URL actually mapped (may be https://example.com or a shop subpath).",
+    )
+
+    mappedUrls: List[str] = Field(
+        default_factory=list,
+        description="Deduped list of discovered URLs considered relevant (not necessarily all raw URLs).",
+    )
+
+    productIndexUrls: List[str] = Field(
+        default_factory=list,
+        description="URLs likely to list product lines/collections (/products, /shop, /collections, /store).",
+    )
+
+    productPageUrls: List[str] = Field(
+        default_factory=list,
+        description="URLs that appear to be specific products/SKUs/services (aim for completeness, deduped).",
+    )
+
+    platformUrls: List[str] = Field(
+        default_factory=list,
+        description="URLs for about/technology/platform/science/team/press/FAQ pages.",
+    )
+
+    notes: Optional[str] = Field(
+        default=None,
+        description="Coverage notes: what was mapped, whether escalation was needed, gaps, storefront quirks.",
+    )
 
 
-
-
+class DomainCatalogSet(BaseModel):
+    episodePageUrl: str
+    catalogs: List[DomainCatalog] = Field(default_factory=list)
+    globalNotes: Optional[str] = None
 class SourceCandidate(BaseModel):
    
 
@@ -185,10 +269,3 @@ class CandidateSourcesConnected(BaseModel):
     connected: List[ConnectedCandidates] = Field(default_factory=list)
 
     globalNotes: Optional[str] = None
-
-
-class OutputA2Envelope(BaseModel):
-    
-
-    output_type: Literal["CandidateSourcesConnected"] = "CandidateSourcesConnected"
-    sources: CandidateSourcesConnected

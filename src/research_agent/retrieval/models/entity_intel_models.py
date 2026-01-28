@@ -76,6 +76,19 @@ class DedupeResolutionStatus(str, Enum):
 # Reusable nested models
 # -------------------------
 
+
+class DomainCatalogSetRef(MongoModel):
+    """
+    Reference to a DomainCatalogSet stored elsewhere (e.g., intel_artifacts).
+    Kept tiny for provenance + rehydration.
+    """
+    domainCatalogSetId: str = Field(..., description="ID of the DomainCatalogSet artifact (e.g., intel_artifacts.artifactId).")
+    domainCatalogExtractedAt: datetime = Field(..., description="When the catalog set was extracted/created.")
+    # Optional convenience fields (safe to keep None until you want them)
+    artifactType: Optional[str] = Field(default="domain_catalog_set", description="Type discriminator for the artifact store.")
+    artifactVersion: Optional[str] = Field(default=None, description="Optional schema/pipeline version for the artifact payload.")
+    notes: Optional[str] = None
+
 class CandidateSource(MongoModel):
     url: HttpUrl
     label: Optional[str] = None
@@ -147,7 +160,13 @@ class IntelCandidateRun(MongoModel):
     pipelineVersion: str
     status: PipelineStatus
 
-    payload: CandidateRunPayload
+    payload: CandidateRunPayload 
+
+    domainCatalog: Optional[DomainCatalogSetRef] = Field(
+        default=None,
+        description="Reference to DomainCatalogSet artifact generated during the run (Node B).",
+    )
+
 
 
 # -------------------------
@@ -410,7 +429,60 @@ class IntelResearchPlan(MongoModel):
     directions: ResearchDirections
     targets: ResearchTargets
 
-    execution: Optional[ExecutionMeta] = None
+    execution: Optional[ExecutionMeta] = None 
+
+
+INTEL_ARTIFACTS_COLLECTION: str = "intel_artifacts"
+
+
+class IntelArtifactKind(str, Enum):
+    """
+    A small discriminator enum for the artifact store.
+    Keep this permissive — you can add kinds without breaking older data.
+    """
+    domain_catalog_set = "domain_catalog_set"
+    # future:
+    # official_starter_sources = "official_starter_sources"
+    # subagent_plan = "subagent_plan"
+    # subagent_run = "subagent_run"
+    # case_study_harvest = "case_study_harvest"
+    other = "other"
+
+
+class IntelArtifact(MongoModel):
+    """
+    Generic artifact store document.
+
+    Stores large / evolving payloads (DomainCatalogSet, SubAgentPlans, tool outputs, etc.)
+    so the "core" collections stay stable and smaller.
+
+    Collection: intel_artifacts
+    """
+    artifactId: str
+
+    # provenance
+    runId: str
+    episodeId: str
+    episodeUrl: HttpUrl
+    pipelineVersion: str
+
+    kind: IntelArtifactKind = IntelArtifactKind.other
+    payloadHash: str
+
+    # timing
+    createdAt: datetime
+    updatedAt: Optional[datetime] = None
+    extractedAt: Optional[datetime] = None  # "when computed" convenience
+
+    # opaque payload (schema varies by kind)
+    payload: Dict[str, Any] = Field(default_factory=dict)
+
+    # optional
+    notes: Optional[str] = None
+
+
+def validate_intel_artifact(doc: Dict[str, Any]) -> IntelArtifact:
+    return IntelArtifact.model_validate(doc)
 
 # -------------------------
 # quick validation helpers

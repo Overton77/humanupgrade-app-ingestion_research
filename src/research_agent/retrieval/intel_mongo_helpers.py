@@ -78,6 +78,9 @@ def compute_entity_key(
 
     return f"{t.lower()}:{name_norm}"
 
+DOMAIN_CATALOG_KIND = "domain_catalog_set"
+
+
 
 # -----------------------------------------------------------------------------
 # Collections
@@ -88,7 +91,11 @@ class IntelCollections:
     candidate_runs: str = "intel_candidate_runs"
     candidate_entities: str = "intel_candidate_entities"
     dedupe_groups: str = "intel_dedupe_groups"
-    research_plans: str = "intel_research_plans"
+    research_plans: str = "intel_research_plans" 
+    intel_artifacts: str = "intel_artifacts" 
+    subagent_plan: str = "intel_subagent_plan" 
+    subagent_run: str = "intel_subagent_run" 
+    research_runs: str = "intel_research_runs"  
 
 
 # -----------------------------------------------------------------------------
@@ -120,13 +127,84 @@ async def ensure_intel_indexes(db: AsyncDatabase) -> None:
     await db[c.research_plans].create_index([("status", 1), ("createdAt", -1)])
     await db[c.research_plans].create_index([("runId", 1)])
     await db[c.research_plans].create_index([("dedupeGroupIds", 1)])
-    await db[c.research_plans].create_index([("bundleId", 1)])
+    await db[c.research_plans].create_index([("bundleId", 1)])  
 
+        # intel artifacts
+    await db[c.intel_artifacts].create_index([("artifactId", 1)], unique=True)
+    await db[c.intel_artifacts].create_index([("runId", 1), ("kind", 1), ("createdAt", -1)])
+    await db[c.intel_artifacts].create_index([("episodeId", 1), ("kind", 1), ("createdAt", -1)])
+    await db[c.intel_artifacts].create_index([("payloadHash", 1)])
+
+
+
+async def persist_domain_catalog_set_artifact(
+    *,
+    db: "AsyncDatabase",
+    run_id: str,
+    episode_id: str,
+    episode_url: str,
+    pipeline_version: str,
+    domain_catalog_set_payload: Dict[str, Any],
+) -> Dict[str, Any]:
+    """
+    Writes a DomainCatalogSet payload to intel_artifacts and returns provenance fields:
+
+      {
+        "domainCatalogSetId": "<artifactId>",
+        "domainCatalogExtractedAt": <datetime>,
+        "payloadHash": "<sha256>"
+      }
+
+    Notes:
+    - Uses an UPSERT keyed by (runId, kind, payloadHash) to avoid re-inserting duplicates.
+    - Still allocates a stable artifactId for the first insert.
+    """
+    c = IntelCollections()
+
+    extracted_at: datetime = utcnow()
+    payload_hash: str = sha256_jsonish(domain_catalog_set_payload)
+
+    # "dedupe" key for the same run + same artifact payload
+    filter_doc = {
+        "runId": run_id,
+        "kind": DOMAIN_CATALOG_KIND,
+        "payloadHash": payload_hash,
+    }
+
+    update_doc: Dict[str, Any] = {
+        "$set": {
+            "runId": run_id,
+            "episodeId": episode_id,
+            "episodeUrl": episode_url,
+            "pipelineVersion": pipeline_version,
+            "kind": DOMAIN_CATALOG_KIND,
+            "payloadHash": payload_hash,
+            "payload": domain_catalog_set_payload,
+            "updatedAt": extracted_at,
+            "extractedAt": extracted_at,  # convenience field for “when computed”
+        },
+        "$setOnInsert": {
+            "artifactId": str(uuid.uuid4()),
+            "createdAt": extracted_at,
+        },
+    }
+
+    doc = await db[c.intel_artifacts].find_one_and_update(
+        filter_doc,
+        update_doc,
+        upsert=True,
+        return_document=ReturnDocument.AFTER,
+    )
+
+    return {
+        "domainCatalogSetId": doc["artifactId"],
+        "domainCatalogExtractedAt": doc.get("extractedAt") or doc.get("createdAt") or extracted_at,
+        "payloadHash": payload_hash,
+    }
 
 # -----------------------------------------------------------------------------
 # Run record helpers
 # -----------------------------------------------------------------------------
-
 async def upsert_candidate_run(
     *,
     db: AsyncDatabase,
@@ -137,6 +215,9 @@ async def upsert_candidate_run(
     status: str,
     payload: Optional[Dict[str, Any]] = None,
     error: Optional[str] = None,
+    # ✅ NEW
+    domain_catalog_set_id: Optional[str] = None,
+    domain_catalog_extracted_at: Optional[datetime] = None,
 ) -> Dict[str, Any]:
     c = IntelCollections()
 
@@ -159,6 +240,17 @@ async def upsert_candidate_run(
     if error:
         update["$set"]["error"] = error
 
+    # ✅ NEW: domainCatalog provenance (top-level fields)
+    if domain_catalog_set_id is not None or domain_catalog_extracted_at is not None:
+        domain_catalog_doc: Dict[str, Any] = {}
+        if domain_catalog_set_id is not None:
+            domain_catalog_doc["domainCatalogSetId"] = domain_catalog_set_id
+        if domain_catalog_extracted_at is not None:
+            domain_catalog_doc["domainCatalogExtractedAt"] = domain_catalog_extracted_at
+
+        # store as a nested object for easy extension later
+        update["$set"]["domainCatalog"] = domain_catalog_doc
+
     doc = await db[c.candidate_runs].find_one_and_update(
         {"runId": run_id},
         update,
@@ -166,6 +258,7 @@ async def upsert_candidate_run(
         return_document=ReturnDocument.AFTER,
     )
     return doc
+
 
 
 async def delete_candidate_entities_for_run(*, db: AsyncDatabase, run_id: str) -> None:

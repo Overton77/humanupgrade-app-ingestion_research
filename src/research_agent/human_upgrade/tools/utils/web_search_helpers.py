@@ -1,12 +1,13 @@
 from langchain.agents import create_agent 
-from typing import List 
+from typing import List, Dict, Any, Optional
 
 from langchain_openai import ChatOpenAI
 from research_agent.human_upgrade.prompts.web_search_summary_prompts import TAVILY_SUMMARY_PROMPT 
 from research_agent.human_upgrade.logger import logger  
 from research_agent.human_upgrade.structured_outputs.sources_and_search_summary_outputs import TavilyResultsSummary
 from research_agent.human_upgrade.utils.artifacts import save_json_artifact 
-from langchain.agents.structured_output import ProviderStrategy 
+from langchain.agents.structured_output import ProviderStrategy  
+
 
 
 async def summarize_tavily_web_search(
@@ -83,3 +84,19 @@ def format_tavily_summary_results(summary: TavilyResultsSummary) -> str:
             lines.append(f"- {c.title}\n  URL: {c.url}{published_str}{score_str}")
     return "\n".join(lines) 
 
+def format_tavily_map_response(response: Dict[str, Any], *, urls_override: Optional[List[str]] = None) -> str:
+    base_url = response.get("base_url", "unknown")
+    results = urls_override if urls_override is not None else (response.get("results", []) or [])
+
+    lines: List[str] = []
+    lines.append(f"=== Site Map: {base_url} ===")
+    lines.append(f"Discovered {len(results)} URL(s):")
+    lines.append("")
+
+    if not results:
+        lines.append("(no URLs discovered)")
+    else:
+        for idx, url in enumerate(results, start=1):
+            lines.append(f"{idx}. {url}")
+
+    return "\n".join(lines).strip()
