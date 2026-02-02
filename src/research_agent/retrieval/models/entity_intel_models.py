@@ -3,13 +3,24 @@ from __future__ import annotations
 from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, List, Optional
-
+from dataclasses import dataclass
 from pydantic import BaseModel, ConfigDict, Field, HttpUrl
 
 
 # -------------------------
 # Shared base + enums
 # -------------------------
+
+@dataclass(frozen=True)
+class IntelCollections:
+    candidate_runs: str = "intel_candidate_runs"
+    candidate_entities: str = "intel_candidate_entities"
+    dedupe_groups: str = "intel_dedupe_groups"
+    research_plans: str = "intel_research_plans" 
+    intel_artifacts: str = "intel_artifacts" 
+    subagent_plan: str = "intel_subagent_plan" 
+    subagent_run: str = "intel_subagent_run" 
+    research_runs: str = "intel_research_runs"  
 
 class MongoModel(BaseModel):
     """
@@ -23,7 +34,9 @@ class MongoModel(BaseModel):
         str_strip_whitespace=True,
     )
 
-    id: Optional[str] = Field(default=None, alias="_id")
+    id: Optional[str] = Field(default=None, alias="_id") 
+
+    collection_name: str = Field(default=None, description="Name of the collection to store the model in.")
 
 
 class PipelineStatus(str, Enum):
@@ -165,7 +178,9 @@ class IntelCandidateRun(MongoModel):
     domainCatalog: Optional[DomainCatalogSetRef] = Field(
         default=None,
         description="Reference to DomainCatalogSet artifact generated during the run (Node B).",
-    )
+    )  
+
+    collection_name: str = IntelCollections.candidate_runs
 
 
 
@@ -198,6 +213,8 @@ class IntelCandidateEntity(MongoModel):
     status: CandidateStatus = CandidateStatus.new
     createdAt: datetime
 
+    collection_name: str = IntelCollections.candidate_entities
+
 
 # -------------------------
 # intel_dedupe_groups
@@ -224,6 +241,7 @@ class IntelDedupeGroup(MongoModel):
     createdAt: datetime
     updatedAt: Optional[datetime] = None
 
+    collection_name: str = IntelCollections.dedupe_groups
 
 
 class PlanStatus(str, Enum):
@@ -431,8 +449,8 @@ class IntelResearchPlan(MongoModel):
 
     execution: Optional[ExecutionMeta] = None 
 
+    collection_name: str = IntelCollections.research_plans
 
-INTEL_ARTIFACTS_COLLECTION: str = "intel_artifacts"
 
 
 class IntelArtifactKind(str, Enum):
@@ -478,7 +496,9 @@ class IntelArtifact(MongoModel):
     payload: Dict[str, Any] = Field(default_factory=dict)
 
     # optional
-    notes: Optional[str] = None
+    notes: Optional[str] = None  
+
+    collection_name: str = IntelCollections.intel_artifacts
 
 
 def validate_intel_artifact(doc: Dict[str, Any]) -> IntelArtifact:

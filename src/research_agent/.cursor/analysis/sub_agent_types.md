@@ -125,7 +125,7 @@ Browse: Playwright for interactive diagrams / tabbed specs.
 
 10) BusinessIdentityAndLeadershipAgent
 
-Goal: Canonical business identity, leadership, positioning, contact, “wellness vs medical” posture (light).
+Goal: Canonical company overview + leadership for entity research: legal/marketing names, domains, locations, basic positioning, “wellness vs medical” posture (light), and tickers if publicly traded.
 Tools:
 
 Search: Tavily Search + (Brave / DuckDuckGo / Serper fallback).
@@ -134,7 +134,7 @@ Browse: Playwright if leadership info is buried or dynamically loaded.
 
 11) PressAndReputationAgent
 
-Goal: Press coverage, controversies, BBB-style signals (if you choose), recall/regulatory news mentions, review landscape.
+Goal: Recent press coverage and reputation for the entity: most recent news, major events, controversies, BBB-style signals (if you choose), recall/regulatory news mentions, and review landscape. If the company is publicly traded, also surface recent investor-facing artifacts (e.g., latest 10-K/10-Q, major SEC filings) as anchors for “what changed recently.”
 Tools:
 
 Search: Exa (nice metadata), Tavily Search, Serper.
@@ -143,7 +143,7 @@ Optional finance/news hooks: Yahoo Finance News / Polygon IO / Alpha Vantage if 
 
 12) PersonBioAndAffiliationsAgent
 
-Goal: Bio, roles, affiliations, profiles, prior companies, credibility anchors.
+Goal: Person-centric view for entity research: concise bio, current roles, historical affiliations and prior companies, notable publications or talks, and other credibility anchors (e.g., advisory roles, boards). Designed to run after BusinessIdentityAndLeadership so it can start from a clean list of key people and company context.
 Tools:
 
 Search: Tavily Search + fallback providers.

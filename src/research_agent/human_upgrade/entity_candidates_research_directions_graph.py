@@ -2,12 +2,14 @@
 Candidate and Research Directions Graph for Entity Intel 
 """
 
-from langgraph.graph import StateGraph, START, END   
+from langgraph.graph import StateGraph, START, END    
+from langgraph.types import Send 
 from langgraph.graph.state import CompiledStateGraph 
-from datetime import datetime
+from datetime import datetime 
+import asyncio 
 
 from typing_extensions import TypedDict
-from typing import  Dict, Any, List
+from typing import  Dict, Any, List, Optional, Annotated 
 
 from langchain.agents import create_agent  
 from dotenv import load_dotenv 
@@ -21,10 +23,15 @@ from research_agent.human_upgrade.structured_outputs.research_direction_outputs 
 ) 
 from research_agent.human_upgrade.structured_outputs.candidates_outputs import ( 
  
-    CandidateSourcesConnected,
+    CandidateSourcesConnected, 
+    ConnectedCandidates,
     OfficialStarterSources,
     SeedExtraction,
     DomainCatalogSet,
+    BusinessIdentitySlice,
+    ProductsAndCompoundsSlice,
+    ConnectedCandidatesAssemblerInput, 
+    EntitySourceResult,
 )   
 from langchain_core.runnables import RunnableConfig
 from langchain.tools import BaseTool 
@@ -33,7 +40,7 @@ from research_agent.human_upgrade.logger import logger
 from research_agent.human_upgrade.utils.artifacts import save_json_artifact, save_text_artifact 
 from research_agent.human_upgrade.prompts.seed_prompts import PROMPT_OUTPUT_A_SEED_EXTRACTION
 from research_agent.human_upgrade.prompts.candidates_prompts import ( 
-    PROMPT_OUTPUT_A2_CONNECTED_CANDIDATE_SOURCES, PROMPT_NODE_A_OFFICIAL_STARTER_SOURCES, PROMPT_NODE_B_DOMAIN_CATALOGS 
+   PROMPT_OUTPUT_A2_CONNECTED_CANDIDATES_ASSEMBLER, PROMPT_NODE_A_OFFICIAL_STARTER_SOURCES, PROMPT_NODE_B_DOMAIN_CATALOGS 
     )
 from research_agent.human_upgrade.prompts.research_directions_prompts import PROMPT_OUTPUT_A3_ENTITY_RESEARCH_DIRECTIONS
 from research_agent.clients.langsmith_client import pull_prompt_from_langsmith 
@@ -45,7 +52,12 @@ from research_agent.human_upgrade.tools.web_search_tools import (
     
 ) 
 
-from research_agent.human_upgrade.utils.formatting import format_seed_extraction_for_prompt, format_connected_candidates_for_prompt 
+from research_agent.human_upgrade.utils.formatting import format_seed_extraction_for_prompt, format_connected_candidates_for_prompt  
+from research_agent.human_upgrade.prompts.candidates_prompts import ( 
+    PROMPT_OUTPUT_A2_BUSINESS_IDENTITY_SLICE,
+    PROMPT_OUTPUT_A2_PRODUCTS_AND_COMPOUNDS_SLICE,
+    PROMPT_OUTPUT_A2_CONNECTED_CANDIDATES_ASSEMBLER,
+)
 from research_agent.human_upgrade.intel_mongo_nodes import ( 
     persist_candidates_node, 
     persist_research_plans_node,
@@ -54,9 +66,13 @@ from research_agent.human_upgrade.intel_mongo_nodes import (
 
 from research_agent.human_upgrade.base_models import gpt_4_1, gpt_5_mini, gpt_5_nano, gpt_5  
 from research_agent.human_upgrade.persistence.checkpointer_and_store import get_persistence
-import os 
+from research_agent.human_upgrade.utils.dedupe import _dedupe_keep_order, _take  
+from research_agent.human_upgrade.utils.candidate_graph_helpers import _guest_from_official_sources
+import os  
+import operator 
+import json 
 
-load_dotenv() 
+load_dotenv()  
 
 os.environ["OPENAI_API_KEY"] = os.getenv("OPENAI_API_KEY") 
 
@@ -64,11 +80,18 @@ openai_search_tool: Dict[str, str] = {"type": "web_search"}
 
 
 
+
+
 pull_prompt_names: Dict[str, str] = { 
     "seed_extraction_prompt": "seed_extraction_prompt", 
     "connected_candidate_sources_prompt": "connected_candidate_sources_prompt",
     "research_directions_prompt": "research_directions_prompt",
-}
+} 
+
+class CandidateSourcesSliceResult(TypedDict): 
+    baseDomain: str  
+    connected_candidates: ConnectedCandidates  
+    notes: Optional[str] = None 
 
 
 class EntityIntelCandidateAndResearchDirectionsState(TypedDict, total=False):
@@ -81,7 +104,11 @@ class EntityIntelCandidateAndResearchDirectionsState(TypedDict, total=False):
     episode: Dict[str, Any]
 
     # Existing outputs
-    seed_extraction: SeedExtraction
+    seed_extraction: SeedExtraction 
+    # Fanout collection (one per DomainCatalog slice)
+    candidate_sources_slice_outputs: Annotated[List[CandidateSourcesConnected], operator.add]
+    expected_candidate_source_slices: int
+    completed_candidate_source_slices: Annotated[int, operator.add]
     candidate_sources: CandidateSourcesConnected
     research_directions: EntityBundlesListFinal
 
@@ -109,6 +136,50 @@ class EntityIntelCandidateAndResearchDirectionsState(TypedDict, total=False):
 
     steps_taken: int
     
+
+# Graph helpers 
+
+def _select_business_people_urls(catalog: Dict[str, Any]) -> Dict[str, List[str]]:
+    """
+    Choose a logical portion of DomainCatalog buckets for Business+People.
+    Keep it SMALL: the agent can still explore via tools, but we anchor it tightly.
+    """
+    leadership = _dedupe_keep_order(catalog.get("leadershipUrls") or [])
+    press = _dedupe_keep_order(catalog.get("pressUrls") or [])
+    policy = _dedupe_keep_order(catalog.get("policyUrls") or [])
+    # platformUrls (legacy) includes about/team/science sometimes; still helpful
+    platform = _dedupe_keep_order(catalog.get("platformUrls") or [])
+    help_center = _dedupe_keep_order(catalog.get("helpCenterUrls") or [])
+    # Mapped URLs can be huge; avoid shipping full mappedUrls by default
+    # mapped = _dedupe_keep_order(catalog.get("mappedUrls") or [])
+
+    # Practical caps (tune freely)
+    return {
+        "leadershipUrls": _take(leadership, 30),
+        "pressUrls": _take(press, 20),
+        "policyUrls": _take(policy, 15),
+        "platformUrls": _take(platform, 25),
+        "helpCenterUrls": _take(help_center, 10),
+    }
+
+
+def _select_products_compounds_urls(catalog: Dict[str, Any]) -> Dict[str, List[str]]:
+    """
+    Choose a logical portion for Products+Compounds.
+    """
+    product_index = _dedupe_keep_order(catalog.get("productIndexUrls") or [])
+    product_pages = _dedupe_keep_order(catalog.get("productPageUrls") or [])
+    docs = _dedupe_keep_order(catalog.get("documentationUrls") or [])
+    help_center = _dedupe_keep_order(catalog.get("helpCenterUrls") or [])
+
+    return {
+        "productIndexUrls": _take(product_index, 25),
+        "productPageUrls": _take(product_pages, 120), 
+        "documentationUrls": _take(docs, 40),
+        "helpCenterUrls": _take(help_center, 15),
+    } 
+
+
 
 
 
@@ -149,10 +220,10 @@ async def seed_extraction_node(state: EntityIntelCandidateAndResearchDirectionsS
         raise ValueError("episode.episodePageUrl is required")
     
     logger.info(f"🌱 Starting seed extraction for episode: {episode_url[:80]}...")   
-
+    # The seed Extraction prompt will be generalized to any entity research need. Start with query. Start with sources 
     seed_extraction_prompt: str = PROMPT_OUTPUT_A_SEED_EXTRACTION.format(
-        episode_url=episode_url,
-        webpage_summary=webpage_summary,
+        episode_url=episode_url, # This will turn into general starter sources for any research need ENTITY BASED 
+        webpage_summary=webpage_summary, # This will turn into general context for any research need  ENTITY BASED 
     )  
 
     seed_extraction_agent: CompiledStateGraph = create_agent(   
@@ -258,96 +329,219 @@ async def domain_catalogs_node(
     return {"domain_catalogs": domain_catalogs}
 
 
-async def candidate_sources_node(
+
+async def _ainvoke_bounded(agent: CompiledStateGraph, payload: Dict[str, Any], sem: asyncio.Semaphore) -> Dict[str, Any]:
+    async with sem:
+        return await agent.ainvoke(payload)
+
+def fanout_candidate_source_slices(
     state: EntityIntelCandidateAndResearchDirectionsState,
+) -> List[Send]:
+    domain_catalogs = state["domain_catalogs"]
+    catalogs = domain_catalogs.catalogs if hasattr(domain_catalogs, "catalogs") else (domain_catalogs.get("catalogs") or [])
+
+    sends: List[Send] = []
+    for cat in catalogs:
+        sends.append(
+            Send(
+                "candidate_sources_slice",
+                {
+                    "catalog": cat.model_dump() if hasattr(cat, "model_dump") else cat,
+                    "episode": state.get("episode") or {},
+                    "seed_extraction": state["seed_extraction"].model_dump() if hasattr(state["seed_extraction"], "model_dump") else state["seed_extraction"],
+                    "official_starter_sources": state["official_starter_sources"].model_dump() if hasattr(state["official_starter_sources"], "model_dump") else state["official_starter_sources"],
+                    
+                  
+                },
+            )
+        )
+
+    return sends
+    
+
+async def candidate_sources_slice_node(
+    state:EntityIntelCandidateAndResearchDirectionsState,
 ) -> EntityIntelCandidateAndResearchDirectionsState:
-    seed_extraction: SeedExtraction | None = state.get("seed_extraction")
-    if seed_extraction is None:
-        logger.error("❌ seed_extraction is None in candidate_sources_node")
-        raise ValueError("seed_extraction is required but was not found in state")
+    """
+    For ONE DomainCatalog:
+      - run Business+People agent and Products+Compounds agent concurrently (bounded)
+      - run Assembler agent to produce ConnectedCandidates
+      - return CandidateSourcesConnected with a single ConnectedCandidates in .connected
+    """
+    catalog: Dict[str, Any] = state["catalog"]
+    episode: Dict[str, Any] = state.get("episode") or {}
+    seed_extraction = state["seed_extraction"]
+    official_sources = state["official_starter_sources"]
 
-    official_starter_sources: OfficialStarterSources | None = state.get("official_starter_sources")
-    if official_starter_sources is None:
-        logger.error("❌ official_starter_sources is None in candidate_sources_node")
-        raise ValueError("official_starter_sources is required but was not found in state")
+    episode_url = episode.get("episodePageUrl", "unknown")
+    base_domain = catalog.get("baseDomain") or "unknown"
 
-    domain_catalogs: DomainCatalogSet | None = state.get("domain_catalogs")
-    if domain_catalogs is None:
-        logger.error("❌ domain_catalogs is None in candidate_sources_node")
-        raise ValueError("domain_catalogs is required but was not found in state")
+    # --- prepare small URL slices ---
+    business_urls = _select_business_people_urls(catalog)
+    products_urls = _select_products_compounds_urls(catalog)
 
-    episode: Dict[str, Any] = state.get("episode", {})
-    episode_url: str = episode.get("episodePageUrl", "unknown")
-
-    logger.info(
-        "📋 Candidate sources (Node C): guests=%s businesses=%s products=%s | domains=%s catalogs=%s",
-        len(seed_extraction.guest_candidates),
-        len(seed_extraction.business_candidates),
-        len(seed_extraction.product_candidates),
-        len(official_starter_sources.domainTargets or []),
-        len(domain_catalogs.catalogs or []),
-    )
-
-    # Keep this: it provides readable seed context and helps with disambiguation
-    formatted_fields: Dict[str, str] = format_seed_extraction_for_prompt(seed_extraction)
-
-    # Inject Node A + Node B artifacts into Node C prompt.
-    # These make Node C "mostly deterministic": prioritize extract from known pages.
-    candidate_sources_prompt: str = PROMPT_OUTPUT_A2_CONNECTED_CANDIDATE_SOURCES.format(
+    # --- build prompts ---
+    business_prompt = PROMPT_OUTPUT_A2_BUSINESS_IDENTITY_SLICE.format(
         episode_url=episode_url,
-        guest_candidates=formatted_fields["guest_candidates"],
-        business_candidates=formatted_fields["business_candidates"],
-        product_candidates=formatted_fields["product_candidates"],
-        compound_candidates=formatted_fields["compound_candidates"],
-        evidence_claim_hooks=formatted_fields["evidence_claim_hooks"],
-        notes=formatted_fields["notes"],
-
-        official_starter_sources_json=official_starter_sources.model_dump_json(indent=2),
-        domain_catalogs_json=domain_catalogs.model_dump_json(indent=2),
+        base_domain=base_domain,
+        # keep small: only the buckets that matter + minimal context
+        url_buckets_json=json.dumps(business_urls, indent=2),
+        catalog_min_json=json.dumps(
+            {
+                "baseDomain": catalog.get("baseDomain"),
+                "mappedFromUrl": catalog.get("mappedFromUrl"),
+                "sourceDomainRole": catalog.get("sourceDomainRole"),
+            },
+            indent=2,
+        ),
+        seed_json=json.dumps(seed_extraction, indent=2) if isinstance(seed_extraction, dict) else json.dumps(seed_extraction, default=str, indent=2),
+        official_sources_json=json.dumps(official_sources, indent=2) if isinstance(official_sources, dict) else json.dumps(official_sources, default=str, indent=2),
     )
 
-   
+    products_prompt = PROMPT_OUTPUT_A2_PRODUCTS_AND_COMPOUNDS_SLICE.format(
+        episode_url=episode_url,
+        base_domain=base_domain,
+        url_buckets_json=json.dumps(products_urls, indent=2),
+        catalog_min_json=json.dumps(
+            {
+                "baseDomain": catalog.get("baseDomain"),
+                "mappedFromUrl": catalog.get("mappedFromUrl"),
+                "sourceDomainRole": catalog.get("sourceDomainRole"),
+            },
+            indent=2,
+        ),
+        seed_json=json.dumps(seed_extraction, indent=2) if isinstance(seed_extraction, dict) else json.dumps(seed_extraction, default=str, indent=2),
+        official_sources_json=json.dumps(official_sources, indent=2) if isinstance(official_sources, dict) else json.dumps(official_sources, default=str, indent=2),
+    )
 
-
-    candidate_sources_agent: CompiledStateGraph = create_agent(
+    
+    business_agent: CompiledStateGraph = create_agent(
         gpt_5_mini,
         tools=CONNECTED_TOOLS,
-        response_format=ProviderStrategy(CandidateSourcesConnected),
-        # middleware=[
-        #     SummarizationMiddleware(
-        #         model="gpt-4.1",
-        #         trigger=("tokens", 170000),
-        #         keep=("messages", 20),
-        #     )
-        # ],
-        name="candidate_sources_agent",
+        response_format=ProviderStrategy(BusinessIdentitySlice),
+        name=f"business_identity_slice_agent_{base_domain}",
     )
 
-    response = await candidate_sources_agent.ainvoke(
-        {"messages": [{"role": "user", "content": candidate_sources_prompt}]}
+    products_agent: CompiledStateGraph = create_agent(
+        gpt_5_mini,
+        tools=CONNECTED_TOOLS,
+        response_format=ProviderStrategy(ProductsAndCompoundsSlice),
+        name=f"products_compounds_slice_agent_{base_domain}",
     )
 
-    candidate_sources_output: CandidateSourcesConnected = response["structured_response"]
+    # Bound concurrency inside the slice node (2 calls)
+    sem = asyncio.Semaphore(2)
 
-    logger.info(
-        "✅ Candidate sources complete: connected_bundles=%s",
-        len(candidate_sources_output.connected),
+    business_task = _ainvoke_bounded(
+        business_agent,
+        {"messages": [{"role": "user", "content": business_prompt}]},
+        sem,
+    )
+    products_task = _ainvoke_bounded(
+        products_agent,
+        {"messages": [{"role": "user", "content": products_prompt}]},
+        sem,
     )
 
-    try:
-        await save_json_artifact(
-            candidate_sources_output.model_dump(),
-            "test_run",
-            "candidate_sources_connected",
-            suffix=episode_url.replace("/", "_")[:30],
-        )
-    except Exception as e:
-        return {
-            "candidate_sources": candidate_sources_output,
-            "error": str(e),
-        }
+    business_resp, products_resp = await asyncio.gather(business_task, products_task)
 
-    return {"candidate_sources": candidate_sources_output}
+    business_slice: BusinessIdentitySlice = business_resp["structured_response"]
+    products_slice: ProductsAndCompoundsSlice = products_resp["structured_response"]
+
+    # --- assembler input ---
+    guest = _guest_from_official_sources(official_sources, seed_extraction)
+
+    assembler_input = ConnectedCandidatesAssemblerInput(
+        guest=EntitySourceResult(**guest) if not isinstance(guest, EntitySourceResult) else guest,
+        businessSlice=business_slice,
+        productsSlice=products_slice,
+        episodeUrl=episode_url,
+    )
+
+    assembler_prompt = PROMPT_OUTPUT_A2_CONNECTED_CANDIDATES_ASSEMBLER.format(
+        episode_url=episode_url,
+        base_domain=base_domain,
+        assembler_input_json=assembler_input.model_dump_json(indent=2),
+        # You can optionally also include tiny hints:
+        # "merge_rules": "...",
+    )
+
+    assembler_agent: CompiledStateGraph = create_agent(
+        gpt_5_mini,
+        tools=CONNECTED_TOOLS,
+        response_format=ProviderStrategy(ConnectedCandidates),
+        name=f"connected_candidates_assembler_{base_domain}",
+    )
+
+    assembled = await assembler_agent.ainvoke({"messages": [{"role": "user", "content": assembler_prompt}]})
+    connected_candidates: ConnectedCandidates = assembled["structured_response"]
+
+    # Wrap per-slice output as CandidateSourcesConnected
+    out = CandidateSourcesConnected(
+        connected=[connected_candidates],
+        globalNotes=f"Per-domain slice for {base_domain}; assembled from Business+People and Products+Compounds agents.",
+    ) 
+
+    await save_json_artifact(
+        out.model_dump(),
+        "test_run",
+        "candidate_sources_connected_slice",
+        suffix=base_domain.replace("/", "_")[:30] + "_" + datetime.now().strftime("%Y%m%d_%H%M%S"),
+    )
+
+    return {
+        # ✅ This key should be a reducer list in your parent state, e.g. Annotated[List[CandidateSourcesConnected], operator.add]
+        "candidate_sources_slice_outputs": [out],
+        # # Join counters (reduced into parent state)
+        # "expected_candidate_source_slices": int(state.get("expected_candidate_source_slices") or 0),
+        # "completed_candidate_source_slices": 1,
+    }
+
+# def route_after_candidate_sources_slice(
+#     state: "EntityIntelCandidateAndResearchDirectionsState",
+# ) -> str:
+#     """
+#     Fanout join gate:
+#     - For each slice completion, only trigger the merge ONCE (when last slice completes).
+#     - Other slice branches terminate via `slice_done`.
+#     """
+#     expected = int(state.get("expected_candidate_source_slices") or 0)
+#     completed = int(state.get("completed_candidate_source_slices") or 0)
+#     if expected > 0 and completed >= expected:
+#         return "merge"
+#     return "done"
+
+# async def slice_done_node(state: Dict[str, Any]) -> Dict[str, Any]:
+#     """No-op node to end non-final fanout branches cleanly."""
+#     return {}
+
+async def merge_candidate_sources_node(
+    state: "EntityIntelCandidateAndResearchDirectionsState",
+) -> Dict[str, Any]:
+    slice_outputs: List[CandidateSourcesConnected] = state.get("candidate_sources_slice_outputs", []) or []
+
+    merged_connected: List[ConnectedCandidates] = []
+    notes: List[str] = []
+
+    for out in slice_outputs:
+        if hasattr(out, "connected"):
+            merged_connected.extend(out.connected or [])
+            if out.globalNotes:
+                notes.append(out.globalNotes)
+        else:
+            # If it came back as dict
+            merged_connected.extend((out.get("connected") or []))
+            gn = out.get("globalNotes")
+            if gn:
+                notes.append(gn)
+
+    merged = CandidateSourcesConnected(
+        connected=merged_connected,
+        globalNotes=" | ".join(notes) if notes else "Merged candidate sources slices.",
+    )
+
+    return {"candidate_sources": merged}
+
 
 async def generate_research_directions_node(state: EntityIntelCandidateAndResearchDirectionsState) -> EntityIntelCandidateAndResearchDirectionsState:
     """
@@ -418,28 +612,60 @@ async def generate_research_directions_node(state: EntityIntelCandidateAndResear
 # ============================================================================
 # BUILD SUBGRAPH
 # ============================================================================
-
 def build_entity_research_directions_builder() -> StateGraph:
     builder: StateGraph = StateGraph(EntityIntelCandidateAndResearchDirectionsState)
 
+    # Core nodes
     builder.add_node("seed_extraction", seed_extraction_node)
-    builder.add_node("candidate_sources", candidate_sources_node) 
     builder.add_node("official_sources", official_sources_node)
     builder.add_node("domain_catalogs", domain_catalogs_node)
+
+    # Persistence
     builder.add_node("persist_domain_catalogs", persist_domain_catalogs_node)
-    builder.add_node("generate_research_directions", generate_research_directions_node)
     builder.add_node("persist_candidates", persist_candidates_node)
     builder.add_node("persist_research_plans", persist_research_plans_node)
-    builder.set_entry_point("seed_extraction")
-    builder.add_edge("seed_extraction", "official_sources") 
-    builder.add_edge("official_sources", "domain_catalogs") 
-    builder.add_edge("domain_catalogs", "persist_domain_catalogs") 
 
-    builder.add_edge("persist_domain_catalogs", "candidate_sources")
-    builder.add_edge("candidate_sources", "persist_candidates")  
-    builder.add_edge("candidate_sources", "generate_research_directions") 
+    # Fan-out nodes
+    builder.add_node("candidate_sources_slice", candidate_sources_slice_node)
+    builder.add_node("merge_candidate_sources", merge_candidate_sources_node)
+    # builder.add_node("slice_done", slice_done_node)
+
+    # Directions
+    builder.add_node("generate_research_directions", generate_research_directions_node)
+
+    builder.set_entry_point("seed_extraction")
+
+    # A -> B
+    builder.add_edge("seed_extraction", "official_sources")
+    builder.add_edge("official_sources", "domain_catalogs")
+
+    # Persist catalogs first (so state has artifact ref)
+    builder.add_edge("domain_catalogs", "persist_domain_catalogs")
+
+    # Fanout from persisted point
+    builder.add_conditional_edges("persist_domain_catalogs", fanout_candidate_source_slices, 
+    then="merge_candidate_sources"
+    )
+
+    # # Fan-in
+    # builder.add_conditional_edges(
+    #     "candidate_sources_slice",
+    #     route_after_candidate_sources_slice,
+    #     # {"merge": "merge_candidate_sources", "done": "slice_done"}, 
+    #     # then="merge_candidate_sources"
+    # )
+    # builder.add_edge("slice_done", END)
+
+    # Downstream
+    # IMPORTANT: persist_research_plans_node requires persist_candidates_node to have run first.
+    # We enforce ordering here to avoid race conditions and to prevent "dangling" terminal nodes.
+    builder.add_edge("merge_candidate_sources", "persist_candidates")  
+    # We want to persist ConnectedCandidates as something specific. I don't think 
+    # The current candidates persistence handles this and ConnectedCandidates is inside research directions / plans 
+    
+    builder.add_edge("persist_candidates", "generate_research_directions")
     builder.add_edge("generate_research_directions", "persist_research_plans")
-    builder.add_edge("generate_research_directions", END)
+    builder.add_edge("persist_research_plans", END)
 
     return builder
 

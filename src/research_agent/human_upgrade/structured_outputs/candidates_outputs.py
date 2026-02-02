@@ -121,7 +121,6 @@ class OfficialStarterSources(BaseModel):
     # Only include product targets if they appear to be brands with separate official sites/pages
     products: List[OfficialEntityTargets] = Field(default_factory=list)
 
-    # Convenience: Node B can map these directly, in order
     domainTargets: List[str] = Field(
         default_factory=list,
         description="Ordered list of domains (or root URLs) that should be mapped in Node B."
@@ -132,36 +131,76 @@ class OfficialStarterSources(BaseModel):
 
 class DomainCatalog(BaseModel):
     """
-    Node B output: mapping + enumeration results for one official domain.
-    This is the breadth step: collect product index URLs and product page URLs.
+    Node B output: mapping + enumeration results for one official domain/subdomain.
+
+    This is the breadth step: collect URLs that can later seed:
+      - product enumeration
+      - leadership enumeration
+      - help/KB mining
+      - case study harvesting
+      - policies/docs/manuals
     """
 
-    baseDomain: str = Field(..., description="Normalized domain, e.g. 'example.com' or 'shop.example.com'")
-
+    # --- identity / provenance ---
+    baseDomain: str = Field(..., description="Normalized domain, e.g. 'example.com' or 'help.example.com'")
     mappedFromUrl: Optional[str] = Field(
         default=None,
-        description="The root URL actually mapped (may be https://example.com or a shop subpath).",
+        description="The root URL actually mapped (may be https://example.com or a shop/help subpath).",
     )
 
+    # Optional role label for downstream logic
+    sourceDomainRole: Optional[str] = Field(
+        default=None,
+        description="Optional: 'primary', 'shop', 'help', 'blog', 'docs', 'other'.",
+    )
+
+    # --- raw-ish mapping output (still keep for debugging) ---
     mappedUrls: List[str] = Field(
         default_factory=list,
         description="Deduped list of discovered URLs considered relevant (not necessarily all raw URLs).",
     )
 
+    # --- core buckets (existing) ---
     productIndexUrls: List[str] = Field(
         default_factory=list,
         description="URLs likely to list product lines/collections (/products, /shop, /collections, /store).",
     )
-
     productPageUrls: List[str] = Field(
         default_factory=list,
         description="URLs that appear to be specific products/SKUs/services (aim for completeness, deduped).",
     )
-
     platformUrls: List[str] = Field(
         default_factory=list,
-        description="URLs for about/technology/platform/science/team/press/FAQ pages.",
+        description="URLs for about/technology/platform/science/team/press/FAQ pages (legacy bucket).",
     )
+
+    # --- NEW buckets (more precise downstream fan-out) ---
+    leadershipUrls: List[str] = Field(
+        default_factory=list,
+        description="URLs likely listing leadership/executives/founders/team members.",
+    )
+    helpCenterUrls: List[str] = Field(
+        default_factory=list,
+        description="Support/KB/Help center hubs and relevant category pages.",
+    )
+    caseStudyUrls: List[str] = Field(
+        default_factory=list,
+        description="Company-controlled evidence pages: case studies, outcomes, testimonials framed as studies, whitepapers, research pages.",
+    )
+    documentationUrls: List[str] = Field(
+        default_factory=list,
+        description="Manuals, instructions, spec sheets, PDFs, downloads, datasheets.",
+    )
+    policyUrls: List[str] = Field(
+        default_factory=list,
+        description="Warranty/returns/shipping/privacy/terms pages.",
+    )
+    pressUrls: List[str] = Field(
+        default_factory=list,
+        description="Press/media/PR pages hosted on the official domain.",
+    ) 
+
+    # Replace case study with researchUrls or add researchUrls 
 
     notes: Optional[str] = Field(
         default=None,
@@ -172,7 +211,9 @@ class DomainCatalog(BaseModel):
 class DomainCatalogSet(BaseModel):
     episodePageUrl: str
     catalogs: List[DomainCatalog] = Field(default_factory=list)
-    globalNotes: Optional[str] = None
+    globalNotes: Optional[str] = None 
+
+
 class SourceCandidate(BaseModel):
    
 
@@ -233,15 +274,92 @@ class ProductWithCompounds(BaseModel):
         return v
 
 
-class BusinessBundle(BaseModel):
-    """
-    The guest's business and its connected products/platforms.
-    """
-    
 
-    business: EntitySourceResult 
+
+
+class BusinessIdentitySlice(BaseModel):
+    """
+    Output of the Business + People agent for one DomainCatalog (one domain/business universe).
+    """
+
+    baseDomain: str = Field(..., description="DomainCatalog.baseDomain used for this slice")
+    mappedFromUrl: Optional[str] = None
+
+    # The business entity itself (official site, about page, etc.)
+    business: EntitySourceResult
+
+    # Exec/team/leadership/founders/medical advisors etc.
+    # Keep as full EntitySourceResult so it can carry sources/canonicalization.
+    people: List[EntitySourceResult] = Field(
+        default_factory=list,
+        description="People associated with the business (execs, founders, leadership, advisors).",
+    )
+
+    # Optional useful URLs/hubs (team page, leadership page, etc.)
+    leadershipUrls: List[str] = Field(default_factory=list)
+    aboutUrls: List[str] = Field(default_factory=list)
+    pressUrls: List[str] = Field(default_factory=list)
+    helpOrContactUrls: List[str] = Field(default_factory=list)
+
+    notes: Optional[str] = None 
+
+
+class ProductWithCompounds(BaseModel):
+    product: EntitySourceResult
+    compounds: List[EntitySourceResult] = Field(default_factory=list)
+
+    compoundLinkNotes: Optional[str] = Field(default=None)
+    compoundLinkConfidence: float = Field(default=0.75, ge=0.0, le=1.0)
+
+
+class ProductsAndCompoundsSlice(BaseModel):
+    """
+    Output of the Products + Compounds agent for one DomainCatalog.
+    """
+
+    baseDomain: str = Field(..., description="DomainCatalog.baseDomain used for this slice")
+    mappedFromUrl: Optional[str] = None
+
+    productIndexUrls: List[str] = Field(default_factory=list)
+    productPageUrls: List[str] = Field(default_factory=list)
+    helpCenterUrls: List[str] = Field(default_factory=list)
+    manualsOrDocsUrls: List[str] = Field(default_factory=list)
+
     products: List[ProductWithCompounds] = Field(default_factory=list)
-    platforms: List[EntitySourceResult] = Field(default_factory=list)
+
+    # Optional: compounds that are clearly business-level (not product-specific)
+    businessLevelCompounds: List[EntitySourceResult] = Field(default_factory=list)
+
+    notes: Optional[str] = None 
+
+
+class ConnectedCandidatesAssemblerInput(BaseModel):
+    """
+    What the assembler model sees. Keep it tiny and explicit.
+    """
+
+    # resolved guest for this connected universe
+    guest: EntitySourceResult
+
+    # one domain slice outputs
+    businessSlice: BusinessIdentitySlice
+    productsSlice: ProductsAndCompoundsSlice
+
+    # optional extra context
+    episodeUrl: Optional[str] = None
+    notes: Optional[str] = None 
+
+
+class BusinessBundle(BaseModel):
+    business: EntitySourceResult
+    products: List[ProductWithCompounds] = Field(default_factory=list)
+
+    # ✅ new; safe default
+    executives: List[EntitySourceResult] = Field(
+        default_factory=list,
+        description="Leadership/exec candidates tied to this business.",
+    )
+
     notes: Optional[str] = None
 
 
@@ -254,9 +372,8 @@ class ConnectedCandidates(BaseModel):
     guest: EntitySourceResult
     businesses: List[BusinessBundle] = Field(default_factory=list)
 
-    notes: Optional[str] = None 
+    notes: Optional[str] = None  
 
-    
 
 
 class CandidateSourcesConnected(BaseModel):

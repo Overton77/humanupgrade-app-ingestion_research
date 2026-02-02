@@ -108,15 +108,6 @@ class CompoundFieldEnum(str, Enum):
     COMMON_SOURCES = "commonSources"
     RELATED_TO_PRODUCTS = "relatedToProducts"
 
-class PlatformFieldEnum(str, Enum):
-    """Essential fields for platform/technology profiles - powerful but focused"""
-    PLATFORM_NAME = "platformName"
-    DESCRIPTION = "description"
-    TECHNOLOGY_PAGE_URL = "technologyPageUrl"
-    TRADEMARK_PHRASING = "trademarkPhrasing"
-    WHAT_IT_PRODUCES = "whatItProduces"
-    PATENTS = "patents"
-    OFFICIAL_EXPLAINER = "officialExplainer"
 
 
 # ============================================================================
@@ -252,32 +243,7 @@ class CompoundsDirectionOutputA(BaseModel):
     )
 
 
-class PlatformsDirectionOutputA(BaseModel):
-    """
-    LLM output for platform/technology research: minimal, opinionated decisions.
-    Handles multiple platforms in one direction.
-    """
-    platformNames: List[str] = Field(
-        ...,
-        min_length=1,
-        description="List of platform canonical names to research"
-    )
-    objective: str = Field(
-        ...,
-        description="What we're trying to accomplish for these platforms"
-    )
-    starterSources: List[StarterSource] = Field(
-        default_factory=list,
-        description="Ranked starter sources to begin research (not exhaustive)"
-    )
-    scopeNotes: Optional[str] = Field(
-        default=None,
-        description="Notes about scope, focus areas, or research approach"
-    )
-    riskFlags: List[str] = Field(
-        default_factory=list,
-        description="Potential issues or things to watch out for"
-    )
+
 
 
 # ============================================================================
@@ -344,19 +310,6 @@ class CompoundsDirectionOutputFinal(BaseModel):
     )
 
 
-class PlatformsDirectionOutputFinal(BaseModel):
-    """
-    Complete platform research plan: LLM output + deterministic field requirements.
-    This is what the research agent actually executes.
-    """
-    chosenDirection: PlatformsDirectionOutputA = Field(
-        ...,
-        description="The LLM's chosen direction and starter sources"
-    )
-    requiredFields: List[PlatformFieldEnum] = Field(
-        ...,
-        description="Deterministic: must-have fields for quality research"
-    )
 
 
 # ============================================================================
@@ -390,10 +343,6 @@ class EntityBundleDirectionsA(BaseModel):
         default=None,
         description="Compounds research direction (if applicable)"
     )
-    platformsDirection: Optional[PlatformsDirectionOutputA] = Field(
-        default=None,
-        description="Platforms research direction (if applicable)"
-    )
     notes: Optional[str] = None
 
 
@@ -424,10 +373,7 @@ class EntityBundleDirectionsFinal(BaseModel):
         default=None,
         description="Complete compounds research plan (if applicable)"
     )
-    platformsDirection: Optional[PlatformsDirectionOutputFinal] = Field(
-        default=None,
-        description="Complete platforms research plan (if applicable)"
-    )
+    
     notes: Optional[str] = None
 
 
@@ -614,37 +560,7 @@ def compile_compounds_direction(direction_a: CompoundsDirectionOutputA) -> Compo
     )
 
 
-def compile_platforms_direction(direction_a: PlatformsDirectionOutputA) -> PlatformsDirectionOutputFinal:
-    """
-    Compile platforms OutputA to OutputFinal with deterministic required fields.
-    
-    Core fields: Platform identity and description
-    """
-    required_fields = [
-        PlatformFieldEnum.PLATFORM_NAME,
-        PlatformFieldEnum.DESCRIPTION,
-        PlatformFieldEnum.WHAT_IT_PRODUCES,
-    ]
-    
-    # Add technical fields based on objective
-    objective_lower = direction_a.objective.lower()
-    
-    if any(term in objective_lower for term in ["technology", "tech page", "url"]):
-        required_fields.append(PlatformFieldEnum.TECHNOLOGY_PAGE_URL)
-    
-    if any(term in objective_lower for term in ["trademark", "branded", "proprietary"]):
-        required_fields.append(PlatformFieldEnum.TRADEMARK_PHRASING)
-    
-    if any(term in objective_lower for term in ["patent", "intellectual property", "ip"]):
-        required_fields.append(PlatformFieldEnum.PATENTS)
-    
-    if any(term in objective_lower for term in ["explainer", "technical", "whitepaper"]):
-        required_fields.append(PlatformFieldEnum.OFFICIAL_EXPLAINER)
-    
-    return PlatformsDirectionOutputFinal(
-        chosenDirection=direction_a,
-        requiredFields=required_fields,
-    )
+
 
 
 def compile_bundle_directions(bundle_a: EntityBundleDirectionsA) -> EntityBundleDirectionsFinal:
@@ -658,7 +574,6 @@ def compile_bundle_directions(bundle_a: EntityBundleDirectionsA) -> EntityBundle
         businessDirection=compile_business_direction(bundle_a.businessDirection) if bundle_a.businessDirection else None,
         productsDirection=compile_products_direction(bundle_a.productsDirection) if bundle_a.productsDirection else None,
         compoundsDirection=compile_compounds_direction(bundle_a.compoundsDirection) if bundle_a.compoundsDirection else None,
-        platformsDirection=compile_platforms_direction(bundle_a.platformsDirection) if bundle_a.platformsDirection else None,
         notes=bundle_a.notes,
     )
 
