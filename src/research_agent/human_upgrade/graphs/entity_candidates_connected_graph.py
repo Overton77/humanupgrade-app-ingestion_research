@@ -58,7 +58,7 @@ from research_agent.human_upgrade.prompts.candidates_prompts import (
     PROMPT_OUTPUT_A2_PRODUCTS_AND_COMPOUNDS_SLICE,
     PROMPT_OUTPUT_A2_CONNECTED_CANDIDATES_ASSEMBLER,
 )
-from research_agent.human_upgrade.intel_mongo_nodes import ( 
+from research_agent.human_upgrade.graphs.nodes.intel_mongo_nodes import ( 
     persist_candidates_node, 
     persist_research_plans_node,
     persist_domain_catalogs_node,
@@ -141,23 +141,30 @@ class EntityIntelCandidateAndResearchDirectionsState(TypedDict, total=False):
 
 def _select_business_people_urls(catalog: Dict[str, Any]) -> Dict[str, List[str]]:
     """
-    Choose a logical portion of DomainCatalog buckets for Business+People.
+    Choose a logical portion of DomainCatalog buckets for Business+People agents.
     Keep it SMALL: the agent can still explore via tools, but we anchor it tightly.
+    Maps to: BusinessIdentityAndLeadershipAgent, PersonBioAndAffiliationsAgent, EcosystemMapperAgent, CredibilitySignalScannerAgent
     """
+    homepage = _dedupe_keep_order(catalog.get("homepageUrls") or [])
+    about = _dedupe_keep_order(catalog.get("aboutUrls") or [])
+    blog = _dedupe_keep_order(catalog.get("blogUrls") or [])
     leadership = _dedupe_keep_order(catalog.get("leadershipUrls") or [])
     press = _dedupe_keep_order(catalog.get("pressUrls") or [])
     policy = _dedupe_keep_order(catalog.get("policyUrls") or [])
-    # platformUrls (legacy) includes about/team/science sometimes; still helpful
+    regulatory = _dedupe_keep_order(catalog.get("regulatoryUrls") or [])
+    # platformUrls (legacy) includes technology/science sometimes; still helpful
     platform = _dedupe_keep_order(catalog.get("platformUrls") or [])
     help_center = _dedupe_keep_order(catalog.get("helpCenterUrls") or [])
-    # Mapped URLs can be huge; avoid shipping full mappedUrls by default
-    # mapped = _dedupe_keep_order(catalog.get("mappedUrls") or [])
 
     # Practical caps (tune freely)
     return {
+        "homepageUrls": _take(homepage, 2),  # Usually just 1-2
+        "aboutUrls": _take(about, 5),
+        "blogUrls": _take(blog, 10),
         "leadershipUrls": _take(leadership, 30),
         "pressUrls": _take(press, 20),
         "policyUrls": _take(policy, 15),
+        "regulatoryUrls": _take(regulatory, 10),
         "platformUrls": _take(platform, 25),
         "helpCenterUrls": _take(help_center, 10),
     }
@@ -165,18 +172,56 @@ def _select_business_people_urls(catalog: Dict[str, Any]) -> Dict[str, List[str]
 
 def _select_products_compounds_urls(catalog: Dict[str, Any]) -> Dict[str, List[str]]:
     """
-    Choose a logical portion for Products+Compounds.
+    Choose a logical portion for Products+Compounds agents.
+    Maps to: ProductCatalogerAgent, ProductSpecAgent, TechnologyProcessAndManufacturingAgent, ClaimsExtractorAndTaxonomyMapperAgent
     """
     product_index = _dedupe_keep_order(catalog.get("productIndexUrls") or [])
     product_pages = _dedupe_keep_order(catalog.get("productPageUrls") or [])
+    landing_pages = _dedupe_keep_order(catalog.get("landingPageUrls") or [])
     docs = _dedupe_keep_order(catalog.get("documentationUrls") or [])
+    labels = _dedupe_keep_order(catalog.get("labelUrls") or [])
     help_center = _dedupe_keep_order(catalog.get("helpCenterUrls") or [])
+    research = _dedupe_keep_order(catalog.get("researchUrls") or [])
+    patents = _dedupe_keep_order(catalog.get("patentUrls") or [])
+    # platformUrls may contain technology/platform pages
+    platform = _dedupe_keep_order(catalog.get("platformUrls") or [])
 
     return {
         "productIndexUrls": _take(product_index, 25),
         "productPageUrls": _take(product_pages, 120), 
+        "landingPageUrls": _take(landing_pages, 15),
         "documentationUrls": _take(docs, 40),
+        "labelUrls": _take(labels, 20),
         "helpCenterUrls": _take(help_center, 15),
+        "researchUrls": _take(research, 20),
+        "patentUrls": _take(patents, 10),
+        "platformUrls": _take(platform, 25),
+    }
+
+
+def _select_evidence_urls(catalog: Dict[str, Any]) -> Dict[str, List[str]]:
+    """
+    Choose a logical portion of DomainCatalog buckets for Evidence-related agents.
+    Maps to: CaseStudyHarvestAgent, EvidenceClassifierAgent, StrengthAndGapAssessorAgent, ContraindicationsAndSafetyAgent
+    """
+    case_studies = _dedupe_keep_order(catalog.get("caseStudyUrls") or [])
+    testimonials = _dedupe_keep_order(catalog.get("testimonialUrls") or [])
+    research = _dedupe_keep_order(catalog.get("researchUrls") or [])
+    patents = _dedupe_keep_order(catalog.get("patentUrls") or [])
+    docs = _dedupe_keep_order(catalog.get("documentationUrls") or [])
+    labels = _dedupe_keep_order(catalog.get("labelUrls") or [])
+    help_center = _dedupe_keep_order(catalog.get("helpCenterUrls") or [])
+    regulatory = _dedupe_keep_order(catalog.get("regulatoryUrls") or [])
+
+    return {
+        "caseStudyUrls": _take(case_studies, 50),
+        "testimonialUrls": _take(testimonials, 30),
+        "researchUrls": _take(research, 30),
+        "patentUrls": _take(patents, 15),
+        "documentationUrls": _take(docs, 40),
+        "labelUrls": _take(labels, 20),
+        "helpCenterUrls": _take(help_center, 15),
+        "regulatoryUrls": _take(regulatory, 10),
     } 
 
 
@@ -543,76 +588,12 @@ async def merge_candidate_sources_node(
     return {"candidate_sources": merged}
 
 
-async def generate_research_directions_node(state: EntityIntelCandidateAndResearchDirectionsState) -> EntityIntelCandidateAndResearchDirectionsState:
-    """
-    Generate structured research directions from connected candidate sources.
-    
-    Step 1: LLM generates EntityBundlesListOutputA (objectives + starter sources for each bundle)
-    Step 2: We compile to EntityBundlesListFinal (add deterministic required fields)
-    """
-    candidate_sources: CandidateSourcesConnected = state.get("candidate_sources", CandidateSourcesConnected(connected=[]))
-    if not candidate_sources.connected:
-        logger.error("❌ candidate_sources is None in research_directions_node")
-        raise ValueError("candidate_sources is required but was not found in state")
-
-    episode: Dict[str, Any] = state.get("episode", {})
-    episode_url: str = episode.get("episodePageUrl", "unknown")
-    
-    logger.info(
-        "🎯 Generating research directions for %s connected bundles",
-        len(candidate_sources.connected)
-    )
-
-    # Format connected candidates for the prompt
-    formatted_bundles: str = format_connected_candidates_for_prompt(candidate_sources)
-
-    research_directions_prompt: str = PROMPT_OUTPUT_A3_ENTITY_RESEARCH_DIRECTIONS.format(
-        connected_bundles=formatted_bundles,
-    )
-
-    
-    research_directions_agent: CompiledStateGraph = create_agent(
-        gpt_5_mini,
-        response_format=ProviderStrategy(EntityBundlesListOutputA), 
-        name="research_directions_agent",
-    )
-
-    response = await research_directions_agent.ainvoke(
-        {"messages": [{"role": "user", "content": research_directions_prompt}]}
-    )
-
-    bundles_list_output_a: EntityBundlesListOutputA = response["structured_response"]  
-
-
-
-    logger.info(
-        "✅ LLM OutputA complete: %s bundles with objectives and starter sources",
-        len(bundles_list_output_a.bundles),
-    ) 
-
-    compiled_bundles_list: EntityBundlesListFinal = compile_bundles_list(bundles_list_output_a) 
-
-    await save_json_artifact(
-        compiled_bundles_list.model_dump(),
-        "test_run",
-        "research_directions_compiled_bundles_list",
-        suffix=episode_url.replace("/", "_")[:30] + "_" + datetime.now().strftime("%Y%m%d_%H%M%S"),
-    )
-    
-    logger.info(
-        "✅ Research directions complete: %s bundles compiled with required fields",
-        len(compiled_bundles_list.bundles)
-    )
-
-    return {
-        "research_directions": compiled_bundles_list,
-    }
 
 
 # ============================================================================
 # BUILD SUBGRAPH
 # ============================================================================
-def build_entity_research_directions_builder() -> StateGraph:
+def build_entity_candidates_connected_graph() -> StateGraph:
     builder: StateGraph = StateGraph(EntityIntelCandidateAndResearchDirectionsState)
 
     # Core nodes
@@ -631,7 +612,7 @@ def build_entity_research_directions_builder() -> StateGraph:
     # builder.add_node("slice_done", slice_done_node)
 
     # Directions
-    builder.add_node("generate_research_directions", generate_research_directions_node)
+    
 
     builder.set_entry_point("seed_extraction")
 
@@ -647,31 +628,20 @@ def build_entity_research_directions_builder() -> StateGraph:
     then="merge_candidate_sources"
     )
 
-    # # Fan-in
-    # builder.add_conditional_edges(
-    #     "candidate_sources_slice",
-    #     route_after_candidate_sources_slice,
-    #     # {"merge": "merge_candidate_sources", "done": "slice_done"}, 
-    #     # then="merge_candidate_sources"
-    # )
-    # builder.add_edge("slice_done", END)
-
-    # Downstream
-    # IMPORTANT: persist_research_plans_node requires persist_candidates_node to have run first.
-    # We enforce ordering here to avoid race conditions and to prevent "dangling" terminal nodes.
     builder.add_edge("merge_candidate_sources", "persist_candidates")  
-    # We want to persist ConnectedCandidates as something specific. I don't think 
-    # The current candidates persistence handles this and ConnectedCandidates is inside research directions / plans 
-    
-    builder.add_edge("persist_candidates", "generate_research_directions")
-    builder.add_edge("generate_research_directions", "persist_research_plans")
-    builder.add_edge("persist_research_plans", END)
+  
+
+    # Get out  
+
+    # TODO: Add State field for research_mode and generate_plan and add conditional edge  
+    # TODO: ... add conditional edge going to the research_plan_graph that will be imported. 
+
 
     return builder
 
 
 
-async def make_entity_research_directions_graph(config: RunnableConfig) -> CompiledStateGraph:
+async def make_entity_candidates_connected_graph(config: RunnableConfig) -> CompiledStateGraph:
     """
     Graph factory for LangSmith Studio / LangGraph CLI.
     Called per run; we reuse process-wide store/checkpointer.
@@ -680,7 +650,7 @@ async def make_entity_research_directions_graph(config: RunnableConfig) -> Compi
 
     # IMPORTANT: checkpoint namespace is provided at runtime via config["configurable"]["checkpoint_ns"]
     # so compile once with the saver; per-run separation happens via config.
-    graph: CompiledStateGraph = build_entity_research_directions_builder().compile(
+    graph: CompiledStateGraph = build_entity_candidates_connected_graph().compile(
         checkpointer=checkpointer,
         store=store,
     )

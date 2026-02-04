@@ -5,7 +5,7 @@ from typing import Any, Dict, List, Literal, Optional
 from research_agent.human_upgrade.structured_outputs.candidates_outputs import ConnectedCandidates
 
 
-StageMode = Literal["full_entities_standard", "full_entities_deep"] 
+StageMode = Literal["full_entities_standard", "full_entities_basic", "full_entities_deep"] 
 
 ToolType = Literal[
     # Search / discovery
@@ -40,9 +40,7 @@ AgentType = Literal[
     "BusinessIdentityAndLeadershipAgent",
     "PersonBioAndAffiliationsAgent",
     "EcosystemMapperAgent",
-    "CredibilitySignalScannerAgent",
     # Stage 2
-    "ProductCatalogerAgent",
     "ProductSpecAgent",
     "TechnologyProcessAndManufacturingAgent",
     "ClaimsExtractorAndTaxonomyMapperAgent",
@@ -50,9 +48,6 @@ AgentType = Literal[
     # Stage 3
     "CaseStudyHarvestAgent",
     "EvidenceClassifierAgent",
-    "StrengthAndGapAssessorAgent",
-    "ContraindicationsAndSafetyAgent",
-    "ClinicalEvidenceTriageAgent",
     # Stage 4
     "KnowledgeSynthesizerAgent",
     "ClaimConfidenceScorerAgent",
@@ -84,7 +79,6 @@ SourceCategory = Literal[
 class CuratedSource(BaseModel):
     url: str 
     category: SourceCategory
-    format: ContentFormat = "html"
     title: Optional[str] = None
     notes: Optional[str] = None
     # Optionally precomputed metadata
@@ -94,6 +88,14 @@ class CuratedSource(BaseModel):
 class CuratedSourcesBundle(BaseModel):
     sources: List[CuratedSource] = Field(default_factory=list)
     notes: Optional[str] = None
+
+
+class SourceExpansion(BaseModel):
+    competitorUrls: List[str] = Field(default_factory=list, description="URLs of competitor websites and companies")
+    researchUrls: List[str] = Field(default_factory=list, description="URLs of research papers, case studies, and scholarly sources")
+    otherUrls: List[str] = Field(default_factory=list, description="Other supplementary URLs (news, press releases, industry reports, etc.)")
+    notes: Optional[str] = None
+
 
 class ToolPolicy(BaseModel):
     allowed: List[ToolType] = Field(default_factory=list)
@@ -145,29 +147,27 @@ class SliceSpec(BaseModel):
     notes: Optional[str] = None
 
 
-class PlanAgentInstance(BaseModel):
+
+
+class AgentInstancePlanWithoutSources(BaseModel):
     instance_id: str
-    agent_type: AgentType
-    stage_id: str              # "S1".."S4"
-    sub_stage_id: str          # "S1.1" etc.
+    agent_type: AgentType 
+    stage_id: str
+    sub_stage_id: str
 
     slice: Optional[SliceSpec] = None
-    objectives: List[Objective] = Field(default_factory=list)
+    objectives: List[Objective] = []
+   
 
-    
-
-    max_search_queries: int = 10
-
-    # still valuable for correctness + planning deps
-    requires_artifacts: List[str] = Field(default_factory=list)
-    produces_artifacts: List[str] = Field(default_factory=list)
+    requires_artifacts: List[str] = []
+    produces_artifacts: List[str] = []
 
     notes: Optional[str] = None
 
 
 class AgentInstancePlanWithSources(BaseModel):
     instance_id: str
-    agent_type: str
+    agent_type: AgentType 
     stage_id: str
     sub_stage_id: str
 
@@ -175,16 +175,8 @@ class AgentInstancePlanWithSources(BaseModel):
     objectives: List[Objective] = []
     starter_sources: Optional[List[CuratedSource]] = None  
 
-    # tool_policy: ToolPolicy
-    # context_policy: ContextPolicy
-
     requires_artifacts: List[str] = []
     produces_artifacts: List[str] = []
-
-    max_search_queries: int = 10
-    max_pages_to_browse: int = 15
-    max_extractions: int = 20
-    max_pdfs_to_process: int = 5
 
     notes: Optional[str] = None
 
@@ -207,24 +199,25 @@ class StagePlan(BaseModel):
 
 
 
-class ResearchPlan(BaseModel):
+
+class InitialResearchPlan(BaseModel):
     mission_id: str
     stage_mode: StageMode = "full_entities_standard"
 
     # Entities in scope
-    target_businesses: List[str] = Field(default_factory=list)
-    target_people: List[str] = Field(default_factory=list)
-    target_products: List[str] = Field(default_factory=list)
+    target_businesses: List[str] = Field(default_factory=list)  # business names
+    target_people: List[str] = Field(default_factory=list)      # names
+    target_products: List[str] = Field(default_factory=list)    # names
 
-    mission_objectives: List[str] = Field(default_factory=list)
+    # Top-level goals (using Objective objects to match agent instance objectives)
+    mission_objectives: List[Objective] = Field(default_factory=list)
 
-    stages: List[StagePlan] = Field(default_factory=list)
-    agent_instances: List[PlanAgentInstance] = Field(default_factory=list)
+    # The actual plan (without sources)
+    stages: List[StagePlan]
+    agent_instances: List[AgentInstancePlanWithoutSources]
 
-    agent_instance_counts: Dict[str, int] = Field(default_factory=dict)
-
-    allow_product_reviews: bool = False
     notes: Optional[str] = None
+
 
 class ResearchMissionPlanFinal(BaseModel):
     mission_id: str
@@ -235,16 +228,11 @@ class ResearchMissionPlanFinal(BaseModel):
     target_people: List[str] = Field(default_factory=list)      # names
     target_products: List[str] = Field(default_factory=list)    # names
 
-    # Top-level goals
-    mission_objectives: List[str] = Field(default_factory=list)
+    # Top-level goals (using Objective objects to match agent instance objectives)
+    mission_objectives: List[Objective] = Field(default_factory=list)
 
-    # The actual plan
+    # The actual plan (with sources attached)
     stages: List[StagePlan]
     agent_instances: List[AgentInstancePlanWithSources]
 
-    # Counts summary (explicit requirement)
-    agent_instance_counts: Dict[AgentType, int] = Field(default_factory=dict)
-
-    # Execution preferences
-    allow_product_reviews: bool = False
     notes: Optional[str] = None

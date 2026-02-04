@@ -18,13 +18,13 @@ configure_logging(
 from typing import Dict, List, Any, Optional  
 from research_agent.human_upgrade.logger import logger  
 from research_agent.retrieval.async_mongo_client import get_episode 
-from research_agent.human_upgrade.entity_research_graphs import (
+from research_agent.human_upgrade.graphs.ignore.entity_research_graphs import (
     make_bundle_research_graph,
   
 )    
 
 from research_agent.retrieval.async_mongo_client import _humanupgrade_db 
-from research_agent.human_upgrade.entity_candidates_research_directions_graph import  make_entity_research_directions_graph 
+from research_agent.human_upgrade.graphs.entity_candidates_connected_graph import  make_entity_candidates_connected_graph 
 from research_agent.human_upgrade.utils.graph_namespaces import make_thread_id_from_episode_url, base_config, with_checkpoint_ns, ns_direction, ns_bundle, NS_DIRECTIONS, NS_PARENT
 from research_agent.common.artifacts import save_json_artifact
 from research_agent.human_upgrade.utils.graph_state import dump_graph_state_history, dump_full_workflow_histories 
@@ -155,7 +155,7 @@ async def run_entity_intel_directions_only(
         "intel_pipeline_version": pipeline_version,
     }
 
-    directions_graph = await make_entity_research_directions_graph(cfg_directions)
+    directions_graph = await make_entity_candidates_connected_graph(cfg_directions)
 
     final_state = await directions_graph.ainvoke(initial_state, cfg_directions)
 

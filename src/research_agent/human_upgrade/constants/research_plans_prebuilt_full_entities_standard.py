@@ -1,70 +1,5 @@
-"""
-Pre-built Research Plan Definitions
-
-This module contains comprehensive definitions for research plan modes, including:
-- Stage and sub-stage structures
-- Agent type definitions with tools and outputs
-- Dependencies and parallelization rules
-- Detailed descriptions and purposes
-
-These definitions can be used in prompts, validation, and plan generation.
-"""
-
-from typing import Dict, List, Optional
-from pydantic import BaseModel, Field
-
-
-class AgentTypeDefinition(BaseModel):
-    """Definition of an agent type with its tools, outputs, and description."""
-    name: str
-    description: str
-    default_tools: List[str] = Field(default_factory=list)
-    typical_outputs: List[str] = Field(default_factory=list)
-    source_focus: Optional[str] = None
-
-
-class SubStageDefinition(BaseModel):
-    """Definition of a sub-stage within a research plan."""
-    sub_stage_id: str  # e.g., "S1.1"
-    name: str
-    description: str
-    purpose: str  # What questions this stage answers
-    responsibilities: List[str] = Field(default_factory=list)
-    agent_type: str
-    outputs: List[str] = Field(default_factory=list)
-    source_focus: str
-    parallelization_notes: Optional[str] = None
-    is_required: bool = True
-    is_optional: bool = False
-    depends_on_substages: List[str] = Field(default_factory=list)
-
-
-class StageDefinition(BaseModel):
-    """Definition of a stage within a research plan."""
-    stage_id: str  # e.g., "S1"
-    name: str
-    description: str
-    purpose: str
-    assumptions: Optional[str] = None
-    sub_stages: List[SubStageDefinition] = Field(default_factory=list)
-    dependencies: str = ""  # Description of stage dependencies
-    parallelization: str = ""  # Description of parallelization rules
-    what_it_intentionally_does_not_do: Optional[List[str]] = None
-
-
-class PrebuiltResearchPlan(BaseModel):
-    """Complete definition of a pre-built research plan mode."""
-    stage_mode: str
-    goal: str
-    description: str
-    planning_rule: str
-    execution_model: str
-    stages: List[StageDefinition] = Field(default_factory=list)
-    agent_type_definitions: Dict[str, AgentTypeDefinition] = Field(default_factory=dict)
-    global_tool_expectations: str = ""
-    what_this_mode_intentionally_does_not_do: List[str] = Field(default_factory=list)
-    why_ready_to_implement: List[str] = Field(default_factory=list)
-
+from research_agent.human_upgrade.constants.research_plans_prebuilt_models import PrebuiltResearchPlan, AgentTypeDefinition, SubStageDefinition, StageDefinition
+from typing import Dict
 
 # ============================================================================
 # FULL ENTITIES STANDARD DEFINITION
@@ -151,113 +86,120 @@ FULL_ENTITIES_STANDARD_PLAN = PrebuiltResearchPlan(
                     outputs=["CompetitorSet", "PartnerAndPlatformGraph", "MarketCategoryPlacement"],
                     source_focus="press_news + official_platform/about + search-based discovery",
                 ),
-                SubStageDefinition(
-                    sub_stage_id="S1.4",
-                    name="Credibility & Risk Signals (Light)",
-                    description="Credibility & Risk Signals (Light)",
-                    purpose="Are there early warning signs or credibility anchors?",
-                    responsibilities=[
-                        "Surface: notable credentials and affiliations, past controversies or disputes (non-exhaustive), retractions, sanctions, licensing issues if obvious",
-                        "Characterize risk posture, not adjudicate it",
-                    ],
-                    agent_type="CredibilitySignalScannerAgent",
-                    outputs=["CredibilitySignals", "RiskFlagsLight"],
-                    source_focus="press_news + regulatory signals (surface only; no adjudication)",
-                ),
             ],
         ),
-        StageDefinition(
-            stage_id="S2",
-            name="Products, Specifications, Technology & Claims",
-            description="Precisely define what is offered, how it works/is made, and what is promised.",
-            purpose="Products, Specifications, Technology & Claims",
-            dependencies=(
-                "S2.2 depends on S2.1 for product selection (soft) OR can run with provided product list. "
-                "S2.4 benefits from S2.1 inventory; can run once product URLs exist. "
-                "S2.3 benefits from S2.1 inventory but can run standalone on platform/tech pages."
+       StageDefinition(
+    stage_id="S2",
+    name="Products, Specifications, Technology & Claims",
+    description="Precisely define what is offered, how it works/is made, and what is promised.",
+    purpose="Products, Specifications, Technology & Claims",
+    dependencies=(
+        "S2.1 can run with a provided product catalog (preferred) or a minimal set of product URLs. "
+        "S2.2 benefits from S2.1 outputs (product specs + evidence); can run per-product batch. "
+        "S2.3 can run standalone on platform/tech pages. "
+        "S2.4 benefits from product URLs and/or S2.1 evidence snippets."
+    ),
+    parallelization=(
+        "S2.1 runs per batch of products (e.g., up to 5 per instance). "
+        "After S2.1 produces specs/evidence for a batch, S2.2 (if used), S2.3, and S2.4 can run in parallel. "
+        "Playwright is only invoked by S2.1/S2.2 when required fields are missing."
+    ),
+    sub_stages=[
+        SubStageDefinition(
+            sub_stage_id="S2.1",
+            name="Product Specs + Conditional Playwright Request (Batch)",
+            description=(
+                "Given a provided product catalog (up to ~5 products), extract core product specs via static sources first; "
+                "when required fields are missing, request a bounded Playwright workflow from an external tool and merge results."
             ),
-            parallelization=(
-                "After minimal inventory exists (S2.1 partial OK), S2.2 (per-product), S2.3, and S2.4 can run in parallel. "
-                "S2.X reviews can run in parallel once product identifiers exist."
-            ),
-            sub_stages=[
-                SubStageDefinition(
-                    sub_stage_id="S2.1",
-                    name="Product/Service Inventory",
-                    description="Product / Service Inventory",
-                    purpose="What exactly is being sold or delivered?",
-                    responsibilities=[
-                        "Enumerate: products, devices, services, programs, books, courses",
-                        "Capture: delivery route, intended use, target audience",
-                        "De-duplicate overlapping offerings",
-                    ],
-                    agent_type="ProductCatalogerAgent",
-                    outputs=["ProductCatalog", "ProductGroupingMap"],
-                    source_focus="official_products + navigation hubs + product index pages",
-                ),
-                SubStageDefinition(
-                    sub_stage_id="S2.2",
-                    name="Product Specifications (Deep Slice)",
-                    description="Product Specifications (Deep Slice)",
-                    purpose="What's actually in this product / how is it used / what does it cost?",
-                    responsibilities=[
-                        "For selected priority products: ingredients/actives/materials, dosages, directions, schedules",
-                        "Pricing, variants, subscriptions, manuals, warranties, what's included",
-                        "Extract officially stated warnings (not interpretive)",
-                    ],
-                    agent_type="ProductSpecAgent",
-                    outputs=["ProductSpecs", "IngredientOrMaterialLists", "UsageAndWarningSnippets"],
-                    source_focus="official_product_detail + official_docs_manuals + help snippets",
-                    parallelization_notes="per-product slices if products > 3 (1 product per instance for priority set)",
-                    is_required=True,
-                ),
-                SubStageDefinition(
-                    sub_stage_id="S2.3",
-                    name="Manufacturing & Technology Platform",
-                    description="Manufacturing & Technology Platform",
-                    purpose="How does this product or service actually work? How is it made or delivered?",
-                    responsibilities=[
-                        "Extract: formulation or delivery technology, device mechanisms or protocols",
-                        "QA / GMP / ISO / testing claims, patents or proprietary processes (if disclosed)",
-                        "Translate marketing descriptions into technical mechanisms where possible",
-                    ],
-                    agent_type="TechnologyProcessAndManufacturingAgent",
-                    outputs=["TechnologyMechanismSummaries", "ManufacturingAndQAClaims", "PatentAndProcessReferences"],
-                    source_focus="official_research/platform pages + disclosed QA/GMP/ISO/testing + patents/whitepapers where available",
-                    is_required=True,
-                ),
-                SubStageDefinition(
-                    sub_stage_id="S2.4",
-                    name="Claims Extraction, Normalization & Salience",
-                    description="Claims Extraction, Normalization & Salience",
-                    purpose="What outcomes are being promised — and which matter most?",
-                    responsibilities=[
-                        "Extract all explicit claims from: product pages, help/FAQ, landing pages, books/course descriptions",
-                        "Normalize claims into taxonomy buckets: compounds, pathways, conditions, biomarkers, technologies",
-                        "Rank claims by: prominence, differentiation, implied impact",
-                    ],
-                    agent_type="ClaimsExtractorAndTaxonomyMapperAgent",
-                    outputs=["ClaimsLedger", "NormalizedClaimMap", "ClaimSalienceRanking"],
-                    source_focus="product pages + landing pages + help_center + book/course blurbs + labels",
-                ),
-                SubStageDefinition(
-                    sub_stage_id="S2.X",
-                    name="Product Reviews & User Feedback",
-                    description="Optional — Product Reviews & User Feedback",
-                    purpose="Capture anecdotal signals without conflating with evidence.",
-                    responsibilities=[
-                        "Aggregate first- and third-party reviews",
-                        "Separate: praise vs complaints, efficacy vs logistics (shipping, UX)",
-                        "Clearly label anecdotal nature and bias risks",
-                    ],
-                    agent_type="ProductReviewsAgent",
-                    outputs=["UserFeedbackSummary", "AnecdotalSignalNotes"],
-                    source_focus="marketplace_reviews + social_community (if allowed) + first-party testimonials",
-                    is_required=False,
-                    is_optional=True,
-                ),
+            purpose="Get 'good enough' product facts (price + ingredients + directions + official warnings) at minimal credit cost.",
+            responsibilities=[
+                # Inputs / assumptions
+                "Accept an input list of products with canonical product URLs (catalog is assumed mostly complete).",
+                "Normalize product identifiers and confirm each product has at least one usable official detail URL.",
+
+                # Static-first pass (cheap)
+                "Perform a static-first extraction per product using crawl/extract: read visible HTML text, metadata, and JSON-LD/offers when present.",
+                "Attempt to fill required fields from static content: price or price range (if present), ingredient/material list (names), directions/schedule (if present), and official warnings (explicit only).",
+
+                # Decide whether to escalate (key credit saver)
+                "Compute a simple per-product completeness check for required fields (e.g., price missing and/or ingredients missing).",
+                "Only if required fields are missing, prepare a targeted Playwright request specifying the missing fields and the minimal interactions likely needed "
+                "(e.g., choose default variant, toggle subscription, open Ingredients/Supplement Facts accordion/tab, read price block).",
+
+                # Playwright delegation (agent does NOT control browser)
+                "Call a separate Playwright workflow tool (worker agent) to execute the interaction plan; do not attempt UI control inside this agent.",
+                "Receive structured Playwright results (snippets + values + evidence) and merge them back into the per-product spec record.",
+
+                # Evidence + reuse
+                "Attach lightweight evidence pointers for extracted fields (URL + section label and/or selector reference) so S2.4 can reuse without re-scraping.",
+                "Emit a compact coverage note per product indicating which fields were found statically vs via Playwright, and which remain missing.",
             ],
+            agent_type="ProductSpecAgent",
+            outputs=[
+                # keep these generic; you said you’ll define types later
+                "BatchProductSpecs",
+                "BatchSpecEvidence",
+                "BatchCoverageNotes",
+                "PlaywrightRequestsMade",
+            ],
+            source_focus="official_product_detail + official_label/facts pages or PDFs + official help snippets (static-first; Playwright only when missing required fields)",
+            parallelization_notes="Run in batches of <=5 products per instance. Only request Playwright for products failing the required-fields completeness check.",
+            is_required=True,
         ),
+
+
+
+        SubStageDefinition(
+            sub_stage_id="S2.2",
+            name="Manufacturing & Technology Platform",
+            description="Manufacturing & Technology Platform",
+            purpose="How does this product or service actually work? How is it made or delivered?",
+            responsibilities=[
+                "Extract: formulation or delivery technology, device mechanisms or protocols",
+                "QA / GMP / ISO / testing claims, patents or proprietary processes (if disclosed)",
+                "Translate marketing descriptions into technical mechanisms where possible",
+            ],
+            agent_type="TechnologyProcessAndManufacturingAgent",
+            outputs=["TechnologyMechanismSummaries", "ManufacturingAndQAClaims", "PatentAndProcessReferences"],
+            source_focus="official_research/platform pages + disclosed QA/GMP/ISO/testing + patents/whitepapers where available",
+            is_required=True,
+        ),
+
+        SubStageDefinition(
+            sub_stage_id="S2.3",
+            name="Claims Extraction, Normalization & Salience",
+            description="Claims Extraction, Normalization & Salience",
+            purpose="What outcomes are being promised — and which matter most?",
+            responsibilities=[
+                "Extract explicit claims from: product pages, help/FAQ, landing pages, books/course descriptions",
+                "Prefer claims that are easy to find and directly stated (minimal claims) and link them to evidence where possible",
+                "Normalize claims into taxonomy buckets: compounds, pathways, conditions, biomarkers, technologies",
+                "Rank claims by: prominence, differentiation, implied impact",
+            ],
+            agent_type="ClaimsExtractorAndTaxonomyMapperAgent",
+            outputs=["ClaimsLedger", "NormalizedClaimMap", "ClaimSalienceRanking"],
+            source_focus="product pages + landing pages + help_center + book/course blurbs + labels",
+        ),
+
+        SubStageDefinition(
+            sub_stage_id="S2.X",
+            name="Product Reviews & User Feedback",
+            description="Optional — Product Reviews & User Feedback",
+            purpose="Capture anecdotal signals without conflating with evidence.",
+            responsibilities=[
+                "Aggregate first- and third-party reviews",
+                "Separate: praise vs complaints, efficacy vs logistics (shipping, UX)",
+                "Clearly label anecdotal nature and bias risks",
+            ],
+            agent_type="ProductReviewsAgent",
+            outputs=["UserFeedbackSummary", "AnecdotalSignalNotes"],
+            source_focus="marketplace_reviews + social_community (if allowed) + first-party testimonials",
+            is_required=False,
+            is_optional=True,
+        ),
+    ],
+),
         StageDefinition(
             stage_id="S3",
             name="Evidence & Validation Snapshot (Triage)",
@@ -297,32 +239,6 @@ FULL_ENTITIES_STANDARD_PLAN = PrebuiltResearchPlan(
                     agent_type="EvidenceClassifierAgent",
                     outputs=["EvidenceClassificationTable"],
                     source_focus="evidence artifacts from S3.1",
-                ),
-                SubStageDefinition(
-                    sub_stage_id="S3.3",
-                    name="Strength & Gaps Assessment",
-                    description="Strength & Gaps Assessment",
-                    purpose="Evaluate evidence-claim alignment",
-                    responsibilities=[
-                        "Evaluate: evidence–claim alignment, overextension or mismatch",
-                        "Identify what evidence would be required to strengthen claims",
-                    ],
-                    agent_type="StrengthAndGapAssessorAgent",
-                    outputs=["ClaimSupportMatrix", "EvidenceGapNotes"],
-                    source_focus="classified evidence + claims ledger",
-                ),
-                SubStageDefinition(
-                    sub_stage_id="S3.4",
-                    name="Safety & Risk Signals",
-                    description="Safety & Risk Signals",
-                    purpose="Surface safety and risk information",
-                    responsibilities=[
-                        "Surface: contraindications, adverse effects language",
-                        "early regulatory warning signals (non-deep)",
-                    ],
-                    agent_type="ContraindicationsAndSafetyAgent",
-                    outputs=["SafetySignalSummary"],
-                    source_focus="help/labels/manuals + regulatory signals",
                 ),
             ],
         ),
@@ -394,133 +310,88 @@ FULL_ENTITIES_STANDARD_PLAN = PrebuiltResearchPlan(
         "BusinessIdentityAndLeadershipAgent": AgentTypeDefinition(
             name="BusinessIdentityAndLeadershipAgent",
             description="Establishes organization identity, structure, mission, and operating posture",
-            default_tools=["search.tavily", "extract.tavily", "browser.playwright", "fs.write", "fs.read", "context.summarize"],
+            default_tools=["tavily.search", "tavily.extract", "fs.write", "fs.read", "think", "wiki.search"],
             typical_outputs=["EntityBiography", "OperatingPostureSummary", "HighLevelTimeline"],
             source_focus="official_home/about/blog/press + third-party corroboration",
         ),
         "PersonBioAndAffiliationsAgent": AgentTypeDefinition(
             name="PersonBioAndAffiliationsAgent",
             description="Enriches people profiles with roles, credentials, affiliations, and prior work",
-            default_tools=["search.exa", "search.tavily", "browser.playwright", "scholar.semantic_scholar", "scholar.pubmed", "fs.write", "fs.read", "context.summarize"],
+            default_tools=["tavily.search", "tavily.extract", "fs.write", "fs.read", "think", "wiki.search"],
             typical_outputs=["PeopleProfiles", "RoleResponsibilityMap", "CredentialAnchors"],
             source_focus="official_leadership + scholarly/pub profiles",
         ),
         "EcosystemMapperAgent": AgentTypeDefinition(
             name="EcosystemMapperAgent",
             description="Maps entity position in biotech/biohacking/wellness ecosystem: competitors, partners, market category",
-            default_tools=["search.tavily", "search.exa", "browser.playwright", "extract.tavily", "fs.write", "fs.read", "context.summarize"],
+            default_tools=["tavily.extract", "exa.search", "exa.find_similar", "fs.write", "fs.read", "think"],
             typical_outputs=["CompetitorSet", "PartnerAndPlatformGraph", "MarketCategoryPlacement"],
             source_focus="press_news + official_platform/about + search-based discovery",
         ),
-        "CredibilitySignalScannerAgent": AgentTypeDefinition(
-            name="CredibilitySignalScannerAgent",
-            description="Surfaces credibility anchors and early warning risk signals (light, non-adjudicative)",
-            default_tools=["search.tavily", "search.exa", "browser.playwright", "extract.tavily", "fs.write", "fs.read", "context.summarize"],
-            typical_outputs=["CredibilitySignals", "RiskFlagsLight"],
-            source_focus="press_news + regulatory signals",
-        ),
+    
         "EvidenceClassifierAgent": AgentTypeDefinition(
             name="EvidenceClassifierAgent",
             description="Classifies evidence by type (human/animal/in vitro), study design (RCT/obs/mechanistic), and independence",
-            default_tools=["fs.read", "fs.write", "context.summarize"],
+            default_tools=["fs.read", "fs.write", "think", "pubmed.literature_search", "pubmed.fulltext"],
             typical_outputs=["EvidenceClassificationTable"],
             source_focus="evidence artifacts from discovery",
-        ),
-        "StrengthAndGapAssessorAgent": AgentTypeDefinition(
-            name="StrengthAndGapAssessorAgent",
-            description="Assesses evidence-claim alignment, identifies gaps and overextensions",
-            default_tools=["fs.read", "fs.write", "context.summarize"],
-            typical_outputs=["ClaimSupportMatrix", "EvidenceGapNotes"],
-            source_focus="classified evidence + claims ledger",
-        ),
-        "ProductCatalogerAgent": AgentTypeDefinition(
-            name="ProductCatalogerAgent",
-            description="Enumerates and catalogs all products, devices, services, programs offered",
-            default_tools=["search.tavily", "extract.tavily", "browser.playwright", "fs.write", "fs.read", "context.summarize"],
-            typical_outputs=["ProductCatalog", "ProductGroupingMap"],
-            source_focus="official_products + navigation hubs + product index pages",
         ),
         "ProductSpecAgent": AgentTypeDefinition(
             name="ProductSpecAgent",
             description="Extracts detailed product specifications: ingredients, dosages, usage, pricing, warnings",
-            default_tools=["browser.playwright", "extract.tavily", "doc.pdf_text", "doc.pdf_screenshot_ocr", "fs.write", "fs.read", "context.summarize"],
+            default_tools=["browser.playwright", "tavily.search", "tavily.crawl", "tavily.extract", "fs.write", "fs.read", "think"],
             typical_outputs=["ProductSpecs", "IngredientOrMaterialLists", "UsageAndWarningSnippets"],
             source_focus="official_product_detail + official_docs_manuals + help snippets",
         ),
         "TechnologyProcessAndManufacturingAgent": AgentTypeDefinition(
             name="TechnologyProcessAndManufacturingAgent",
             description="Extracts technology mechanisms, manufacturing processes, QA claims, patents",
-            default_tools=["search.tavily", "browser.playwright", "extract.tavily", "doc.pdf_text", "scholar.semantic_scholar", "fs.write", "fs.read", "context.summarize"],
+            default_tools=["tavily.extract", "wiki.search", "fs.write", "fs.read", "think"],
             typical_outputs=["TechnologyMechanismSummaries", "ManufacturingAndQAClaims", "PatentAndProcessReferences"],
             source_focus="official_research/platform pages + disclosed QA/GMP/ISO/testing + patents/whitepapers",
         ),
         "ClaimsExtractorAndTaxonomyMapperAgent": AgentTypeDefinition(
             name="ClaimsExtractorAndTaxonomyMapperAgent",
             description="Extracts, normalizes, and ranks all explicit claims from product/landing/help pages",
-            default_tools=["extract.tavily", "browser.playwright", "fs.write", "fs.read", "context.summarize"],
+            default_tools=["tavily.extract", "fs.write", "fs.read", "think"],
             typical_outputs=["ClaimsLedger", "NormalizedClaimMap", "ClaimSalienceRanking"],
             source_focus="product pages + landing pages + help_center + book/course blurbs + labels",
         ),
         "ProductReviewsAgent": AgentTypeDefinition(
             name="ProductReviewsAgent",
             description="Aggregates user feedback and reviews (anecdotal, clearly labeled)",
-            default_tools=["search.exa", "search.tavily", "browser.playwright", "extract.tavily", "fs.write", "fs.read", "context.summarize"],
+            default_tools=["browser.playwright", "tavily.search", "tavily.extract", "fs.write", "fs.read", "think"],
             typical_outputs=["UserFeedbackSummary", "AnecdotalSignalNotes"],
             source_focus="marketplace_reviews + social_community + first-party testimonials",
         ),
         "CaseStudyHarvestAgent": AgentTypeDefinition(
             name="CaseStudyHarvestAgent",
             description="Harvests evidence artifacts: studies, trials, whitepapers, case studies with affiliation labeling",
-            default_tools=["search.exa", "search.tavily", "extract.tavily", "browser.playwright", "doc.pdf_text", "fs.write", "fs.read", "context.summarize"],
+            default_tools=["tavily.search", "tavily.extract", "fs.write", "fs.read", "think"],
             typical_outputs=["EvidenceArtifacts"],
             source_focus="company-controlled evidence + independent studies + trials",
         ),
-        "EvidenceClassifierAgent": AgentTypeDefinition(
-            name="EvidenceClassifierAgent",
-            description="Classifies evidence by type (human/animal/in vitro), study design (RCT/obs/mechanistic), and independence",
-            default_tools=["fs.read", "fs.write", "context.summarize"],
-            typical_outputs=["EvidenceClassificationTable"],
-            source_focus="evidence artifacts from discovery",
-        ),
-        "StrengthAndGapAssessorAgent": AgentTypeDefinition(
-            name="StrengthAndGapAssessorAgent",
-            description="Assesses evidence-claim alignment, identifies gaps and overextensions",
-            default_tools=["fs.read", "fs.write", "context.summarize"],
-            typical_outputs=["ClaimSupportMatrix", "EvidenceGapNotes"],
-            source_focus="classified evidence + claims ledger",
-        ),
-        "ContraindicationsAndSafetyAgent": AgentTypeDefinition(
-            name="ContraindicationsAndSafetyAgent",
-            description="Surfaces safety signals: contraindications, adverse effects, regulatory warnings",
-            default_tools=["extract.tavily", "browser.playwright", "doc.pdf_text", "search.tavily", "fs.write", "fs.read", "context.summarize"],
-            typical_outputs=["SafetySignalSummary"],
-            source_focus="help/labels/manuals + regulatory signals",
-        ),
-        "ClinicalEvidenceTriageAgent": AgentTypeDefinition(
-            name="ClinicalEvidenceTriageAgent",
-            description="Augments evidence discovery using PubMed/Semantic Scholar/ClinicalTrials (optional augmenter)",
-            default_tools=["scholar.pubmed", "scholar.semantic_scholar", "registry.clinicaltrials", "search.tavily", "fs.write", "fs.read", "context.summarize"],
-            typical_outputs=["ClinicalEvidenceArtifacts"],
-            source_focus="PubMed + Semantic Scholar + ClinicalTrials.gov",
-        ),
+       
+
+      
         "KnowledgeSynthesizerAgent": AgentTypeDefinition(
             name="KnowledgeSynthesizerAgent",
             description="Synthesizes all research outputs into coherent entity representation (KG-ready)",
-            default_tools=["fs.read", "fs.write", "context.summarize"],
+            default_tools=["fs.read", "fs.write"],
             typical_outputs=["EntityResearchSummary"],
             source_focus="all artifacts from S1-S3",
         ),
         "ClaimConfidenceScorerAgent": AgentTypeDefinition(
             name="ClaimConfidenceScorerAgent",
             description="Assigns confidence tiers (Proven/Plausible/Speculative/Unsupported) with rationale",
-            default_tools=["fs.read", "fs.write", "context.summarize"],
+            default_tools=["fs.read", "fs.write"],
             typical_outputs=["ClaimConfidenceScores"],
             source_focus="claims ledger + evidence classification + strength assessment",
         ),
         "NarrativeAnalystAgent": AgentTypeDefinition(
             name="NarrativeAnalystAgent",
             description="Contrasts marketing narrative vs evidentiary reality, highlights tensions and adoption drivers",
-            default_tools=["fs.read", "fs.write", "context.summarize"],
+            default_tools=["fs.read", "fs.write"],
             typical_outputs=["NarrativeAndContextSummary"],
             source_focus="synthesis + confidence scores + original sources",
         ),
@@ -552,14 +423,3 @@ FULL_ENTITIES_STANDARD_PLAN = PrebuiltResearchPlan(
     ],
 )
 
-
-# ============================================================================
-# RESEARCH PLANS DICTIONARY
-# ============================================================================
-
-PREBUILT_RESEARCH_PLANS: Dict[str, PrebuiltResearchPlan] = {
-    "full_entities_standard": FULL_ENTITIES_STANDARD_PLAN,
-    # Add more research plan modes here as they are defined
-    # "full_entities_deep": FULL_ENTITIES_DEEP_PLAN,
-    # "entities_basic": ENTITIES_BASIC_PLAN,
-}

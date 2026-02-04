@@ -464,3 +464,73 @@ async def convert_many_to_artifacts(
         )
 
     return await asyncio.gather(*[_one(s) for s in sources])
+
+
+# -----------------------------------------------------------------------------
+# Test script
+# -----------------------------------------------------------------------------
+
+async def test_convert_arxiv_pdf():
+    """
+    Test script to verify convert_any_to_artifact works with an arXiv PDF.
+    """
+    test_url = "https://arxiv.org/pdf/1706.03762v6"
+    
+    print(f"Testing conversion of: {test_url}")
+    print("=" * 80)
+    
+    try:
+        artifact = await convert_any_to_artifact(
+            test_url,
+            export_markdown=True,
+            export_text=True,
+            export_dict=False,  # Skip dict to keep output smaller
+            export_opts=ExportOptions(max_chars=5000),  # Limit output for testing
+        )
+        
+        print(f"\n[SUCCESS] Conversion successful!")
+        print(f"Source: {artifact.source}")
+        print(f"Input format: {artifact.input_format}")
+        print(f"Document name: {artifact.doc_name}")
+        print(f"\nMetadata:")
+        for key, value in artifact.meta.items():
+            print(f"  {key}: {value}")
+        
+        if artifact.markdown:
+            print(f"\n[Markdown] Content ({len(artifact.markdown)} chars):")
+            print("-" * 80)
+            # Handle Unicode encoding for Windows console
+            preview = artifact.markdown[:500] + "..." if len(artifact.markdown) > 500 else artifact.markdown
+            try:
+                print(preview)
+            except UnicodeEncodeError:
+                # Replace problematic characters for console display
+                safe_preview = preview.encode('ascii', errors='replace').decode('ascii')
+                print(safe_preview)
+                print("\n(Note: Some Unicode characters were replaced for console display)")
+        
+        if artifact.text:
+            print(f"\n[Text] Content ({len(artifact.text)} chars):")
+            print("-" * 80)
+            # Handle Unicode encoding for Windows console
+            preview = artifact.text[:500] + "..." if len(artifact.text) > 500 else artifact.text
+            try:
+                print(preview)
+            except UnicodeEncodeError:
+                # Replace problematic characters for console display
+                safe_preview = preview.encode('ascii', errors='replace').decode('ascii')
+                print(safe_preview)
+                print("\n(Note: Some Unicode characters were replaced for console display)")
+        
+        print("\n" + "=" * 80)
+        print("[SUCCESS] Test completed successfully!")
+        
+    except Exception as e:
+        print(f"\n[ERROR] Error during conversion: {e}")
+        import traceback
+        traceback.print_exc()
+        raise
+
+
+if __name__ == "__main__":
+    asyncio.run(test_convert_arxiv_pdf())

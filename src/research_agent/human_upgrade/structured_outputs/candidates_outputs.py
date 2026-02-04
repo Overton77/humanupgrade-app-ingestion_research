@@ -171,36 +171,80 @@ class DomainCatalog(BaseModel):
     )
     platformUrls: List[str] = Field(
         default_factory=list,
-        description="URLs for about/technology/platform/science/team/press/FAQ pages (legacy bucket).",
+        description="URLs for technology/platform/science/how-it-works pages (legacy bucket, prefer more specific buckets when possible).",
     )
 
-    # --- NEW buckets (more precise downstream fan-out) ---
+    # --- Identity & Core Pages ---
+    homepageUrls: List[str] = Field(
+        default_factory=list,
+        description="Official homepage/root URLs (e.g., https://example.com, https://www.example.com). Usually 1-2 URLs.",
+    )
+    aboutUrls: List[str] = Field(
+        default_factory=list,
+        description="About/company/mission/who-we-are pages (distinct from leadership/team pages).",
+    )
+    blogUrls: List[str] = Field(
+        default_factory=list,
+        description="Blog/news/article pages hosted on official domain (distinct from press/media pages).",
+    )
+
+    # --- People & Leadership ---
     leadershipUrls: List[str] = Field(
         default_factory=list,
         description="URLs likely listing leadership/executives/founders/team members.",
     )
+
+    # --- Support & Documentation ---
     helpCenterUrls: List[str] = Field(
         default_factory=list,
         description="Support/KB/Help center hubs and relevant category pages.",
-    )
-    caseStudyUrls: List[str] = Field(
-        default_factory=list,
-        description="Company-controlled evidence pages: case studies, outcomes, testimonials framed as studies, whitepapers, research pages.",
     )
     documentationUrls: List[str] = Field(
         default_factory=list,
         description="Manuals, instructions, spec sheets, PDFs, downloads, datasheets.",
     )
+    labelUrls: List[str] = Field(
+        default_factory=list,
+        description="Product labels, ingredient lists, supplement facts, nutrition labels (often PDFs or images).",
+    )
+
+    # --- Evidence & Research ---
+    researchUrls: List[str] = Field(
+        default_factory=list,
+        description="Official research/platform/science pages, technology explanations, mechanism descriptions (distinct from case studies).",
+    )
+    caseStudyUrls: List[str] = Field(
+        default_factory=list,
+        description="Company-controlled evidence pages: case studies, outcomes, testimonials framed as studies, whitepapers.",
+    )
+    testimonialUrls: List[str] = Field(
+        default_factory=list,
+        description="First-party testimonials, customer stories, success stories (anecdotal, clearly labeled).",
+    )
+    patentUrls: List[str] = Field(
+        default_factory=list,
+        description="Patent references, patent application pages, proprietary process disclosures.",
+    )
+
+    # --- Marketing & Communication ---
+    landingPageUrls: List[str] = Field(
+        default_factory=list,
+        description="Marketing landing pages, campaign pages, promotional pages (distinct from product pages).",
+    )
+    pressUrls: List[str] = Field(
+        default_factory=list,
+        description="Press/media/PR/newsroom pages hosted on the official domain.",
+    )
+
+    # --- Policies & Legal ---
     policyUrls: List[str] = Field(
         default_factory=list,
         description="Warranty/returns/shipping/privacy/terms pages.",
     )
-    pressUrls: List[str] = Field(
+    regulatoryUrls: List[str] = Field(
         default_factory=list,
-        description="Press/media/PR pages hosted on the official domain.",
+        description="Regulatory compliance pages, FDA/regulatory notices, safety warnings, regulatory signals (if hosted on official domain).",
     ) 
-
-    # Replace case study with researchUrls or add researchUrls 
 
     notes: Optional[str] = Field(
         default=None,

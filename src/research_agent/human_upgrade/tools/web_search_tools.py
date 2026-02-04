@@ -11,7 +11,9 @@ from research_agent.agent_tools.tavily_functions import (
     tavily_extract,
     tavily_map,
     format_tavily_extract_response,
-    format_tavily_map_response,
+    format_tavily_map_response, 
+    tavily_crawl, 
+    format_tavily_crawl_response, 
 )   
 from research_agent.human_upgrade.structured_outputs.sources_and_search_summary_outputs import TavilyCitation
 from research_agent.human_upgrade.tools.utils.web_search_helpers import summarize_tavily_web_search, summarize_tavily_extract, format_tavily_summary_results
@@ -587,3 +589,113 @@ async def tavily_map_research(
     )
 
 
+@tool(
+    description=(
+        "Crawl a website starting from a root URL using Tavily Crawl. "
+        "Returns either a formatted raw crawl output, or a summarized output if your runtime supports summarization-with-citations."
+    ),
+    parse_docstring=False,
+)
+async def tavily_crawl_general(
+    runtime: ToolRuntime,
+    url: Annotated[
+        str,
+        "Root URL to begin the crawl (e.g., 'https://docs.tavily.com'). Prefer the most canonical entrypoint."
+    ],
+    instructions: Annotated[
+        Optional[str],
+        "Optional natural-language goal to focus the crawl (e.g., 'Find all pages about the Python SDK'). Enables chunks_per_source behavior."
+    ] = None,
+    chunks_per_source: Annotated[
+        int,
+        "Max relevant chunks per crawled page (1–5). Only applies when instructions are provided."
+    ] = 3,
+    max_depth: Annotated[
+        int,
+        "Max depth from the base URL (1–5). Start small; increase only when you need deeper traversal."
+    ] = 1,
+    max_breadth: Annotated[
+        int,
+        "Max links followed per page/level (1–500). Higher increases coverage but can add noise."
+    ] = 20,
+    limit: Annotated[
+        int,
+        "Total pages to process before stopping (>=1). Acts as the global crawl cap."
+    ] = 50,
+    select_paths: Annotated[
+        Optional[List[str]],
+        "Optional regex list to include only matching URL paths (e.g., ['/docs/.*','/sdk/.*'])."
+    ] = None,
+    select_domains: Annotated[
+        Optional[List[str]],
+        "Optional regex list to include only matching domains/subdomains (e.g., ['^docs\\.example\\.com$'])."
+    ] = None,
+    exclude_paths: Annotated[
+        Optional[List[str]],
+        "Optional regex list to exclude URL paths (e.g., ['/admin/.*','/private/.*'])."
+    ] = None,
+    exclude_domains: Annotated[
+        Optional[List[str]],
+        "Optional regex list to exclude domains/subdomains (e.g., ['^private\\.example\\.com$'])."
+    ] = None,
+    allow_external: Annotated[
+        bool,
+        "Whether to include external-domain links in final results."
+    ] = True,
+    include_images: Annotated[
+        bool,
+        "Whether to include images in crawl results. Usually False for research/validation."
+    ] = False,
+    extract_depth: Annotated[
+        Literal["basic", "advanced"],
+        "basic=faster/cheaper; advanced=more thorough extraction (tables/embedded content) but can increase latency."
+    ] = "basic",
+    format: Annotated[
+        Literal["markdown", "text"],
+        "Output content format. markdown is usually best for downstream chunking."
+    ] = "markdown",
+    include_favicon: Annotated[
+        bool,
+        "Include favicon URL for each result."
+    ] = False,
+    timeout: Annotated[
+        float,
+        "Max seconds to wait for the crawl (10–150)."
+    ] = 150.0,
+    include_usage: Annotated[
+        bool,
+        "Include credit usage info in the response if available."
+    ] = False,
+    output_mode: Annotated[
+        Literal["summary", "raw"],
+        "summary=use runtime summarizer-with-citations if available; raw=return formatted crawl output without summarization."
+    ] = "raw",
+    max_content_chars: Annotated[
+        Optional[int],
+        "Optional cap on characters per crawled page in the formatted output (token control)."
+    ] = 2000,
+) -> str:
+    response  = await tavily_crawl(
+        client=async_tavily_client,
+        url=url,
+        instructions=instructions,
+        chunks_per_source=chunks_per_source,
+        max_depth=max_depth,
+        max_breadth=max_breadth,
+        limit=limit,
+        select_paths=select_paths,
+        select_domains=select_domains,
+        exclude_paths=exclude_paths,
+        exclude_domains=exclude_domains,
+        allow_external=allow_external,
+        include_images=include_images,
+        extract_depth=extract_depth,
+        format=format,
+        include_favicon=include_favicon,
+        timeout=timeout,
+        include_usage=include_usage,
+        output_mode=output_mode,
+        max_content_chars=max_content_chars,
+    )
+    formatted_response = format_tavily_crawl_response(response) 
+    return formatted_response 

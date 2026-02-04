@@ -8,7 +8,7 @@ from langchain.tools import tool, ToolRuntime
 from pydantic import BaseModel, Field  
 from langchain.agents import create_agent  
 from langchain_openai import ChatOpenAI  
-from research_agent.prompts.summary_prompts import PUBMED_SUMMARY_PROMPT, PMC_SUMMARY_PROMPT
+from research_agent.human_upgrade.prompts.med_db_summary_prompts import PUBMED_SUMMARY_PROMPT, PMC_SUMMARY_PROMPT
 
 load_dotenv()
 

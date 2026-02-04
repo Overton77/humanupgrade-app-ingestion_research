@@ -4,6 +4,212 @@ from datetime import datetime
 import asyncio   
 
 
+async def tavily_crawl(
+    client: AsyncTavilyClient,
+    url: str,
+    instructions: Optional[str] = None,
+    chunks_per_source: int = 3,
+    max_depth: int = 1,
+    max_breadth: int = 20,
+    limit: int = 50,
+    select_paths: Optional[List[str]] = None,
+    select_domains: Optional[List[str]] = None,
+    exclude_paths: Optional[List[str]] = None,
+    exclude_domains: Optional[List[str]] = None,
+    allow_external: bool = True,
+    include_images: bool = False,
+    extract_depth: Literal["basic", "advanced"] = "basic",
+    format: Literal["markdown", "text"] = "markdown",
+    include_favicon: bool = False,
+    timeout: float = 150.0,
+    include_usage: bool = False,
+) -> Dict[str, Any]:
+    """
+    Async wrapper around Tavily's crawl method.
+
+    Uses explicit keyword args (no **kwargs). Tries to avoid passing optional fields
+    when not provided (notably instructions).
+    """
+    if not isinstance(url, str) or not url.strip():
+        raise ValueError("tavily_crawl: url must be a non-empty string.")
+
+    # Tavily docs: chunks_per_source is only available when instructions are provided.
+    if instructions and instructions.strip():
+        # Keep chunks_per_source in its documented range when instructions are present.
+        if not (1 <= int(chunks_per_source) <= 5):
+            raise ValueError("tavily_crawl: chunks_per_source must be between 1 and 5 when instructions are provided.")
+
+        return await client.crawl(
+            url=url,
+            instructions=instructions,
+            chunks_per_source=chunks_per_source,
+            max_depth=max_depth,
+            max_breadth=max_breadth,
+            limit=limit,
+            select_paths=select_paths,
+            select_domains=select_domains,
+            exclude_paths=exclude_paths,
+            exclude_domains=exclude_domains,
+            allow_external=allow_external,
+            include_images=include_images,
+            extract_depth=extract_depth,
+            format=format,
+            include_favicon=include_favicon,
+            timeout=timeout,
+            include_usage=include_usage,
+        )
+
+    # instructions is None/empty -> do not pass instructions nor chunks_per_source
+    return await client.crawl(
+        url=url,
+        max_depth=max_depth,
+        max_breadth=max_breadth,
+        limit=limit,
+        select_paths=select_paths,
+        select_domains=select_domains,
+        exclude_paths=exclude_paths,
+        exclude_domains=exclude_domains,
+        allow_external=allow_external,
+        include_images=include_images,
+        extract_depth=extract_depth,
+        format=format,
+        include_favicon=include_favicon,
+        timeout=timeout,
+        include_usage=include_usage,
+    )
+
+
+async def tavily_crawl_multiple(
+    client: AsyncTavilyClient,
+    urls: List[str],
+    instructions: Optional[str] = None,
+    chunks_per_source: int = 3,
+    max_depth: int = 1,
+    max_breadth: int = 20,
+    limit: int = 50,
+    select_paths: Optional[List[str]] = None,
+    select_domains: Optional[List[str]] = None,
+    exclude_paths: Optional[List[str]] = None,
+    exclude_domains: Optional[List[str]] = None,
+    allow_external: bool = True,
+    include_images: bool = False,
+    extract_depth: Literal["basic", "advanced"] = "basic",
+    format: Literal["markdown", "text"] = "markdown",
+    include_favicon: bool = False,
+    timeout: float = 150.0,
+    include_usage: bool = False,
+    concurrency: int = 3,
+) -> List[Dict[str, Any]]:
+    sem = asyncio.Semaphore(concurrency)
+
+    async def _one(u: str) -> Dict[str, Any]:
+        async with sem:
+            res = await tavily_crawl(
+                client=client,
+                url=u,
+                instructions=instructions,
+                chunks_per_source=chunks_per_source,
+                max_depth=max_depth,
+                max_breadth=max_breadth,
+                limit=limit,
+                select_paths=select_paths,
+                select_domains=select_domains,
+                exclude_paths=exclude_paths,
+                exclude_domains=exclude_domains,
+                allow_external=allow_external,
+                include_images=include_images,
+                extract_depth=extract_depth,
+                format=format,
+                include_favicon=include_favicon,
+                timeout=timeout,
+                include_usage=include_usage,
+            )
+            res["__url"] = u
+            return res
+
+    cleaned = [u.strip() for u in (urls or []) if isinstance(u, str) and u.strip()]
+    if not cleaned:
+        raise ValueError("tavily_crawl_multiple: urls must contain at least one valid URL.")
+    return await asyncio.gather(*[_one(u) for u in cleaned])
+
+
+def format_tavily_crawl_response(
+    response: Dict[str, Any] | List[Dict[str, Any]],
+    *,
+    max_results: Optional[int] = None,
+    max_content_chars: Optional[int] = 2000,
+) -> str:
+    """
+    Format Tavily crawl results into a compact, LLM-friendly string.
+
+    Handles:
+      - single crawl response: { base_url, results: [{url, raw_content, ...}], ... }
+      - list of crawl responses (from tavily_crawl_multiple)
+    """
+    def _format_one(resp: Dict[str, Any]) -> str:
+        base_url = resp.get("base_url") or resp.get("__url") or "(unknown base_url)"
+        results = resp.get("results") or []
+        usage = resp.get("usage")
+        response_time = resp.get("response_time")
+        request_id = resp.get("request_id")
+
+        if max_results is not None:
+            results_local = results[:max_results]
+        else:
+            results_local = results
+
+        lines: List[str] = []
+        lines.append(f"=== Crawl Results: {base_url} ===")
+        lines.append(f"Pages: {len(results)}")
+        if response_time is not None:
+            lines.append(f"Response time: {response_time}")
+        if request_id:
+            lines.append(f"Request id: {request_id}")
+        if usage:
+            # usage format depends on SDK; just render json-ish
+            lines.append(f"Usage: {usage}")
+        lines.append("")
+
+        if not results_local:
+            lines.append("(no pages)")
+            return "\n".join(lines).strip()
+
+        for idx, page in enumerate(results_local, start=1):
+            purl = page.get("url") or "(no url)"
+            raw = page.get("raw_content") or ""
+            favicon = page.get("favicon")
+            images = page.get("images") or page.get("image_urls") or None
+
+            if max_content_chars is not None and raw and len(raw) > max_content_chars:
+                raw = raw[:max_content_chars] + " …[truncated]"
+
+            lines.append(f"[Page {idx}]")
+            lines.append(f"URL: {purl}")
+            if favicon:
+                lines.append(f"Favicon: {favicon}")
+            if images:
+                try:
+                    lines.append(f"Images: {len(images)}")
+                except Exception:
+                    lines.append("Images: (present)")
+            lines.append("Content:")
+            lines.append(raw.strip() if raw else "(empty)")
+            lines.append("")
+
+        return "\n".join(lines).strip()
+
+    if isinstance(response, list):
+        blocks = [_format_one(r) for r in response if isinstance(r, dict)]
+        return "\n\n".join([b for b in blocks if b]).strip()
+
+    if isinstance(response, dict):
+        return _format_one(response)
+
+    return f"(unexpected response type: {type(response).__name__})"
+
+
+
+
 
 async def tavily_search(
     client: AsyncTavilyClient,

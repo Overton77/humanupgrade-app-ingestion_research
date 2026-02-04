@@ -1,39 +1,39 @@
 DEFAULT_TOOLS_BY_AGENT_TYPE = {
   "BusinessIdentityAndLeadershipAgent": [
-    "search.tavily", "extract.tavily", "browser.playwright", "fs.write", "fs.read", "context.summarize"
+    "tavily.search", "tavily.extract", "playwright.specs", "fs.write", "fs.read", "context.summarize"
   ],
   "PersonBioAndAffiliationsAgent": [
-    "search.exa", "search.tavily", "browser.playwright", "scholar.semantic_scholar", "scholar.pubmed",
+    "exa.search", "tavily.search", "playwright.specs", "semantic_scholar.search", "pubmed.literature_search",
     "fs.write", "fs.read", "context.summarize"
   ],
   "ProductCatalogerAgent": [
-    "search.tavily", "extract.tavily", "browser.playwright", "fs.write", "fs.read", "context.summarize"
+    "tavily.search", "tavily.extract", "playwright.specs", "fs.write", "fs.read", "context.summarize"
   ],
   "ProductSpecAgent": [
-    "browser.playwright", "extract.tavily", "doc.pdf_text", "doc.pdf_screenshot_ocr",
+    "playwright.specs", "tavily.extract", "doc.pdf_text", "doc.pdf_screenshot_ocr",
     "fs.write", "fs.read", "context.summarize"
   ],
   "TechnologyProcessAndManufacturingAgent": [
-    "search.tavily", "browser.playwright", "extract.tavily", "doc.pdf_text",
-    "scholar.semantic_scholar", "fs.write", "fs.read", "context.summarize"
+    "tavily.search", "playwright.specs", "tavily.extract", "doc.pdf_text",
+    "semantic_scholar.search", "fs.write", "fs.read", "context.summarize"
   ],
   "ClaimsExtractorAndTaxonomyMapperAgent": [
-    "extract.tavily", "browser.playwright", "fs.write", "fs.read", "context.summarize"
+    "tavily.extract", "playwright.specs", "fs.write", "fs.read", "context.summarize"
   ],
   "CaseStudyHarvestAgent": [
-    "search.exa", "search.tavily", "extract.tavily", "browser.playwright", "doc.pdf_text",
+    "exa.search", "tavily.search", "tavily.extract", "playwright.specs", "doc.pdf_text",
     "fs.write", "fs.read", "context.summarize"
   ],
   "ClinicalEvidenceTriageAgent": [
-    "scholar.pubmed", "scholar.semantic_scholar", "registry.clinicaltrials",
-    "search.tavily", "fs.write", "fs.read", "context.summarize"
+    "pubmed.literature_search", "semantic_scholar.search", "registry.clinicaltrials",
+    "tavily.search", "fs.write", "fs.read", "context.summarize"
   ],
   "ContraindicationsAndSafetyAgent": [
-    "extract.tavily", "browser.playwright", "doc.pdf_text", "search.tavily",
+    "tavily.extract", "playwright.specs", "doc.pdf_text", "tavily.search",
     "fs.write", "fs.read", "context.summarize"
   ],
   "ProductReviewsAgent": [
-    "search.exa", "search.tavily", "browser.playwright", "extract.tavily",
+    "exa.search", "tavily.search", "playwright.specs", "tavily.extract",
     "fs.write", "fs.read", "context.summarize"
   ],
   "KnowledgeSynthesizerAgent": [
