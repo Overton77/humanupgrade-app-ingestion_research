@@ -1,13 +1,25 @@
 """
-Agent-Facing File System Tools
+Agent-Facing File System Tools (Workspace-Scoped, Minimal)
 
-These tools wrap the low-level file system functions and provide
-a clean interface for the agent to interact with its workspace.
+- Everything is scoped under runtime.state["workspace_root"] (set per agent instance).
+- Filenames are workspace-relative (may include subdirs, forward slashes).
+- All path components are sanitized for Windows safety.
+- No bundle/run/direction legacy.
+- Tools update state via Command: messages + file_refs + progress_ledger + outputs_by_substage.
 
-All paths are automatically scoped and sanitized to prevent:
-- Path traversal attacks
-- Windows-invalid characters
-- Collisions between agents
+Expected runtime.state keys:
+- workspace_root: str (required; deterministic per agent instance)
+- agent_instance_plan: AgentInstancePlanWithSources (optional but recommended)
+- agent_type: str (optional; used for FileReference.agent_type fallback)
+- sub_stage_id: str (optional; enables outputs_by_substage fan-in)
+
+State fields written/updated:
+- steps_taken (int)
+- file_refs (list delta)
+- last_file_ref (overwrite)
+- progress_ledger (overwrite dict)
+- outputs_by_substage (overwrite dict[str, list[FileReference|str]])
+- messages (list delta)
 """
 
 from __future__ import annotations
@@ -22,747 +34,419 @@ from langgraph.types import Command
 from research_agent.human_upgrade.logger import logger
 from research_agent.human_upgrade.structured_outputs.file_outputs import FileReference
 from research_agent.agent_tools.file_system_functions import (
+    BASE_DIR,
+    sanitize_path_component,
+    resolve_workspace_path,  # security: prevents traversal
     write_file,
     read_file,
     edit_file,
-    delete_file,
-    list_directory,
-    search_files,
-    sanitize_path_component,
-    BASE_DIR,
 )
 
+# ---------------------------------------------------------------------
+# Types
+# ---------------------------------------------------------------------
 
-# ============================================================
-# WORKSPACE HELPERS
-# ============================================================
-
-def _get_state_value(runtime: ToolRuntime, key: str, default: str = "") -> str:
-    """Get a state value, sanitizing it for use in paths."""
-    value = runtime.state.get(key, default)
-    if not isinstance(value, str):
-        if value is None:
-            return default
-        value = str(value)
-    
-    # CRITICAL: Always sanitize values from state
-    # This handles both new runs AND old checkpoints with invalid characters
-    return sanitize_path_component(value)
+LedgerStatus = Literal["todo", "in_progress", "done", "blocked", "not_found"]
 
 
-def _get_workspace_components(runtime: ToolRuntime) -> tuple[str, str, str]:
-    """
-    Get the workspace path components from runtime state.
-    
-    Returns:
-        Tuple of (bundle_id, direction_type, run_id)
-        All components are sanitized and guaranteed Windows-safe.
-    """
-    bundle_id = _get_state_value(runtime, "bundle_id")
-    direction_type = _get_state_value(runtime, "direction_type")
-    run_id = _get_state_value(runtime, "run_id")
-    
-    # Validate that we have all required components
-    if not bundle_id:
-        raise ValueError("Missing bundle_id in runtime state")
-    if not direction_type:
-        raise ValueError("Missing direction_type in runtime state")
-    if not run_id:
-        raise ValueError("Missing run_id in runtime state")
-    
-    # Log if we had to sanitize (indicates old checkpoint with invalid chars)
-    raw_run_id = runtime.state.get("run_id", "")
-    if ":" in str(raw_run_id) or "<" in str(raw_run_id) or ">" in str(raw_run_id):
-        logger.warning(
-            "⚠️  Sanitized workspace path from checkpoint (had invalid Windows chars): "
-            "bundle_id=%s, direction_type=%s, run_id='%s' -> '%s'",
-            bundle_id, direction_type, raw_run_id, run_id
-        )
-    
-    logger.debug(
-        "Workspace: bundle_id=%s, direction_type=%s, run_id=%s",
-        bundle_id, direction_type, run_id
-    )
-    
-    return bundle_id, direction_type, run_id
+# ---------------------------------------------------------------------
+# Tiny helpers (keep minimal)
+# ---------------------------------------------------------------------
 
-
-def _build_file_path(runtime: ToolRuntime, filename: str) -> tuple[str, str, str, str]:
-    """
-    Build the full file path components from runtime state + filename.
-    
-    Args:
-        runtime: Tool runtime with state
-        filename: Workspace-relative filename from the agent
-        
-    Returns:
-        Tuple of (bundle_id, direction_type, run_id, filename)
-        All components are sanitized.
-    """
-    bundle_id, direction_type, run_id = _get_workspace_components(runtime)
-    
-    # Clean up the filename
-    filename = filename.strip().lstrip("/").replace("\\", "/")
-    if not filename:
-        raise ValueError("filename cannot be empty")
-    
-    # Sanitize each part of the filename (handles nested paths)
-    filename_parts = [sanitize_path_component(p) for p in filename.split("/") if p]
-    clean_filename = "/".join(filename_parts)
-    
-    return bundle_id, direction_type, run_id, clean_filename
-
-
-def _inc_steps(runtime: ToolRuntime) -> int:
-    """Increment and return the step counter."""
+def _steps(runtime: ToolRuntime) -> int:
     return int(runtime.state.get("steps_taken", 0) or 0) + 1
 
 
-async def _list_workspace_files(runtime: ToolRuntime) -> List[Dict[str, Any]]:
+def _ws_root(runtime: ToolRuntime) -> str:
+    ws = runtime.state.get("workspace_root")
+    if isinstance(ws, str) and ws.strip():
+        return ws
+    return "agent_outputs/_missing_workspace"
+
+
+def _rel_parts_from_ws_and_filename(workspace_root: str, filename: str) -> List[str]:
     """
-    Get a list of all files in the current workspace.
-    
-    Returns:
-        List of dicts with file info
+    Build sanitized BASE_DIR-relative path parts from workspace_root + filename.
+    Uses resolve_workspace_path for traversal safety.
+    Returns relative parts (split on '/').
     """
+    # workspace root components
+    root = (workspace_root or "").strip().replace("\\", "/").strip("/")
+    root_parts = [sanitize_path_component(p) for p in root.split("/") if p] or ["_missing_workspace"]
+
+    # filename components
+    fn = (filename or "").strip().replace("\\", "/").lstrip("/")
+    if not fn:
+        raise ValueError("filename cannot be empty")
+    fn_parts = [sanitize_path_component(p) for p in fn.split("/") if p]
+    if not fn_parts:
+        raise ValueError("filename resolves to empty after sanitization")
+
+    # security: ensure final path is inside BASE_DIR
+    abs_path: Path = resolve_workspace_path(*root_parts, *fn_parts)
+
+    rel = str(abs_path.relative_to(BASE_DIR)).replace("\\", "/")
+    return [p for p in rel.split("/") if p]
+
+
+def _make_file_ref(runtime: ToolRuntime, rel_path: str, description: str) -> FileReference:
+    """
+    New FileReference (4 fields): file_path, agent_type, description, source.
+    """
+    plan = runtime.state.get("agent_instance_plan")
+
+    agent_type = ""
+    source = ""
+
     try:
-        bundle_id, direction_type, run_id = _get_workspace_components(runtime)
-        paths = await list_directory(bundle_id, direction_type, run_id)
+        if plan is not None:
+            agent_type = str(getattr(plan, "agent_type", "") or "")
+            source = str(getattr(plan, "instance_id", "") or "")
     except Exception:
-        return []
-    
-    files = []
-    for p in paths:
-        try:
-            files.append({
-                "name": p.name,
-                "path": str(p.relative_to(BASE_DIR)),
-                "is_dir": p.is_dir(),
-                "size": p.stat().st_size if p.is_file() else None,
-            })
-        except Exception:
+        agent_type = ""
+        source = ""
+
+    if not agent_type:
+        at = runtime.state.get("agent_type")
+        agent_type = str(at) if isinstance(at, str) else ""
+
+    if not source:
+        source = "unknown_instance"
+
+    return FileReference(
+        file_path=rel_path,
+        agent_type=agent_type or "UnknownAgent",
+        description=(description or "").strip() or "Workspace file written by agent.",
+        source=source,
+    )
+
+
+def _ledger(runtime: ToolRuntime) -> Dict[str, Dict[str, Any]]:
+    x = runtime.state.get("progress_ledger")
+    return dict(x) if isinstance(x, dict) else {}
+
+
+def _ledger_apply(
+    ledger: Dict[str, Dict[str, Any]],
+    *,
+    keys: List[str],
+    status: LedgerStatus,
+    evidence_file: Optional[str],
+    notes: Optional[str],
+) -> Dict[str, Dict[str, Any]]:
+    for raw in keys:
+        k = (raw or "").strip()
+        if not k:
             continue
-    
-    return files
+        entry = dict(ledger.get(k) or {"status": "todo", "evidence_files": [], "notes": ""})
+        entry["status"] = status
+        if notes is not None:
+            entry["notes"] = (notes or "").strip()[:400]
+        if evidence_file:
+            ev = list(entry.get("evidence_files") or [])
+            if evidence_file not in ev:
+                ev.append(evidence_file)
+            entry["evidence_files"] = ev
+        ledger[k] = entry
+    return ledger
 
 
-def _require_description(description: str) -> None:
-    """Validate that description is useful."""
-    d = (description or "").strip()
-    if len(d) < 25:
-        raise ValueError("description must be at least 25 characters")
-    
-    vague_words = {"notes", "summary", "file", "report", "temp", "output"}
-    if d.lower() in vague_words:
-        raise ValueError("description is too vague - describe what's inside and what it covers")
+def _append_to_substage_outputs(runtime: ToolRuntime, item: Any) -> Optional[Dict[str, Any]]:
+    """
+    If sub_stage_id is present, append `item` to outputs_by_substage[sub_stage_id].
+    Returns dict patch or None.
+    """
+    sid = runtime.state.get("sub_stage_id")
+    if not isinstance(sid, str) or not sid.strip():
+        return None
+    outputs = runtime.state.get("outputs_by_substage")
+    out_map: Dict[str, List[Any]] = dict(outputs) if isinstance(outputs, dict) else {}
+    cur = list(out_map.get(sid) or [])
+    cur.append(item)
+    out_map[sid] = cur
+    return {"outputs_by_substage": out_map}
 
 
-# ============================================================
-# TYPE DEFINITIONS
-# ============================================================
+# ---------------------------------------------------------------------
+# Tools
+# ---------------------------------------------------------------------
 
-FieldStatus = Literal["todo", "in_progress", "done", "not_found"]
-
-
-def _safe_status(x: Optional[str]) -> Optional[FieldStatus]:
-    """Validate field status."""
-    if x in ("todo", "in_progress", "done", "not_found"):
-        return x  # type: ignore
-    return None
-
-
-def _ensure_rfs_entry(existing: Optional[Dict[str, Any]]) -> Dict[str, Any]:
-    """Ensure required_fields_status entry has correct structure."""
-    base = {"status": "todo", "evidence_files": [], "notes": ""}
-    if not isinstance(existing, dict):
-        return dict(base)
-    
-    out = dict(base)
-    out.update({k: v for k, v in existing.items() if k in base})
-    
-    if not isinstance(out.get("evidence_files"), list):
-        out["evidence_files"] = []
-    
-    return out
-
-
-# ============================================================
-# AGENT TOOLS
-# ============================================================
-
-@tool(
-    description="Write content to a file in the agent workspace.",
-    parse_docstring=False
-)
+@tool(description="Write content to a file in this agent instance's workspace.", parse_docstring=False)
 async def agent_write_file(
     runtime: ToolRuntime,
-    filename: Annotated[
-        str,
-        "Workspace-relative path for the output file (e.g., 'checkpoints/trials_safety.txt'). "
-        "Avoid absolute paths. Use forward slashes for subdirectories."
-    ],
-    content: Annotated[
-        str,
-        "Plain-text content to write. For reports, include citations and URLs under claims."
-    ],
-    description: Annotated[
-        str,
-        "Detailed description (>=25 chars): what this file contains, which fields it covers, "
-        "key evidence sources, and what's missing or uncertain."
-    ],
-    bundle_id: Annotated[
-        str,
-        "Optional: bundle_id override (normally inferred from runtime state)."
-    ] = "",
-    entity_key: Annotated[
-        str,
-        "Optional: stable key for the entity/section (used for indexing)."
-    ] = "",
-    covered_fields: Annotated[
-        Optional[List[str]],
-        "List of requiredFields covered by this file. Auto-updates the research ledger."
-    ] = None,
-    field_statuses: Annotated[
-        Optional[Dict[str, FieldStatus]],
-        "Optional status overrides per field (e.g., {'founder_bio': 'not_found'})."
-    ] = None,
-    field_notes: Annotated[
-        Optional[Dict[str, str]],
-        "Optional notes per field (<=280 chars) for the ledger."
-    ] = None,
-    mark_as_key_file: Annotated[
-        bool,
-        "If true, mark this file as a key checkpoint in the context index."
-    ] = True,
+    filename: Annotated[str, "Workspace-relative filename (may include subdirs). Example: 'checkpoints/identity.md'"],
+    content: Annotated[str, "Text content to write."],
+    description: Annotated[str, "Short description of what this file contains."],
+    artifact_keys: Annotated[Optional[List[str]], "Optional artifact keys satisfied by this file."] = None,
+    objective_keys: Annotated[Optional[List[str]], "Optional objective keys satisfied by this file."] = None,
+    ledger_status: Annotated[LedgerStatus, "Ledger status to set for provided keys."] = "done",
+    ledger_notes: Annotated[Optional[str], "Optional notes to store in progress_ledger entries."] = None,
+    emit_to_substage_outputs: Annotated[bool, "If true, append FileReference to outputs_by_substage[sub_stage_id]."] = True,
 ) -> Command:
-    """
-    Write content to a file in the agent's scoped workspace.
-    
-    This tool automatically:
-    - Sanitizes all path components for Windows safety
-    - Creates parent directories as needed
-    - Records the file reference in state
-    - Updates the required_fields_status ledger
-    - Updates the context_index for the agent
-    """
+    s = _steps(runtime)
+    ws = _ws_root(runtime)
+    updates: Dict[str, Any] = {"steps_taken": s}
+
     try:
-        steps = _inc_steps(runtime)
-        _require_description(description)
-        
-        # Build sanitized file path components
-        bundle_id_comp, direction_type_comp, run_id_comp, filename_comp = _build_file_path(
-            runtime, filename
-        )
-        
-        # Log what we're doing
-        logger.info(
-            f"📝 WRITE FILE [{steps}]: {bundle_id_comp}/{direction_type_comp}/"
-            f"{run_id_comp}/{filename_comp} - {description[:80]}"
-        )
-        
-        # Write the file using the new API
-        try:
-            filepath = await write_file(
-                bundle_id_comp,
-                direction_type_comp,
-                run_id_comp,
-                filename_comp,
-                content=content
+        rel_parts = _rel_parts_from_ws_and_filename(ws, filename)
+        await write_file(*rel_parts, content=content)
+
+        rel_path = "/".join(rel_parts)
+        file_ref = _make_file_ref(runtime, rel_path, description)
+
+        # state updates
+        updates["file_refs"] = [file_ref]
+        updates["last_file_ref"] = file_ref
+
+        # ledger
+        keys: List[str] = []
+        for k in (artifact_keys or []):
+            if isinstance(k, str) and k.strip():
+                keys.append(k.strip())
+        for k in (objective_keys or []):
+            if isinstance(k, str) and k.strip():
+                keys.append(k.strip())
+        if keys:
+            led = _ledger(runtime)
+            updates["progress_ledger"] = _ledger_apply(
+                led,
+                keys=keys,
+                status=ledger_status,
+                evidence_file=rel_path,
+                notes=ledger_notes,
             )
-            
-            # Calculate relative path for state storage
-            relative_path = str(filepath.relative_to(BASE_DIR))
-            
-            logger.info(f"✅ WRITE FILE complete: {relative_path}")
-            status = "success"
-            error = None
-            
-        except Exception as e:
-            logger.error(f"❌ WRITE FILE failed: {e}", exc_info=True)
-            status = "error"
-            error = str(e)
-            relative_path = f"{bundle_id_comp}/{direction_type_comp}/{run_id_comp}/{filename_comp}"
-        
-        # Build state updates
-        state_updates: Dict[str, Any] = {"steps_taken": steps}
-        
-        if status == "success":
-            # Create file reference
-            file_ref = FileReference(
-                file_path=relative_path,
-                description=description,
-                bundle_id=runtime.state.get("bundle_id") or bundle_id,
-                entity_key=entity_key,
-            )
-            
-            # Add to file_refs list
-            state_updates["file_refs"] = [file_ref]
-            state_updates["last_file_ref"] = file_ref
-            state_updates["last_file_event"] = {
-                "op": "write",
-                "file_path": relative_path,
-                "description": description,
-                "entity_key": entity_key,
-                "covered_fields": covered_fields or [],
-            }
-            
-            # Update required_fields_status ledger
-            rfs: Dict[str, Any] = dict(runtime.state.get("required_fields_status") or {})
-            cf = [f.strip() for f in (covered_fields or []) if isinstance(f, str) and f.strip()]
-            statuses = field_statuses or {}
-            notes_map = field_notes or {}
-            
-            for field in cf:
-                entry = _ensure_rfs_entry(rfs.get(field))
-                
-                # Add file to evidence_files (deduplicated)
-                ev = list(entry.get("evidence_files") or [])
-                if relative_path not in ev:
-                    ev.append(relative_path)
-                entry["evidence_files"] = ev
-                
-                # Set status
-                s_override = _safe_status(statuses.get(field)) if isinstance(statuses, dict) else None
-                entry["status"] = s_override or "done"
-                
-                # Set notes
-                if isinstance(notes_map, dict) and field in notes_map:
-                    entry["notes"] = (notes_map[field] or "")[:280]
-                
-                rfs[field] = entry
-            
-            if cf:
-                state_updates["required_fields_status"] = rfs
-            
-            # Update context_index
-            ctx = dict(runtime.state.get("context_index") or {})
-            ctx["latest_checkpoint"] = relative_path
-            if mark_as_key_file:
-                kf = list(ctx.get("key_files") or [])
-                if relative_path not in kf:
-                    kf.append(relative_path)
-                ctx["key_files"] = kf[-25:]  # Keep last 25
-            state_updates["context_index"] = ctx
-        
-        # Refresh workspace file listing
-        workspace_files = await _list_workspace_files(runtime)
-        state_updates["workspace_files"] = workspace_files
-        
-        # Build tool response
-        if status == "success":
-            covered_preview = ", ".join((covered_fields or [])[:8]) if covered_fields else "(none)"
-            tool_content = (
-                f"✅ File written: '{filename}'\n"
-                f"Path: {relative_path}\n"
-                f"Size: {len(content.encode('utf-8'))} bytes\n"
-                f"Description: {description}\n"
-                f"Covered fields: {covered_preview}"
-            )
-        else:
-            tool_content = f"❌ ERROR: failed to write '{filename}': {error}"
-        
-        state_updates["messages"] = [
-            ToolMessage(content=tool_content, tool_call_id=runtime.tool_call_id)
-        ]
-        
-        return Command(update=state_updates)
-    
+
+        # outputs_by_substage
+        if emit_to_substage_outputs:
+            patch = _append_to_substage_outputs(runtime, file_ref)
+            if patch:
+                updates.update(patch)
+
+        msg = f"✅ Wrote: {rel_path}"
+        updates["messages"] = [ToolMessage(content=msg, tool_call_id=runtime.tool_call_id)]
+        logger.info(f"📝 WRITE [{s}] {rel_path}")
+        return Command(update=updates)
+
     except Exception as e:
-        # Catch ALL errors and return as ToolMessage
-        logger.error(f"❌ WRITE FILE exception: {e}", exc_info=True)
-        return Command(
-            update={
-                "steps_taken": int(runtime.state.get("steps_taken", 0) or 0) + 1,
-                "messages": [
-                    ToolMessage(
-                        content=f"❌ ERROR: failed to write '{filename}': {str(e)}",
-                        tool_call_id=runtime.tool_call_id
-                    )
-                ],
-            }
-        )
+        msg = f"❌ WRITE failed for '{filename}': {e}"
+        updates["messages"] = [ToolMessage(content=msg, tool_call_id=runtime.tool_call_id)]
+        logger.error(msg, exc_info=True)
+        return Command(update=updates)
 
 
-@tool(
-    description="Read content from a file in the agent workspace.",
-    parse_docstring=False
-)
+@tool(description="Read a file from this agent instance's workspace.", parse_docstring=False)
 async def agent_read_file(
     runtime: ToolRuntime,
-    filename: Annotated[str, "Workspace-relative path to read"]
+    filename: Annotated[str, "Workspace-relative filename to read."],
 ) -> Command:
-    """Read a file from the agent's workspace."""
+    s = _steps(runtime)
+    ws = _ws_root(runtime)
+
     try:
-        steps = _inc_steps(runtime)
-        
-        # Build file path
-        bundle_id, direction_type, run_id, filename_comp = _build_file_path(runtime, filename)
-        
-        logger.info(
-            f"📖 READ FILE [{steps}]: {bundle_id}/{direction_type}/{run_id}/{filename_comp}"
-        )
-        
-        # Read the file
-        try:
-            content = await read_file(bundle_id, direction_type, run_id, filename_comp)
-            logger.info(f"✅ READ FILE complete: {filename}")
-            tool_content = content
-        except Exception as e:
-            logger.error(f"❌ READ FILE failed: {e}")
-            tool_content = f"❌ ERROR: {e}"
-        
+        rel_parts = _rel_parts_from_ws_and_filename(ws, filename)
+        content = await read_file(*rel_parts)
+
+        logger.info(f"📖 READ [{s}] {'/'.join(rel_parts)}")
         return Command(
             update={
-                "messages": [ToolMessage(content=tool_content, tool_call_id=runtime.tool_call_id)],
-                "steps_taken": steps,
-            }
-        )
-    
-    except Exception as e:
-        logger.error(f"❌ READ FILE exception: {e}", exc_info=True)
-        return Command(
-            update={
-                "steps_taken": int(runtime.state.get("steps_taken", 0) or 0) + 1,
-                "messages": [
-                    ToolMessage(
-                        content=f"❌ ERROR: failed to read '{filename}': {str(e)}",
-                        tool_call_id=runtime.tool_call_id
-                    )
-                ],
-            }
-        )
-
-
-@tool(
-    description="Edit a file by finding and replacing text.",
-    parse_docstring=False
-)
-async def agent_edit_file(
-    runtime: ToolRuntime,
-    filename: Annotated[str, "Workspace-relative path to edit"],
-    find_text: Annotated[str, "Text to find in the file"],
-    replace_text: Annotated[str, "Text to replace with"],
-    count: Annotated[int, "Number of replacements (-1 = all)"] = -1
-) -> Command:
-    """Edit a file by finding and replacing text."""
-    try:
-        steps = _inc_steps(runtime)
-        
-        # Build file path
-        bundle_id, direction_type, run_id, filename_comp = _build_file_path(runtime, filename)
-        
-        logger.info(
-            f"✏️  EDIT FILE [{steps}]: {bundle_id}/{direction_type}/{run_id}/{filename_comp}"
-        )
-        
-        # Edit the file
-        try:
-            filepath = await edit_file(
-                bundle_id, direction_type, run_id, filename_comp,
-                find_text=find_text,
-                replace_text=replace_text,
-                count=count
-            )
-            relative_path = str(filepath.relative_to(BASE_DIR))
-            logger.info(f"✅ EDIT FILE complete: {filename}")
-            tool_content = f"✅ Edited '{filename}'. Replacements: {'all' if count == -1 else count}"
-        except Exception as e:
-            logger.error(f"❌ EDIT FILE failed: {e}")
-            tool_content = f"❌ ERROR: {e}"
-            relative_path = None
-        
-        # Refresh workspace listing
-        workspace_files = await _list_workspace_files(runtime)
-        
-        state_updates: Dict[str, Any] = {
-            "messages": [ToolMessage(content=tool_content, tool_call_id=runtime.tool_call_id)],
-            "workspace_files": workspace_files,
-            "steps_taken": steps,
-        }
-        
-        if relative_path:
-            state_updates["last_file_event"] = {
-                "op": "edit",
-                "file_path": relative_path,
-                "find_text_preview": (find_text[:80] + "..." if len(find_text) > 80 else find_text),
-            }
-        
-        return Command(update=state_updates)
-    
-    except Exception as e:
-        logger.error(f"❌ EDIT FILE exception: {e}", exc_info=True)
-        return Command(
-            update={
-                "steps_taken": int(runtime.state.get("steps_taken", 0) or 0) + 1,
-                "messages": [
-                    ToolMessage(
-                        content=f"❌ ERROR: failed to edit '{filename}': {str(e)}",
-                        tool_call_id=runtime.tool_call_id
-                    )
-                ],
-            }
-        )
-
-
-@tool(
-    description="Delete a file from the agent workspace.",
-    parse_docstring=False
-)
-async def agent_delete_file(
-    runtime: ToolRuntime,
-    filename: Annotated[str, "Workspace-relative path to delete"]
-) -> Command:
-    """Delete a file from the agent's workspace."""
-    try:
-        steps = _inc_steps(runtime)
-        
-        # Build file path
-        bundle_id, direction_type, run_id, filename_comp = _build_file_path(runtime, filename)
-        
-        logger.info(
-            f"🗑️  DELETE FILE [{steps}]: {bundle_id}/{direction_type}/{run_id}/{filename_comp}"
-        )
-        
-        # Delete the file
-        try:
-            deleted = await delete_file(bundle_id, direction_type, run_id, filename_comp)
-            if deleted:
-                logger.info(f"✅ DELETE FILE complete: {filename}")
-                tool_content = f"✅ Deleted '{filename}'"
-            else:
-                tool_content = f"⚠️  File not found: '{filename}'"
-        except Exception as e:
-            logger.error(f"❌ DELETE FILE failed: {e}")
-            tool_content = f"❌ ERROR: {e}"
-        
-        # Refresh workspace listing
-        workspace_files = await _list_workspace_files(runtime)
-        
-        return Command(
-            update={
-                "messages": [ToolMessage(content=tool_content, tool_call_id=runtime.tool_call_id)],
-                "workspace_files": workspace_files,
-                "steps_taken": steps,
-            }
-        )
-    
-    except Exception as e:
-        logger.error(f"❌ DELETE FILE exception: {e}", exc_info=True)
-        return Command(
-            update={
-                "steps_taken": int(runtime.state.get("steps_taken", 0) or 0) + 1,
-                "messages": [
-                    ToolMessage(
-                        content=f"❌ ERROR: failed to delete '{filename}': {str(e)}",
-                        tool_call_id=runtime.tool_call_id
-                    )
-                ],
-            }
-        )
-
-
-@tool(
-    description="List all files in the agent workspace.",
-    parse_docstring=False
-)
-async def agent_list_directory(
-    runtime: ToolRuntime,
-    subdir: Annotated[Optional[str], "Optional subdirectory to list"] = None
-) -> Command:
-    """List files and directories in the workspace."""
-    try:
-        steps = _inc_steps(runtime)
-        
-        # Build directory path
-        bundle_id, direction_type, run_id = _get_workspace_components(runtime)
-        
-        if subdir:
-            subdir_clean = sanitize_path_component(subdir)
-            paths = await list_directory(bundle_id, direction_type, run_id, subdir_clean)
-            location = f"workspace/{subdir_clean}"
-        else:
-            paths = await list_directory(bundle_id, direction_type, run_id)
-            location = "workspace"
-        
-        logger.info(f"📂 LIST DIR [{steps}]: {location}")
-        
-        # Format output
-        if not paths:
-            tool_content = f"Directory is empty: {location}"
-        else:
-            files = [p for p in paths if p.is_file()]
-            dirs = [p for p in paths if p.is_dir()]
-            
-            lines = [f"Contents of {location}:", ""]
-            
-            if dirs:
-                lines.append("Directories:")
-                for d in sorted(dirs):
-                    lines.append(f"  📁 {d.name}/")
-                lines.append("")
-            
-            if files:
-                lines.append("Files:")
-                for f in sorted(files):
-                    size = f.stat().st_size
-                    lines.append(f"  📄 {f.name} ({size} bytes)")
-            
-            tool_content = "\n".join(lines)
-        
-        # Refresh workspace listing
-        workspace_files = await _list_workspace_files(runtime)
-        
-        return Command(
-            update={
-                "messages": [ToolMessage(content=tool_content, tool_call_id=runtime.tool_call_id)],
-                "workspace_files": workspace_files,
-                "steps_taken": steps,
-            }
-        )
-    
-    except Exception as e:
-        logger.error(f"❌ LIST DIR exception: {e}", exc_info=True)
-        return Command(
-            update={
-                "steps_taken": int(runtime.state.get("steps_taken", 0) or 0) + 1,
-                "messages": [
-                    ToolMessage(
-                        content=f"❌ ERROR: failed to list directory: {str(e)}",
-                        tool_call_id=runtime.tool_call_id
-                    )
-                ],
-            }
-        )
-
-
-@tool(
-    description="Search for files matching a pattern in the workspace.",
-    parse_docstring=False
-)
-async def agent_search_files(
-    runtime: ToolRuntime,
-    pattern: Annotated[str, "Glob pattern (e.g., '*.txt', '**/*.md')"],
-    subdir: Annotated[Optional[str], "Optional subdirectory to search in"] = None
-) -> Command:
-    """Search for files matching a glob pattern."""
-    try:
-        steps = _inc_steps(runtime)
-        
-        # Build search path
-        bundle_id, direction_type, run_id = _get_workspace_components(runtime)
-        
-        if subdir:
-            subdir_clean = sanitize_path_component(subdir)
-            paths = await search_files(pattern, bundle_id, direction_type, run_id, subdir_clean)
-            location = f"workspace/{subdir_clean}"
-        else:
-            paths = await search_files(pattern, bundle_id, direction_type, run_id)
-            location = "workspace"
-        
-        logger.info(f"🔍 SEARCH FILES [{steps}]: pattern='{pattern}' in {location}")
-        
-        # Format output
-        if not paths:
-            tool_content = f"No files found matching '{pattern}' in {location}"
-        else:
-            lines = [f"Found {len(paths)} file(s) matching '{pattern}' in {location}:", ""]
-            for p in sorted(paths):
-                lines.append(f"  📄 {p.relative_to(BASE_DIR)}")
-            tool_content = "\n".join(lines)
-        
-        return Command(
-            update={
-                "messages": [ToolMessage(content=tool_content, tool_call_id=runtime.tool_call_id)],
-                "steps_taken": steps,
-            }
-        )
-    
-    except Exception as e:
-        logger.error(f"❌ SEARCH FILES exception: {e}", exc_info=True)
-        return Command(
-            update={
-                "steps_taken": int(runtime.state.get("steps_taken", 0) or 0) + 1,
-                "messages": [
-                    ToolMessage(
-                        content=f"❌ ERROR: failed to search files: {str(e)}",
-                        tool_call_id=runtime.tool_call_id
-                    )
-                ],
-            }
-        )
-
-
-@tool(
-    description="List all research outputs produced so far by this agent.",
-    parse_docstring=False
-)
-def agent_list_outputs(runtime: ToolRuntime) -> Command:
-    """List all file outputs produced by this agent run."""
-    try:
-        file_refs = runtime.state.get("file_refs") or []
-        direction_type = runtime.state.get("direction_type", "UNKNOWN")
-        bundle_id = runtime.state.get("bundle_id", "unknown")
-        run_id = runtime.state.get("run_id", "unknown")
-        
-        lines = [f"Outputs for Bundle={bundle_id} Run={run_id} Direction={direction_type}", ""]
-        
-        if not file_refs:
-            lines.append("No file outputs recorded yet.")
-        else:
-            lines.append(f"File outputs ({len(file_refs)}):")
-            for i, ref in enumerate(file_refs, start=1):
-                file_path = getattr(ref, "file_path", None) or (
-                    ref.get("file_path") if isinstance(ref, dict) else "unknown"
-                )
-                desc = getattr(ref, "description", None) or (
-                    ref.get("description") if isinstance(ref, dict) else ""
-                )
-                entity_key = getattr(ref, "entity_key", None) or (
-                    ref.get("entity_key") if isinstance(ref, dict) else ""
-                )
-                
-                ek = f" ({entity_key})" if entity_key else ""
-                if desc:
-                    lines.append(f"{i}. {file_path}{ek}\n   - {desc}")
-                else:
-                    lines.append(f"{i}. {file_path}{ek}")
-        
-        # Include workspace snapshot
-        ws = runtime.state.get("workspace_files") or []
-        if ws:
-            lines.append("")
-            lines.append(f"Workspace snapshot ({len(ws)} items):")
-            for item in ws[:30]:
-                name = item.get("name", "unknown")
-                is_dir = item.get("is_dir", False)
-                size = item.get("size")
-                
-                if is_dir:
-                    lines.append(f"- 📁 {name}/")
-                else:
-                    sz = f" ({size} bytes)" if isinstance(size, int) else ""
-                    lines.append(f"- 📄 {name}{sz}")
-            
-            if len(ws) > 30:
-                lines.append(f"...and {len(ws) - 30} more.")
-        
-        content = "\n".join(lines)
-        
-        return Command(
-            update={
+                "steps_taken": s,
                 "messages": [ToolMessage(content=content, tool_call_id=runtime.tool_call_id)],
             }
         )
-    
+
     except Exception as e:
-        logger.error(f"❌ LIST OUTPUTS exception: {e}", exc_info=True)
+        msg = f"❌ READ failed for '{filename}': {e}"
+        logger.error(msg, exc_info=True)
         return Command(
             update={
-                "messages": [
-                    ToolMessage(
-                        content=f"❌ ERROR: failed to list outputs: {str(e)}",
-                        tool_call_id=runtime.tool_call_id
-                    )
-                ],
+                "steps_taken": s,
+                "messages": [ToolMessage(content=msg, tool_call_id=runtime.tool_call_id)],
+            }
+        )
+
+
+@tool(description="Edit a file in this agent instance's workspace via find/replace.", parse_docstring=False)
+async def agent_edit_file(
+    runtime: ToolRuntime,
+    filename: Annotated[str, "Workspace-relative filename to edit."],
+    find_text: Annotated[str, "Text to find."],
+    replace_text: Annotated[str, "Replacement text."],
+    count: Annotated[int, "Number of replacements (-1 = all)."] = -1,
+    emit_to_substage_outputs: Annotated[bool, "If true, append a short edit note to outputs_by_substage."] = False,
+) -> Command:
+    s = _steps(runtime)
+    ws = _ws_root(runtime)
+    updates: Dict[str, Any] = {"steps_taken": s}
+
+    try:
+        rel_parts = _rel_parts_from_ws_and_filename(ws, filename)
+        await edit_file(*rel_parts, find_text=find_text, replace_text=replace_text, count=count)
+        rel_path = "/".join(rel_parts)
+
+        msg = f"✅ Edited: {rel_path} (replacements={'all' if count == -1 else count})"
+        updates["messages"] = [ToolMessage(content=msg, tool_call_id=runtime.tool_call_id)]
+
+        if emit_to_substage_outputs:
+            patch = _append_to_substage_outputs(runtime, msg)
+            if patch:
+                updates.update(patch)
+
+        logger.info(f"✏️ EDIT [{s}] {rel_path}")
+        return Command(update=updates)
+
+    except Exception as e:
+        msg = f"❌ EDIT failed for '{filename}': {e}"
+        updates["messages"] = [ToolMessage(content=msg, tool_call_id=runtime.tool_call_id)]
+        logger.error(msg, exc_info=True)
+        return Command(update=updates)
+
+
+@tool(description="Delete a file from this agent instance's workspace.", parse_docstring=False)
+async def agent_delete_file(
+    runtime: ToolRuntime,
+    filename: Annotated[str, "Workspace-relative filename to delete."],
+) -> Command:
+    s = _steps(runtime)
+    ws = _ws_root(runtime)
+
+    try:
+        rel_parts = _rel_parts_from_ws_and_filename(ws, filename)
+        abs_path = resolve_workspace_path(*rel_parts)
+
+        if abs_path.exists() and abs_path.is_file():
+            abs_path.unlink()
+            msg = f"✅ Deleted: {'/'.join(rel_parts)}"
+            deleted = True
+        else:
+            msg = f"⚠️ Not found: {'/'.join(rel_parts)}"
+            deleted = False
+
+        logger.info(f"🗑️ DELETE [{s}] {'/'.join(rel_parts)} deleted={deleted}")
+        return Command(
+            update={
+                "steps_taken": s,
+                "messages": [ToolMessage(content=msg, tool_call_id=runtime.tool_call_id)],
+            }
+        )
+
+    except Exception as e:
+        msg = f"❌ DELETE failed for '{filename}': {e}"
+        logger.error(msg, exc_info=True)
+        return Command(
+            update={
+                "steps_taken": s,
+                "messages": [ToolMessage(content=msg, tool_call_id=runtime.tool_call_id)],
+            }
+        )
+
+
+@tool(description="List files in this agent instance's workspace (optionally within a subdir).", parse_docstring=False)
+async def agent_list_directory(
+    runtime: ToolRuntime,
+    subdir: Annotated[Optional[str], "Optional subdirectory inside the workspace."] = None,
+) -> Command:
+    s = _steps(runtime)
+    ws = _ws_root(runtime)
+
+    try:
+        # Build a safe directory path under workspace_root
+        target = subdir.strip() if isinstance(subdir, str) else ""
+        if not target:
+            target = "."
+
+        rel_parts = _rel_parts_from_ws_and_filename(ws, target)
+        abs_path = resolve_workspace_path(*rel_parts)
+
+        # If user passed ".", rel_parts includes "." sanitized out by our helper,
+        # so abs_path may point to a file if target had a filename. Ensure dir:
+        abs_dir = abs_path if abs_path.is_dir() else abs_path.parent
+
+        if not abs_dir.exists():
+            content = "(directory not found)"
+        else:
+            items = sorted(abs_dir.iterdir(), key=lambda p: (not p.is_dir(), p.name.lower()))
+            if not items:
+                content = "(empty)"
+            else:
+                lines: List[str] = []
+                for p in items:
+                    rp = str(p.relative_to(BASE_DIR)).replace("\\", "/")
+                    if p.is_dir():
+                        lines.append(f"📁 {rp}/")
+                    else:
+                        try:
+                            lines.append(f"📄 {rp} ({p.stat().st_size} bytes)")
+                        except Exception:
+                            lines.append(f"📄 {rp}")
+                content = "\n".join(lines)
+
+        logger.info(f"📂 LIST [{s}] ws={ws} subdir={subdir or '.'}")
+        return Command(
+            update={
+                "steps_taken": s,
+                "messages": [ToolMessage(content=content, tool_call_id=runtime.tool_call_id)],
+            }
+        )
+
+    except Exception as e:
+        msg = f"❌ LIST failed: {e}"
+        logger.error(msg, exc_info=True)
+        return Command(
+            update={
+                "steps_taken": s,
+                "messages": [ToolMessage(content=msg, tool_call_id=runtime.tool_call_id)],
+            }
+        )
+
+
+@tool(description="Search files by glob pattern within this agent instance's workspace.", parse_docstring=False)
+async def agent_search_files(
+    runtime: ToolRuntime,
+    pattern: Annotated[str, "Glob pattern (e.g. '*.md', '**/*.txt')."],
+    subdir: Annotated[Optional[str], "Optional subdir inside workspace to constrain search."] = None,
+) -> Command:
+    s = _steps(runtime)
+    ws = _ws_root(runtime)
+
+    try:
+        base = subdir.strip() if isinstance(subdir, str) else ""
+        if not base:
+            base = "."
+
+        rel_parts = _rel_parts_from_ws_and_filename(ws, base)
+        abs_path = resolve_workspace_path(*rel_parts)
+        abs_dir = abs_path if abs_path.is_dir() else abs_path.parent
+
+        if not abs_dir.exists():
+            content = "(search root not found)"
+        else:
+            matches = sorted(abs_dir.glob(pattern))
+            if not matches:
+                content = "(no matches)"
+            else:
+                lines = []
+                for p in matches:
+                    try:
+                        rp = str(p.relative_to(BASE_DIR)).replace("\\", "/")
+                    except Exception:
+                        rp = str(p)
+                    lines.append(f"📄 {rp}")
+                content = "\n".join(lines)
+
+        logger.info(f"🔍 SEARCH [{s}] pattern={pattern} ws={ws} subdir={subdir or '.'}")
+        return Command(
+            update={
+                "steps_taken": s,
+                "messages": [ToolMessage(content=content, tool_call_id=runtime.tool_call_id)],
+            }
+        )
+
+    except Exception as e:
+        msg = f"❌ SEARCH failed: {e}"
+        logger.error(msg, exc_info=True)
+        return Command(
+            update={
+                "steps_taken": s,
+                "messages": [ToolMessage(content=msg, tool_call_id=runtime.tool_call_id)],
             }
         )

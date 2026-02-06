@@ -12,7 +12,7 @@ from llama_index.core.agent.workflow import FunctionAgent
 from llama_index.tools.mcp import BasicMCPClient, McpToolSpec
 from langgraph.types import Command
 from langchain.messages import ToolMessage
- 
+from research_agent.human_upgrade.base_models import gpt_5_mini as DEFAULT_MODEL
 
 load_dotenv() 
 
@@ -125,8 +125,6 @@ async def playwright_mcp_specs(
     output_format: Annotated[Literal["key_value", "bullets", "raw", "jsonish"], "Parse-friendly output style (still a string)."] = "key_value",
     prefer_sources: Annotated[bool, "If True, require SOURCES urls for verification."] = True,
     max_actions: Annotated[int, "Soft cap to keep browsing bounded."] = 25,
-    model: Annotated[str, "OpenAI model name used by the LlamaIndex agent."] = "gpt-5-mini",
-    mcp_url: Annotated[Optional[str], "Override MCP endpoint (defaults to env MCP_URL)."] = None,
 ) -> Command:
 
     prompt = _build_spec_prompt(
@@ -141,8 +139,8 @@ async def playwright_mcp_specs(
 
     result_str = await run_playwright_mcp_agent(
         prompt,
-        mcp_url=mcp_url or MCP_URL,
-        model=model,
+        mcp_url=MCP_URL,
+        model=DEFAULT_MODEL,
     ) 
 
     return Command( 

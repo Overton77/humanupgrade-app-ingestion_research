@@ -1,51 +1,99 @@
-DEFAULT_TOOLS_BY_AGENT_TYPE = {
+
+DEFAULT_TOOLS_BY_AGENT_TYPE: dict[str, list[str]] = {
   "BusinessIdentityAndLeadershipAgent": [
-    "tavily.search", "tavily.extract", "playwright.specs", "fs.write", "fs.read", "context.summarize"
+    "search.tavily", "extract.tavily", "browser.playwright", "fs.write", "fs.read", "think"
   ],
   "PersonBioAndAffiliationsAgent": [
-    "exa.search", "tavily.search", "playwright.specs", "semantic_scholar.search", "pubmed.literature_search",
-    "fs.write", "fs.read", "context.summarize"
+    "search.exa", "search.tavily", "browser.playwright", "scholar.semantic_scholar", "scholar.pubmed",
+    "fs.write", "fs.read", 
   ],
   "ProductCatalogerAgent": [
-    "tavily.search", "tavily.extract", "playwright.specs", "fs.write", "fs.read", "context.summarize"
+    "search.tavily", "extract.tavily", "browser.playwright", "fs.write", "fs.read", 
   ],
   "ProductSpecAgent": [
-    "playwright.specs", "tavily.extract", "doc.pdf_text", "doc.pdf_screenshot_ocr",
-    "fs.write", "fs.read", "context.summarize"
+    "browser.playwright", "extract.tavily", "doc.pdf_text", "doc.pdf_screenshot_ocr",
+    "fs.write", "fs.read", 
   ],
   "TechnologyProcessAndManufacturingAgent": [
-    "tavily.search", "playwright.specs", "tavily.extract", "doc.pdf_text",
-    "semantic_scholar.search", "fs.write", "fs.read", "context.summarize"
+    "search.tavily", "browser.playwright", "extract.tavily", "doc.pdf_text",
+    "scholar.semantic_scholar", "fs.write", "fs.read", 
   ],
   "ClaimsExtractorAndTaxonomyMapperAgent": [
-    "tavily.extract", "playwright.specs", "fs.write", "fs.read", "context.summarize"
+    "extract.tavily", "browser.playwright", "fs.write", "fs.read", 
   ],
   "CaseStudyHarvestAgent": [
-    "exa.search", "tavily.search", "tavily.extract", "playwright.specs", "doc.pdf_text",
-    "fs.write", "fs.read", "context.summarize"
+    "search.exa", "search.tavily", "extract.tavily", "browser.playwright", "doc.pdf_text",
+    "fs.write", "fs.read", 
   ],
   "ClinicalEvidenceTriageAgent": [
-    "pubmed.literature_search", "semantic_scholar.search", "registry.clinicaltrials",
-    "tavily.search", "fs.write", "fs.read", "context.summarize"
+    "scholar.pubmed", "scholar.semantic_scholar", "registry.clinicaltrials",
+    "search.tavily", "fs.write", "fs.read", 
   ],
   "ContraindicationsAndSafetyAgent": [
-    "tavily.extract", "playwright.specs", "doc.pdf_text", "tavily.search",
-    "fs.write", "fs.read", "context.summarize"
+    "extract.tavily", "browser.playwright", "doc.pdf_text", "search.tavily",
+    "fs.write", "fs.read", 
   ],
   "ProductReviewsAgent": [
-    "exa.search", "tavily.search", "playwright.specs", "tavily.extract",
-    "fs.write", "fs.read", "context.summarize"
+    "search.exa", "search.tavily", "browser.playwright", "extract.tavily",
+    "fs.write", "fs.read", 
   ],
   "KnowledgeSynthesizerAgent": [
-    "fs.read", "fs.write", "context.summarize"
+    "fs.read", "fs.write", 
   ],
   "ClaimConfidenceScorerAgent": [
-    "fs.read", "fs.write", "context.summarize"
+    "fs.read", "fs.write", 
   ],
   "NarrativeAnalystAgent": [
-    "fs.read", "fs.write", "context.summarize"
+    "fs.read", "fs.write", 
   ],
   "ResearchRouterAgent": [
     "fs.read", "fs.write"
   ],
+}
+
+
+
+FULL_ENTITIES_BASIC_DEFAULT_TOOL_MAP: dict[str, list[str]] = {
+    "BusinessIdentityAndLeadershipAgent": [
+        "tavily.search",
+        "tavily.extract", 
+        "tavily.map",
+        "wiki.search",
+        "fs.read",
+        "fs.write",
+        "think",
+    ],
+    "PersonBioAndAffiliationsAgent": [
+        "tavily.search",
+        "tavily.extract", 
+        "wiki.search",
+        "fs.read",
+        "fs.write",
+        "think",
+    ],
+    "EcosystemMapperAgent": [
+        "exa.search",
+        "exa.find_similar",
+        "tavily.extract",
+        "fs.read",
+        "fs.write",
+        "think",
+    ],
+    "ProductSpecAgent": [
+        "browser.playwright",
+        "tavily.search",
+        "tavily.crawl",
+        "tavily.extract",
+        "fs.read",
+        "fs.write",
+        "think",
+    ],
+    "CaseStudyHarvestAgent": [
+        "tavily.search",
+        "tavily.extract", 
+        "tavily.map",
+        "fs.read",
+        "fs.write",
+        "think",
+    ],
 }

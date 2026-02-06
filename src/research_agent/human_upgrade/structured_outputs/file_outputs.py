@@ -1,8 +1,7 @@
 from pydantic import BaseModel, Field
-from typing import Optional
 
-class FileReference(BaseModel): 
-    file_path: str = Field(..., description="The path to the file") 
-    description: Optional[str] = Field(None, description="The description of the file")  
-    bundle_id: str = Field(..., description="The bundle id of the file") 
-    entity_key: str = Field(..., description="The entity key of the file") 
+class FileReference(BaseModel):
+    file_path: str = Field(..., description="Workspace-relative path (under BASE_DIR), using forward slashes.")
+    agent_type: str = Field(..., description="Agent type that produced the file (e.g., 'ProductSpecAgent').")
+    description: str = Field(..., description="What the file contains and why it matters (1–3 sentences).")
+    source: str = Field(..., description="Producer identifier for retrieval/debug (typically agent_instance_plan.instance_id).")
