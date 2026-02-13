@@ -267,4 +267,7 @@ personal_docs/
 **/scripts/** 
 **/candidate_exploration/**  
 
-**/personal_exploration/** 
+**/personal_exploration/**   
+
+**/agent_instances_current/**    
+**/agent_files_current/**     

@@ -4,181 +4,246 @@
 from enum import Enum
 
 
-class UserProtocolStatus(str, Enum):
-    draft = "draft"
+class OrgType(str, Enum):
+    COMPANY = "COMPANY"
+    NONPROFIT = "NONPROFIT"
+    RESEARCH_GROUP = "RESEARCH_GROUP"
+    COMMUNITY = "COMMUNITY"
+    MEDIA_OUTLET = "MEDIA_OUTLET"
+    CLINIC = "CLINIC"
+    FOUNDATION = "FOUNDATION"
+    REGULATOR = "REGULATOR"
+    JOURNAL = "JOURNAL"
+    LAB_NETWORK = "LAB_NETWORK"
+    DISTRIBUTOR = "DISTRIBUTOR"
+    MANUFACTURER = "MANUFACTURER"
+    SUPPLIER = "SUPPLIER"
+    PLATFORM = "PLATFORM"
+    OTHER = "OTHER"
+
+
+class BusinessModel(str, Enum):
+    B2C = "B2C"
+    B2B = "B2B"
+    B2B2C = "B2B2C"
+    HYBRID = "HYBRID"
+    UNKNOWN = "UNKNOWN"
+
+
+class LocationType(str, Enum):
+    HEADQUARTERS = "HEADQUARTERS"
+    REGISTERED_ADDRESS = "REGISTERED_ADDRESS"
+    OFFICE = "OFFICE"
+    LAB_FACILITY = "LAB_FACILITY"
+    CLINIC_SITE = "CLINIC_SITE"
+    MANUFACTURING_SITE = "MANUFACTURING_SITE"
+    WAREHOUSE = "WAREHOUSE"
+    RETAIL_SITE = "RETAIL_SITE"
+    DATA_CENTER = "DATA_CENTER"
+    RESEARCH_SITE = "RESEARCH_SITE"
+    COLLECTION_SITE = "COLLECTION_SITE"
+    CONFERENCE_VENUE = "CONFERENCE_VENUE"
+    OTHER = "OTHER"
+
+
+class ListingDomain(str, Enum):
+    DIAGNOSTICS = "DIAGNOSTICS"
+    SUPPLEMENT = "SUPPLEMENT"
+    DEVICE = "DEVICE"
+    TELEHEALTH = "TELEHEALTH"
+    SOFTWARE = "SOFTWARE"
+    SERVICE = "SERVICE"
+    OTHER = "OTHER"
+
+
+class PriceType(str, Enum):
+    LIST = "LIST"
+    PROMO = "PROMO"
+    MEMBER_ONLY = "MEMBER_ONLY"
+    INSURANCE_ESTIMATE = "INSURANCE_ESTIMATE"
+    UNKNOWN = "UNKNOWN"
+
+
+class CollectionMode(str, Enum):
+    AT_HOME_KIT = "AT_HOME_KIT"
+    IN_PERSON_DRAW = "IN_PERSON_DRAW"
+    MOBILE_PHLEBOTOMY = "MOBILE_PHLEBOTOMY"
+    IN_CLINIC = "IN_CLINIC"
+    SHIPPING = "SHIPPING"
+    TELEHEALTH = "TELEHEALTH"
+    VIRTUAL = "VIRTUAL"
+    OTHER = "OTHER"
+
+
+class ProductDomain(str, Enum):
+    DIAGNOSTICS = "DIAGNOSTICS"
+    SUPPLEMENT = "SUPPLEMENT"
+    DEVICE = "DEVICE"
+    TELEHEALTH = "TELEHEALTH"
+    SOFTWARE = "SOFTWARE"
+    SERVICE = "SERVICE"
+    OTHER = "OTHER"
+
+
+class ListRole(str, Enum):
+    OPERATOR = "OPERATOR"
+    PROVIDER = "PROVIDER"
+    SELLER = "SELLER"
+    DISTRIBUTOR = "DISTRIBUTOR"
+    MARKETER = "MARKETER"
+    FULFILLMENT_PARTNER = "FULFILLMENT_PARTNER"
+    BILLING_ENTITY = "BILLING_ENTITY"
+    OTHER = "OTHER"
+
+
+class Channel(str, Enum):
+    ONLINE = "ONLINE"
+    IN_PERSON = "IN_PERSON"
+    PHONE = "PHONE"
+    PARTNER = "PARTNER"
+    MARKETPLACE = "MARKETPLACE"
+    OTHER = "OTHER"
+
+
+class ProcessType(str, Enum):
+    chemical_synthesis = "chemical_synthesis"
+    fermentation = "fermentation"
+    extraction = "extraction"
+    semi_synthesis = "semi_synthesis"
+    formulation = "formulation"
+    assembly = "assembly"
+    packaging = "packaging"
+    qc_release = "qc_release"
+    other = "other"
+
+
+class ScalabilityLevel(str, Enum):
+    lab = "lab"
+    pilot = "pilot"
+    commercial = "commercial"
+    unknown = "unknown"
+
+
+class PlatformType(str, Enum):
+    THERAPEUTIC_PLATFORM = "THERAPEUTIC_PLATFORM"
+    DIAGNOSTIC_PLATFORM = "DIAGNOSTIC_PLATFORM"
+    MANUFACTURING_PLATFORM = "MANUFACTURING_PLATFORM"
+    MODALITY_PLATFORM = "MODALITY_PLATFORM"
+    ANALYTICS_PLATFORM = "ANALYTICS_PLATFORM"
+    OTHER = "OTHER"
+
+
+class RelationshipRole(str, Enum):
+    PRIMARY_DEVELOPER = "PRIMARY_DEVELOPER"
+    CO_DEVELOPER = "CO_DEVELOPER"
+    MAINTAINER = "MAINTAINER"
+    STEWARD = "STEWARD"
+    UNKNOWN = "UNKNOWN"
+
+
+class UsageContext(str, Enum):
+    R_AND_D = "R_AND_D"
+    PRODUCTION = "PRODUCTION"
+    QC = "QC"
+    CLINICAL = "CLINICAL"
+    ANALYTICS = "ANALYTICS"
+    OTHER = "OTHER"
+    UNKNOWN = "UNKNOWN"
+
+
+class Source(str, Enum):
+    CURATED = "CURATED"
+    IMPORTED = "IMPORTED"
+    DERIVED = "DERIVED"
+
+
+class ManufacturingRole(str, Enum):
+    primary = "primary"
+    subcontractor = "subcontractor"
+    cdmo = "cdmo"
+    cmo = "cmo"
+    api_supplier = "api_supplier"
+    other = "other"
+
+
+class LabTestRole(str, Enum):
+    primary = "primary"
+    component = "component"
+    reflex = "reflex"
+    add_on = "add_on"
+    eligibility_gate = "eligibility_gate"
+
+
+class PanelRole(str, Enum):
+    primary = "primary"
+    variant = "variant"
+    legacy = "legacy"
+
+
+class CompoundFormRole(str, Enum):
     active = "active"
-    archived = "archived"
-
-
-class UserGoalType(str, Enum):
-    sleep = "sleep"
-    energy = "energy"
-    fatLoss = "fatLoss"
-    circadian = "circadian"
-    fitness = "fitness"
-    nutrition = "nutrition"
-    cognition = "cognition"
-    longevity = "longevity"
-    strength = "strength"
-    stress = "stress"
-    recovery = "recovery"
-    health = "health"
+    excipient = "excipient"
+    carrier = "carrier"
     other = "other"
 
 
-class ProtocolStepItemType(str, Enum):
-    Product = "Product"
-    Compound = "Compound"
-    Action = "Action"
+class EvidenceEdgeType(str, Enum):
+    ABOUT = "ABOUT"
+    MENTIONS = "MENTIONS"
+    IS_PRIMARY_SOURCE = "IS_PRIMARY_SOURCE"
 
 
-class ProtocolTimeOfDay(str, Enum):
-    morning = "morning"
-    midday = "midday"
-    evening = "evening"
-    bedtime = "bedtime"
-    any = "any"
+class EvidenceSourceKind(str, Enum):
+    Document = "Document"
+    Chunk = "Chunk"
 
 
-class EvidenceRefType(str, Enum):
-    Episode = "Episode"
-    CaseStudy = "CaseStudy"
-    Article = "Article"
-    External = "External"
+class SearchMode(str, Enum):
+    FIELD_ONLY = "FIELD_ONLY"
+    FULLTEXT_ONLY = "FULLTEXT_ONLY"
+    VECTOR_ONLY = "VECTOR_ONLY"
+    HYBRID = "HYBRID"
 
 
-class SeedDirectionType(str, Enum):
-    Guest = "Guest"
-    Business = "Business"
-    Product = "Product"
-    Compound = "Compound"
-    Platform = "Platform"
-    CaseStudy = "CaseStudy"
-    Person = "Person"
+class SearchReasonKind(str, Enum):
+    FULLTEXT_MATCH = "FULLTEXT_MATCH"
+    VECTOR_MATCH = "VECTOR_MATCH"
+    EXACT_MATCH = "EXACT_MATCH"
+    FILTER_APPLIED = "FILTER_APPLIED"
+    BOOST_APPLIED = "BOOST_APPLIED"
 
 
-class SeedFileRefKind(str, Enum):
-    checkpoint = "checkpoint"
-    final_report = "final_report"
-    merged_seed_doc = "merged_seed_doc"
+class OrganizationSortField(str, Enum):
+    NAME = "NAME"
+    CREATED_AT = "CREATED_AT"
+    EMPLOYEE_COUNT_MIN = "EMPLOYEE_COUNT_MIN"
+    EMPLOYEE_COUNT_MAX = "EMPLOYEE_COUNT_MAX"
 
 
-class ArticleSourceType(str, Enum):
-    human_upgrade = "human_upgrade"
-    external = "external"
+class SortDirection(str, Enum):
+    ASC = "ASC"
+    DESC = "DESC"
 
 
-class GoalType(str, Enum):
-    sleep = "sleep"
-    energy = "energy"
-    fatLoss = "fatLoss"
-    circadian = "circadian"
-    fitness = "fitness"
-    nutrition = "nutrition"
-    cognition = "cognition"
-    longevity = "longevity"
-    strength = "strength"
-    stress = "stress"
-    recovery = "recovery"
-    health = "health"
-    other = "other"
+class ProductSortField(str, Enum):
+    NAME = "NAME"
+    CREATED_AT = "CREATED_AT"
+    PRICE_AMOUNT = "PRICE_AMOUNT"
 
 
-class ExperienceLevel(str, Enum):
-    beginner = "beginner"
-    intermediate = "intermediate"
-    advanced = "advanced"
+class AutocompleteEntityType(str, Enum):
+    ORGANIZATION = "ORGANIZATION"
+    PRODUCT = "PRODUCT"
 
 
-class DietStyle(str, Enum):
-    none = "none"
-    keto = "keto"
-    paleo = "paleo"
-    vegan = "vegan"
-    vegetarian = "vegetarian"
-    mediterranean = "mediterranean"
-    lowCarb = "lowCarb"
-    omnivore = "omnivore"
-    other = "other"
+class EmbeddingTargetType(str, Enum):
+    ORGANIZATION = "ORGANIZATION"
+    PRODUCT = "PRODUCT"
 
 
-class TimeBudget(str, Enum):
-    min5 = "min5"
-    min15 = "min15"
-    min30 = "min30"
-    min60 = "min60"
-
-
-class PreferredFormat(str, Enum):
-    video = "video"
-    summary = "summary"
-    protocol = "protocol"
-    caseStudy = "caseStudy"
-
-
-class UserProvider(str, Enum):
-    LOCAL = "LOCAL"
-    GOOGLE = "GOOGLE"
-    GITHUB = "GITHUB"
-    APPLE = "APPLE"
-
-
-class UserRole(str, Enum):
-    ADMIN = "ADMIN"
-    USER = "USER"
-
-
-class ProtocolCategory(str, Enum):
-    sleep = "sleep"
-    energy = "energy"
-    fatLoss = "fatLoss"
-    circadian = "circadian"
-    fitness = "fitness"
-    nutrition = "nutrition"
-    cognition = "cognition"
-    stress = "stress"
-    recovery = "recovery"
-    longevity = "longevity"
-    health = "health"
-    strength = "strength"
-    other = "other"
-
-
-class CaseStudySourceType(str, Enum):
-    pubmed = "pubmed"
-    clinicaltrial = "clinicaltrial"
-    article = "article"
-    other = "other"
-
-
-class SavedEntityType(str, Enum):
-    Product = "Product"
-    Compound = "Compound"
-    Person = "Person"
-    Business = "Business"
-    Protocol = "Protocol"
-    Episode = "Episode"
-    CaseStudy = "CaseStudy"
-    UserProtocol = "UserProtocol"
-    Article = "Article"
-
-
-class SaveSource(str, Enum):
-    dashboard = "dashboard"
-    episode = "episode"
-    assistant = "assistant"
-    search = "search"
-    protocol_builder = "protocol_builder"
-    profile = "profile"
-    other = "other"
-
-
-class HumanUpgradeParentPolicyMode(str, Enum):
-    NONE = "NONE"
-    UNIQUE_PARENTS = "UNIQUE_PARENTS"
-    THRESHOLD = "THRESHOLD"
-
-
-class HumanUpgradeContextWindowAround(str, Enum):
-    BEST_CHUNK_PER_PARENT = "BEST_CHUNK_PER_PARENT"
-    EACH_CHUNK = "EACH_CHUNK"
+class EmbeddingJobStatus(str, Enum):
+    QUEUED = "QUEUED"
+    RUNNING = "RUNNING"
+    COMPLETE = "COMPLETE"
+    SKIPPED = "SKIPPED"
+    FAILED = "FAILED"

@@ -567,18 +567,20 @@ def format_tavily_extract_response(
     return "\n".join(lines).strip()
 
 
-def format_tavily_map_response(response: Dict[str, Any]) -> str:
+def format_tavily_map_response(response: Dict[str, Any], urls_override: Optional[List[str]] = None) -> str:
     """
     Format Tavily map results into a simple list of URLs.
 
     Args:
         response: Tavily map response (dict with 'base_url' and 'results' list of URLs).
+        urls_override: Optional list of URLs to use instead of response['results'].
+                      Useful when URLs have been deduped/capped after the API call.
 
     Returns:
         A formatted string with base URL and list of discovered URLs.
     """
     base_url = response.get("base_url", "unknown")
-    results = response.get("results", [])
+    results = urls_override if urls_override is not None else response.get("results", [])
 
     lines: List[str] = []
     lines.append(f"=== Site Map: {base_url} ===")

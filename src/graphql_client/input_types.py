@@ -7,832 +7,1728 @@ from pydantic import Field
 
 from .base_model import BaseModel
 from .enums import (
-    CaseStudySourceType,
-    DietStyle,
-    EvidenceRefType,
-    ExperienceLevel,
-    GoalType,
-    HumanUpgradeContextWindowAround,
-    HumanUpgradeParentPolicyMode,
-    PreferredFormat,
-    ProtocolCategory,
-    ProtocolStepItemType,
-    ProtocolTimeOfDay,
-    SavedEntityType,
-    SaveSource,
-    SeedDirectionType,
-    SeedFileRefKind,
-    TimeBudget,
-    UserGoalType,
-    UserProtocolStatus,
-    UserProvider,
-    UserRole,
+    BusinessModel,
+    Channel,
+    CollectionMode,
+    CompoundFormRole,
+    EmbeddingTargetType,
+    EvidenceEdgeType,
+    EvidenceSourceKind,
+    LabTestRole,
+    ListingDomain,
+    ListRole,
+    LocationType,
+    ManufacturingRole,
+    OrganizationSortField,
+    OrgType,
+    PanelRole,
+    PlatformType,
+    PriceType,
+    ProcessType,
+    ProductDomain,
+    ProductSortField,
+    RelationshipRole,
+    ScalabilityLevel,
+    SearchMode,
+    SortDirection,
+    Source,
+    UsageContext,
 )
 
 
-class ProtocolStepItemInput(BaseModel):
-    type: ProtocolStepItemType
-    ref_id: Optional[str] = Field(alias="refId", default=None)
-    name_override: Optional[str] = Field(alias="nameOverride", default=None)
-    dosage: Optional[str] = None
-    timing: Optional[str] = None
+class TemporalValidityInput(BaseModel):
+    valid_at: Optional[Any] = Field(alias="validAt", default=None)
+    invalid_at: Optional[Any] = Field(alias="invalidAt", default=None)
+    expired_at: Optional[Any] = Field(alias="expiredAt", default=None)
+    created_at: Optional[Any] = Field(alias="createdAt", default=None)
+
+
+class PhysicalLocationInput(BaseModel):
+    location_id: Optional[str] = Field(alias="locationId", default=None)
+    canonical_name: str = Field(alias="canonicalName")
+    location_type: LocationType = Field(alias="locationType")
+    address_line_1: Optional[str] = Field(alias="addressLine1", default=None)
+    address_line_2: Optional[str] = Field(alias="addressLine2", default=None)
+    city: Optional[str] = None
+    region: Optional[str] = None
+    postal_code: Optional[str] = Field(alias="postalCode", default=None)
+    country_code: Optional[str] = Field(alias="countryCode", default=None)
+    geo_lat: Optional[float] = Field(alias="geoLat", default=None)
+    geo_lon: Optional[float] = Field(alias="geoLon", default=None)
+    timezone: Optional[str] = None
+    jurisdiction: Optional[str] = None
+    place_tags: Optional[list[str]] = Field(alias="placeTags", default=None)
+    hours_of_operation: Optional[str] = Field(alias="hoursOfOperation", default=None)
+    contact_phone: Optional[str] = Field(alias="contactPhone", default=None)
+    contact_email: Optional[str] = Field(alias="contactEmail", default=None)
+
+
+class ListingInput(BaseModel):
+    listing_id: Optional[str] = Field(alias="listingId", default=None)
+    listing_domain: ListingDomain = Field(alias="listingDomain")
+    title: str
+    description: Optional[str] = None
+    sku: Optional[str] = None
+    url: Optional[str] = None
+    brand_name: Optional[str] = Field(alias="brandName", default=None)
+    currency: str
+    price_amount: Optional[float] = Field(alias="priceAmount", default=None)
+    price_type: Optional[PriceType] = Field(alias="priceType", default=None)
+    pricing_notes: Optional[str] = Field(alias="pricingNotes", default=None)
+    constraints: Optional[str] = None
+    regions_available: Optional[list[str]] = Field(
+        alias="regionsAvailable", default=None
+    )
+    requires_appointment: Optional[bool] = Field(
+        alias="requiresAppointment", default=None
+    )
+    collection_mode: Optional[CollectionMode] = Field(
+        alias="collectionMode", default=None
+    )
+    turnaround_time: Optional[str] = Field(alias="turnaroundTime", default=None)
+
+
+class ProductInput(BaseModel):
+    product_id: Optional[str] = Field(alias="productId", default=None)
+    name: str
+    synonyms: Optional[list[str]] = None
+    product_domain: ProductDomain = Field(alias="productDomain")
+    product_type: Optional[str] = Field(alias="productType", default=None)
+    product_fingerprint: Optional[str] = Field(alias="productFingerprint", default=None)
+    intended_use: Optional[str] = Field(alias="intendedUse", default=None)
+    description: Optional[str] = None
+    brand_name: Optional[str] = Field(alias="brandName", default=None)
+    model_number: Optional[str] = Field(alias="modelNumber", default=None)
+    ndc_code: Optional[str] = Field(alias="ndcCode", default=None)
+    upc: Optional[str] = None
+    gtin: Optional[str] = None
+    risk_class: Optional[str] = Field(alias="riskClass", default=None)
+    currency: Optional[str] = None
+    price_amount: Optional[float] = Field(alias="priceAmount", default=None)
+    valid_at: Optional[Any] = Field(alias="validAt", default=None)
+    invalid_at: Optional[Any] = Field(alias="invalidAt", default=None)
+    expired_at: Optional[Any] = Field(alias="expiredAt", default=None)
+    created_at: Optional[Any] = Field(alias="createdAt", default=None)
+    delivers_lab_test: Optional[list["DeliversLabTestRelationshipInput"]] = Field(
+        alias="deliversLabTest", default=None
+    )
+    implements_panel: Optional[list["ImplementsPanelRelationshipInput"]] = Field(
+        alias="implementsPanel", default=None
+    )
+    contains_compound_form: Optional[list["ContainsCompoundFormRelationshipInput"]] = (
+        Field(alias="containsCompoundForm", default=None)
+    )
+    follows_pathway: Optional[list["FollowsPathwayRelationshipInput"]] = Field(
+        alias="followsPathway", default=None
+    )
+    in_category: Optional[list["InCategoryRelationshipInput"]] = Field(
+        alias="inCategory", default=None
+    )
+    uses_platform: Optional[list["ProductUsesPlatformRelationshipInput"]] = Field(
+        alias="usesPlatform", default=None
+    )
+    has_regulatory_status: Optional[list["HasRegulatoryStatusRelationshipInput"]] = (
+        Field(alias="hasRegulatoryStatus", default=None)
+    )
+    manufactured_by: Optional[list["ManufacturedByRelationshipInput"]] = Field(
+        alias="manufacturedBy", default=None
+    )
+
+
+class CompoundFormInput(BaseModel):
+    compound_form_id: Optional[str] = Field(alias="compoundFormId", default=None)
+    canonical_name: str = Field(alias="canonicalName")
+    form_type: str = Field(alias="formType")
+    chemical_differences: Optional[str] = Field(
+        alias="chemicalDifferences", default=None
+    )
+    stability_profile: Optional[str] = Field(alias="stabilityProfile", default=None)
+    solubility_profile: Optional[str] = Field(alias="solubilityProfile", default=None)
+    bioavailability_notes: Optional[str] = Field(
+        alias="bioavailabilityNotes", default=None
+    )
+    regulatory_status_summary: Optional[str] = Field(
+        alias="regulatoryStatusSummary", default=None
+    )
+
+
+class LabTestInput(BaseModel):
+    lab_test_id: Optional[str] = Field(alias="labTestId", default=None)
+    name: str
+    synonyms: Optional[list[str]] = None
+    loinc_codes: Optional[list[str]] = Field(alias="loincCodes", default=None)
+    cpt_codes: Optional[list[str]] = Field(alias="cptCodes", default=None)
+    what_it_measures: Optional[str] = Field(alias="whatItMeasures", default=None)
+    prep_requirements: Optional[str] = Field(alias="prepRequirements", default=None)
+    valid_at: Optional[Any] = Field(alias="validAt", default=None)
+    invalid_at: Optional[Any] = Field(alias="invalidAt", default=None)
+    expired_at: Optional[Any] = Field(alias="expiredAt", default=None)
+    created_at: Optional[Any] = Field(alias="createdAt", default=None)
+
+
+class ProductCategoryInput(BaseModel):
+    category_id: Optional[str] = Field(alias="categoryId", default=None)
+    name: str
+    description: Optional[str] = None
+    aliases: Optional[list[str]] = None
+    valid_at: Optional[Any] = Field(alias="validAt", default=None)
+    invalid_at: Optional[Any] = Field(alias="invalidAt", default=None)
+    expired_at: Optional[Any] = Field(alias="expiredAt", default=None)
+    created_at: Optional[Any] = Field(alias="createdAt", default=None)
+
+
+class PanelDefinitionInput(BaseModel):
+    panel_definition_id: Optional[str] = Field(alias="panelDefinitionId", default=None)
+    canonical_name: str = Field(alias="canonicalName")
+    aliases: Optional[list[str]] = None
+    description: Optional[str] = None
+    valid_at: Optional[Any] = Field(alias="validAt", default=None)
+    invalid_at: Optional[Any] = Field(alias="invalidAt", default=None)
+    expired_at: Optional[Any] = Field(alias="expiredAt", default=None)
+    created_at: Optional[Any] = Field(alias="createdAt", default=None)
+
+
+class RegulatoryStatusInput(BaseModel):
+    regulatory_status_id: Optional[str] = Field(
+        alias="regulatoryStatusId", default=None
+    )
+    status: Optional[str] = None
+    effective_date: Optional[Any] = Field(alias="effectiveDate", default=None)
+    status_details: Optional[str] = Field(alias="statusDetails", default=None)
+    valid_at: Optional[Any] = Field(alias="validAt", default=None)
+    invalid_at: Optional[Any] = Field(alias="invalidAt", default=None)
+    expired_at: Optional[Any] = Field(alias="expiredAt", default=None)
+    created_at: Optional[Any] = Field(alias="createdAt", default=None)
+
+
+class RegulatoryPathwayInput(BaseModel):
+    pathway_id: Optional[str] = Field(alias="pathwayId", default=None)
+    authority: str
+    pathway_type: str = Field(alias="pathwayType")
+    pathway_name: str = Field(alias="pathwayName")
+    requirements_summary: Optional[str] = Field(
+        alias="requirementsSummary", default=None
+    )
+    valid_at: Optional[Any] = Field(alias="validAt", default=None)
+    invalid_at: Optional[Any] = Field(alias="invalidAt", default=None)
+    expired_at: Optional[Any] = Field(alias="expiredAt", default=None)
+    created_at: Optional[Any] = Field(alias="createdAt", default=None)
+
+
+class PhysicalLocationUpdateInput(BaseModel):
+    location_id: Optional[str] = Field(alias="locationId", default=None)
+    canonical_name: Optional[str] = Field(alias="canonicalName", default=None)
+    location_type: Optional[LocationType] = Field(alias="locationType", default=None)
+    address_line_1: Optional[str] = Field(alias="addressLine1", default=None)
+    address_line_2: Optional[str] = Field(alias="addressLine2", default=None)
+    city: Optional[str] = None
+    region: Optional[str] = None
+    postal_code: Optional[str] = Field(alias="postalCode", default=None)
+    country_code: Optional[str] = Field(alias="countryCode", default=None)
+    geo_lat: Optional[float] = Field(alias="geoLat", default=None)
+    geo_lon: Optional[float] = Field(alias="geoLon", default=None)
+    timezone: Optional[str] = None
+    jurisdiction: Optional[str] = None
+    place_tags: Optional[list[str]] = Field(alias="placeTags", default=None)
+    hours_of_operation: Optional[str] = Field(alias="hoursOfOperation", default=None)
+    contact_phone: Optional[str] = Field(alias="contactPhone", default=None)
+    contact_email: Optional[str] = Field(alias="contactEmail", default=None)
+
+
+class ListingUpdateInput(BaseModel):
+    listing_id: Optional[str] = Field(alias="listingId", default=None)
+    listing_domain: Optional[ListingDomain] = Field(alias="listingDomain", default=None)
+    title: Optional[str] = None
+    description: Optional[str] = None
+    sku: Optional[str] = None
+    url: Optional[str] = None
+    brand_name: Optional[str] = Field(alias="brandName", default=None)
+    currency: Optional[str] = None
+    price_amount: Optional[float] = Field(alias="priceAmount", default=None)
+    price_type: Optional[PriceType] = Field(alias="priceType", default=None)
+    pricing_notes: Optional[str] = Field(alias="pricingNotes", default=None)
+    constraints: Optional[str] = None
+    regions_available: Optional[list[str]] = Field(
+        alias="regionsAvailable", default=None
+    )
+    requires_appointment: Optional[bool] = Field(
+        alias="requiresAppointment", default=None
+    )
+    collection_mode: Optional[CollectionMode] = Field(
+        alias="collectionMode", default=None
+    )
+    turnaround_time: Optional[str] = Field(alias="turnaroundTime", default=None)
+
+
+class ProductUpdateInput(BaseModel):
+    product_id: Optional[str] = Field(alias="productId", default=None)
+    name: Optional[str] = None
+    synonyms: Optional[list[str]] = None
+    product_domain: Optional[ProductDomain] = Field(alias="productDomain", default=None)
+    product_type: Optional[str] = Field(alias="productType", default=None)
+    product_fingerprint: Optional[str] = Field(alias="productFingerprint", default=None)
+    intended_use: Optional[str] = Field(alias="intendedUse", default=None)
+    description: Optional[str] = None
+    brand_name: Optional[str] = Field(alias="brandName", default=None)
+    model_number: Optional[str] = Field(alias="modelNumber", default=None)
+    ndc_code: Optional[str] = Field(alias="ndcCode", default=None)
+    upc: Optional[str] = None
+    gtin: Optional[str] = None
+    risk_class: Optional[str] = Field(alias="riskClass", default=None)
+    currency: Optional[str] = None
+    price_amount: Optional[float] = Field(alias="priceAmount", default=None)
+    valid_at: Optional[Any] = Field(alias="validAt", default=None)
+    invalid_at: Optional[Any] = Field(alias="invalidAt", default=None)
+    expired_at: Optional[Any] = Field(alias="expiredAt", default=None)
+    delivers_lab_test: Optional[list["DeliversLabTestRelationshipUpdateInput"]] = Field(
+        alias="deliversLabTest", default=None
+    )
+    implements_panel: Optional[list["ImplementsPanelRelationshipUpdateInput"]] = Field(
+        alias="implementsPanel", default=None
+    )
+    contains_compound_form: Optional[
+        list["ContainsCompoundFormRelationshipUpdateInput"]
+    ] = Field(alias="containsCompoundForm", default=None)
+    follows_pathway: Optional[list["FollowsPathwayRelationshipUpdateInput"]] = Field(
+        alias="followsPathway", default=None
+    )
+    in_category: Optional[list["InCategoryRelationshipUpdateInput"]] = Field(
+        alias="inCategory", default=None
+    )
+    uses_platform: Optional[list["ProductUsesPlatformRelationshipUpdateInput"]] = Field(
+        alias="usesPlatform", default=None
+    )
+    has_regulatory_status: Optional[
+        list["HasRegulatoryStatusRelationshipUpdateInput"]
+    ] = Field(alias="hasRegulatoryStatus", default=None)
+    manufactured_by: Optional[list["ManufacturedByRelationshipUpdateInput"]] = Field(
+        alias="manufacturedBy", default=None
+    )
+
+
+class CompoundFormUpdateInput(BaseModel):
+    compound_form_id: Optional[str] = Field(alias="compoundFormId", default=None)
+    canonical_name: Optional[str] = Field(alias="canonicalName", default=None)
+    form_type: Optional[str] = Field(alias="formType", default=None)
+    chemical_differences: Optional[str] = Field(
+        alias="chemicalDifferences", default=None
+    )
+    stability_profile: Optional[str] = Field(alias="stabilityProfile", default=None)
+    solubility_profile: Optional[str] = Field(alias="solubilityProfile", default=None)
+    bioavailability_notes: Optional[str] = Field(
+        alias="bioavailabilityNotes", default=None
+    )
+    regulatory_status_summary: Optional[str] = Field(
+        alias="regulatoryStatusSummary", default=None
+    )
+
+
+class LabTestUpdateInput(BaseModel):
+    lab_test_id: Optional[str] = Field(alias="labTestId", default=None)
+    name: Optional[str] = None
+    synonyms: Optional[list[str]] = None
+    loinc_codes: Optional[list[str]] = Field(alias="loincCodes", default=None)
+    cpt_codes: Optional[list[str]] = Field(alias="cptCodes", default=None)
+    what_it_measures: Optional[str] = Field(alias="whatItMeasures", default=None)
+    prep_requirements: Optional[str] = Field(alias="prepRequirements", default=None)
+    valid_at: Optional[Any] = Field(alias="validAt", default=None)
+    invalid_at: Optional[Any] = Field(alias="invalidAt", default=None)
+    expired_at: Optional[Any] = Field(alias="expiredAt", default=None)
+    created_at: Optional[Any] = Field(alias="createdAt", default=None)
+
+
+class ProductCategoryUpdateInput(BaseModel):
+    category_id: Optional[str] = Field(alias="categoryId", default=None)
+    name: Optional[str] = None
+    description: Optional[str] = None
+    aliases: Optional[list[str]] = None
+    valid_at: Optional[Any] = Field(alias="validAt", default=None)
+    invalid_at: Optional[Any] = Field(alias="invalidAt", default=None)
+    expired_at: Optional[Any] = Field(alias="expiredAt", default=None)
+    created_at: Optional[Any] = Field(alias="createdAt", default=None)
+
+
+class PanelDefinitionUpdateInput(BaseModel):
+    panel_definition_id: Optional[str] = Field(alias="panelDefinitionId", default=None)
+    canonical_name: Optional[str] = Field(alias="canonicalName", default=None)
+    aliases: Optional[list[str]] = None
+    description: Optional[str] = None
+    valid_at: Optional[Any] = Field(alias="validAt", default=None)
+    invalid_at: Optional[Any] = Field(alias="invalidAt", default=None)
+    expired_at: Optional[Any] = Field(alias="expiredAt", default=None)
+    created_at: Optional[Any] = Field(alias="createdAt", default=None)
+
+
+class RegulatoryStatusUpdateInput(BaseModel):
+    regulatory_status_id: Optional[str] = Field(
+        alias="regulatoryStatusId", default=None
+    )
+    status: Optional[str] = None
+    effective_date: Optional[Any] = Field(alias="effectiveDate", default=None)
+    status_details: Optional[str] = Field(alias="statusDetails", default=None)
+    valid_at: Optional[Any] = Field(alias="validAt", default=None)
+    invalid_at: Optional[Any] = Field(alias="invalidAt", default=None)
+    expired_at: Optional[Any] = Field(alias="expiredAt", default=None)
+    created_at: Optional[Any] = Field(alias="createdAt", default=None)
+
+
+class RegulatoryPathwayUpdateInput(BaseModel):
+    pathway_id: Optional[str] = Field(alias="pathwayId", default=None)
+    authority: Optional[str] = None
+    pathway_type: Optional[str] = Field(alias="pathwayType", default=None)
+    pathway_name: Optional[str] = Field(alias="pathwayName", default=None)
+    requirements_summary: Optional[str] = Field(
+        alias="requirementsSummary", default=None
+    )
+    valid_at: Optional[Any] = Field(alias="validAt", default=None)
+    invalid_at: Optional[Any] = Field(alias="invalidAt", default=None)
+    expired_at: Optional[Any] = Field(alias="expiredAt", default=None)
+    created_at: Optional[Any] = Field(alias="createdAt", default=None)
+
+
+class ManufacturingProcessInput(BaseModel):
+    manufacturing_process_id: Optional[str] = Field(
+        alias="manufacturingProcessId", default=None
+    )
+    canonical_name: str = Field(alias="canonicalName")
+    process_type: ProcessType = Field(alias="processType")
+    description: Optional[str] = None
+    inputs: Optional[list[str]] = None
+    outputs: Optional[list[str]] = None
+    quality_risks: Optional[list[str]] = Field(alias="qualityRisks", default=None)
+    scalability_level: Optional[ScalabilityLevel] = Field(
+        alias="scalabilityLevel", default=None
+    )
+    valid_at: Optional[Any] = Field(alias="validAt", default=None)
+    invalid_at: Optional[Any] = Field(alias="invalidAt", default=None)
+    expired_at: Optional[Any] = Field(alias="expiredAt", default=None)
+    created_at: Optional[Any] = Field(alias="createdAt", default=None)
+
+
+class ManufacturingProcessUpdateInput(BaseModel):
+    manufacturing_process_id: Optional[str] = Field(
+        alias="manufacturingProcessId", default=None
+    )
+    canonical_name: Optional[str] = Field(alias="canonicalName", default=None)
+    process_type: Optional[ProcessType] = Field(alias="processType", default=None)
+    description: Optional[str] = None
+    inputs: Optional[list[str]] = None
+    outputs: Optional[list[str]] = None
+    quality_risks: Optional[list[str]] = Field(alias="qualityRisks", default=None)
+    scalability_level: Optional[ScalabilityLevel] = Field(
+        alias="scalabilityLevel", default=None
+    )
+    valid_at: Optional[Any] = Field(alias="validAt", default=None)
+    invalid_at: Optional[Any] = Field(alias="invalidAt", default=None)
+    expired_at: Optional[Any] = Field(alias="expiredAt", default=None)
+    created_at: Optional[Any] = Field(alias="createdAt", default=None)
+
+
+class TechnologyPlatformInput(BaseModel):
+    platform_id: Optional[str] = Field(alias="platformId", default=None)
+    canonical_name: str = Field(alias="canonicalName")
+    aliases: Optional[list[str]] = None
+    platform_type: PlatformType = Field(alias="platformType")
+    description: Optional[str] = None
+    valid_at: Optional[Any] = Field(alias="validAt", default=None)
+    invalid_at: Optional[Any] = Field(alias="invalidAt", default=None)
+    expired_at: Optional[Any] = Field(alias="expiredAt", default=None)
+    created_at: Optional[Any] = Field(alias="createdAt", default=None)
+
+
+class TechnologyPlatformUpdateInput(BaseModel):
+    platform_id: Optional[str] = Field(alias="platformId", default=None)
+    canonical_name: Optional[str] = Field(alias="canonicalName", default=None)
+    aliases: Optional[list[str]] = None
+    platform_type: Optional[PlatformType] = Field(alias="platformType", default=None)
+    description: Optional[str] = None
+    valid_at: Optional[Any] = Field(alias="validAt", default=None)
+    invalid_at: Optional[Any] = Field(alias="invalidAt", default=None)
+    expired_at: Optional[Any] = Field(alias="expiredAt", default=None)
+    created_at: Optional[Any] = Field(alias="createdAt", default=None)
+
+
+class UpsertResearchPlanRefInput(BaseModel):
+    mongo_plan_id: str = Field(alias="mongoPlanId")
+    label: Optional[str] = None
+    version: Optional[str] = None
+    valid_at: Any = Field(alias="validAt")
+    expired_at: Optional[Any] = Field(alias="expiredAt", default=None)
+    invalid_at: Optional[Any] = Field(alias="invalidAt", default=None)
+    created_at: Any = Field(alias="createdAt")
+    updated_at: Any = Field(alias="updatedAt")
+
+
+class UpsertResearchRunRefInput(BaseModel):
+    mongo_run_id: str = Field(alias="mongoRunId")
+    label: Optional[str] = None
+    started_at: Optional[Any] = Field(alias="startedAt", default=None)
+    ended_at: Optional[Any] = Field(alias="endedAt", default=None)
+    valid_at: Any = Field(alias="validAt")
+    expired_at: Optional[Any] = Field(alias="expiredAt", default=None)
+    invalid_at: Optional[Any] = Field(alias="invalidAt", default=None)
+    created_at: Any = Field(alias="createdAt")
+    updated_at: Any = Field(alias="updatedAt")
+
+
+class LinkResearchRunUsesPlanInput(BaseModel):
+    mongo_run_id: str = Field(alias="mongoRunId")
+    mongo_plan_id: str = Field(alias="mongoPlanId")
+    valid_at: Optional[Any] = Field(alias="validAt", default=None)
+    expired_at: Optional[Any] = Field(alias="expiredAt", default=None)
+    invalid_at: Optional[Any] = Field(alias="invalidAt", default=None)
+    created_at: Optional[Any] = Field(alias="createdAt", default=None)
+    updated_at: Optional[Any] = Field(alias="updatedAt", default=None)
+
+
+class DocumentGeneratedByInput(BaseModel):
+    mongo_run_id: str = Field(alias="mongoRunId")
+    operation: str
+    stage_key: Optional[str] = Field(alias="stageKey", default=None)
+    sub_stage_key: Optional[str] = Field(alias="subStageKey", default=None)
+    extractor_version: Optional[str] = Field(alias="extractorVersion", default=None)
+    extracted_at: Optional[Any] = Field(alias="extractedAt", default=None)
+    valid_at: Optional[Any] = Field(alias="validAt", default=None)
+    expired_at: Optional[Any] = Field(alias="expiredAt", default=None)
+    invalid_at: Optional[Any] = Field(alias="invalidAt", default=None)
+    created_at: Optional[Any] = Field(alias="createdAt", default=None)
+    updated_at: Optional[Any] = Field(alias="updatedAt", default=None)
+
+
+class InlineChunkBundleSyntheticInput(BaseModel):
+    source: Optional[str] = None
+    strategy: Optional[str] = None
+    chunk_size: Optional[int] = Field(alias="chunkSize", default=None)
+    overlap: Optional[int] = None
+
+
+class InlineChunkBundleInput(BaseModel):
+    text_version: Optional["DocumentTextVersionInput"] = Field(
+        alias="textVersion", default=None
+    )
+    segmentation: Optional["SegmentationInput"] = None
+    chunks: list["ChunkInput"]
+    has_text_version_edge: Optional["TemporalValidityInput"] = Field(
+        alias="hasTextVersionEdge", default=None
+    )
+    has_segmentation_edge: Optional["TemporalValidityInput"] = Field(
+        alias="hasSegmentationEdge", default=None
+    )
+    segmentation_has_chunk_edge: Optional["TemporalValidityInput"] = Field(
+        alias="segmentationHasChunkEdge", default=None
+    )
+    document_has_chunk_edge: Optional["TemporalValidityInput"] = Field(
+        alias="documentHasChunkEdge", default=None
+    )
+    next_chunk_edge: Optional["TemporalValidityInput"] = Field(
+        alias="nextChunkEdge", default=None
+    )
+    also_create_document_has_chunk_edges: Optional[bool] = Field(
+        alias="alsoCreateDocumentHasChunkEdges", default=True
+    )
+    also_create_next_chunk_edges: Optional[bool] = Field(
+        alias="alsoCreateNextChunkEdges", default=True
+    )
+    synthetic: Optional["InlineChunkBundleSyntheticInput"] = None
+
+
+class SearchSurfaceInput(BaseModel):
+    search_text: Optional[str] = Field(alias="searchText", default=None)
+    search_text_embedding: Optional[list[float]] = Field(
+        alias="searchTextEmbedding", default=None
+    )
+    search_text_model: Optional[str] = Field(alias="searchTextModel", default=None)
+    search_text_version: Optional[str] = Field(alias="searchTextVersion", default=None)
+    search_text_updated_at: Optional[Any] = Field(
+        alias="searchTextUpdatedAt", default=None
+    )
+
+
+class UpsertDocumentInput(BaseModel):
+    document_key: str = Field(alias="documentKey")
+    type: str
+    title: Optional[str] = None
+    url: Optional[str] = None
+    published_at: Optional[Any] = Field(alias="publishedAt", default=None)
+    retrieved_at: Optional[Any] = Field(alias="retrievedAt", default=None)
+    valid_at: Any = Field(alias="validAt")
+    expired_at: Optional[Any] = Field(alias="expiredAt", default=None)
+    invalid_at: Optional[Any] = Field(alias="invalidAt", default=None)
+    created_at: Any = Field(alias="createdAt")
+    updated_at: Any = Field(alias="updatedAt")
+    search_surface: Optional["SearchSurfaceInput"] = Field(
+        alias="searchSurface", default=None
+    )
+    generated_by: Optional["DocumentGeneratedByInput"] = Field(
+        alias="generatedBy", default=None
+    )
+    chunk_bundle: Optional["InlineChunkBundleInput"] = Field(
+        alias="chunkBundle", default=None
+    )
+
+
+class DocumentTextVersionInput(BaseModel):
+    text_version_hash: str = Field(alias="textVersionHash")
+    source: str
+    language: Optional[str] = None
+    text: str
+    search_surface: Optional["SearchSurfaceInput"] = Field(
+        alias="searchSurface", default=None
+    )
+    valid_at: Any = Field(alias="validAt")
+    expired_at: Optional[Any] = Field(alias="expiredAt", default=None)
+    invalid_at: Optional[Any] = Field(alias="invalidAt", default=None)
+    created_at: Any = Field(alias="createdAt")
+    updated_at: Any = Field(alias="updatedAt")
+
+
+class SegmentationInput(BaseModel):
+    segmentation_hash: str = Field(alias="segmentationHash")
+    strategy: str
+    chunk_size: int = Field(alias="chunkSize")
+    overlap: int
+    valid_at: Any = Field(alias="validAt")
+    expired_at: Optional[Any] = Field(alias="expiredAt", default=None)
+    invalid_at: Optional[Any] = Field(alias="invalidAt", default=None)
+    created_at: Any = Field(alias="createdAt")
+    updated_at: Any = Field(alias="updatedAt")
+
+
+class ChunkInput(BaseModel):
+    chunk_key: str = Field(alias="chunkKey")
+    index: int
+    text: str
+    char_start: Optional[int] = Field(alias="charStart", default=None)
+    char_end: Optional[int] = Field(alias="charEnd", default=None)
+    start_ms: Optional[int] = Field(alias="startMs", default=None)
+    end_ms: Optional[int] = Field(alias="endMs", default=None)
+    embedding: Optional[list[float]] = None
+    embedding_model: Optional[str] = Field(alias="embeddingModel", default=None)
+    embedding_version: Optional[str] = Field(alias="embeddingVersion", default=None)
+    valid_at: Any = Field(alias="validAt")
+    expired_at: Optional[Any] = Field(alias="expiredAt", default=None)
+    invalid_at: Optional[Any] = Field(alias="invalidAt", default=None)
+    created_at: Any = Field(alias="createdAt")
+    updated_at: Any = Field(alias="updatedAt")
+
+
+class UpsertDocumentTextVersionBundleInput(BaseModel):
+    document_id: str = Field(alias="documentId")
+    text_version: "DocumentTextVersionInput" = Field(alias="textVersion")
+    segmentation: "SegmentationInput"
+    chunks: list["ChunkInput"]
+    has_text_version_edge: Optional["TemporalValidityInput"] = Field(
+        alias="hasTextVersionEdge", default=None
+    )
+    has_segmentation_edge: Optional["TemporalValidityInput"] = Field(
+        alias="hasSegmentationEdge", default=None
+    )
+    segmentation_has_chunk_edge: Optional["TemporalValidityInput"] = Field(
+        alias="segmentationHasChunkEdge", default=None
+    )
+    document_has_chunk_edge: Optional["TemporalValidityInput"] = Field(
+        alias="documentHasChunkEdge", default=None
+    )
+    next_chunk_edge: Optional["TemporalValidityInput"] = Field(
+        alias="nextChunkEdge", default=None
+    )
+    also_create_document_has_chunk_edges: Optional[bool] = Field(
+        alias="alsoCreateDocumentHasChunkEdges", default=True
+    )
+    also_create_next_chunk_edges: Optional[bool] = Field(
+        alias="alsoCreateNextChunkEdges", default=True
+    )
+
+
+class EvidenceProvenanceInput(BaseModel):
+    mongo_run_id: str = Field(alias="mongoRunId")
+    mongo_plan_id: Optional[str] = Field(alias="mongoPlanId", default=None)
+    stage_key: Optional[str] = Field(alias="stageKey", default=None)
+    sub_stage_key: Optional[str] = Field(alias="subStageKey", default=None)
+    extractor_version: Optional[str] = Field(alias="extractorVersion", default=None)
+    extracted_at: Any = Field(alias="extractedAt")
+
+
+class EvidenceSourceRefInput(BaseModel):
+    kind: EvidenceSourceKind
+    document_id: Optional[str] = Field(alias="documentId", default=None)
+    chunk_id: Optional[str] = Field(alias="chunkId", default=None)
+
+
+class EvidenceTargetRefInput(BaseModel):
+    node_id: Optional[str] = Field(alias="nodeId", default=None)
+    label: Optional[str] = None
+    unique_key: Optional[str] = Field(alias="uniqueKey", default=None)
+    unique_key_value: Optional[str] = Field(alias="uniqueKeyValue", default=None)
+
+
+class AboutEdgePropsInput(BaseModel):
+    valid_at: Optional[Any] = Field(alias="validAt", default=None)
+    invalid_at: Optional[Any] = Field(alias="invalidAt", default=None)
+    expired_at: Optional[Any] = Field(alias="expiredAt", default=None)
+    created_at: Optional[Any] = Field(alias="createdAt", default=None)
+    mongo_run_id: str = Field(alias="mongoRunId")
+    mongo_plan_id: Optional[str] = Field(alias="mongoPlanId", default=None)
+    stage_key: Optional[str] = Field(alias="stageKey", default=None)
+    sub_stage_key: Optional[str] = Field(alias="subStageKey", default=None)
+    extractor_version: Optional[str] = Field(alias="extractorVersion", default=None)
+    extracted_at: Any = Field(alias="extractedAt")
+    aboutness: Optional[float] = None
+    aspect: Optional[str] = None
+    stance: Optional[str] = None
+    confidence: Optional[float] = None
+
+
+class MentionsEdgePropsInput(BaseModel):
+    valid_at: Optional[Any] = Field(alias="validAt", default=None)
+    invalid_at: Optional[Any] = Field(alias="invalidAt", default=None)
+    expired_at: Optional[Any] = Field(alias="expiredAt", default=None)
+    created_at: Optional[Any] = Field(alias="createdAt", default=None)
+    mongo_run_id: str = Field(alias="mongoRunId")
+    mongo_plan_id: Optional[str] = Field(alias="mongoPlanId", default=None)
+    stage_key: Optional[str] = Field(alias="stageKey", default=None)
+    sub_stage_key: Optional[str] = Field(alias="subStageKey", default=None)
+    extractor_version: Optional[str] = Field(alias="extractorVersion", default=None)
+    extracted_at: Any = Field(alias="extractedAt")
+    confidence: Optional[float] = None
+    linking_method: Optional[str] = Field(alias="linkingMethod", default=None)
+    surface_form: Optional[str] = Field(alias="surfaceForm", default=None)
+    char_start: Optional[int] = Field(alias="charStart", default=None)
+    char_end: Optional[int] = Field(alias="charEnd", default=None)
+
+
+class IsPrimarySourceEdgePropsInput(BaseModel):
+    valid_at: Optional[Any] = Field(alias="validAt", default=None)
+    invalid_at: Optional[Any] = Field(alias="invalidAt", default=None)
+    expired_at: Optional[Any] = Field(alias="expiredAt", default=None)
+    created_at: Optional[Any] = Field(alias="createdAt", default=None)
+    mongo_run_id: str = Field(alias="mongoRunId")
+    mongo_plan_id: Optional[str] = Field(alias="mongoPlanId", default=None)
+    stage_key: Optional[str] = Field(alias="stageKey", default=None)
+    sub_stage_key: Optional[str] = Field(alias="subStageKey", default=None)
+    extractor_version: Optional[str] = Field(alias="extractorVersion", default=None)
+    extracted_at: Any = Field(alias="extractedAt")
+    confidence: Optional[float] = None
     notes: Optional[str] = None
 
 
-class CursorPageInput(BaseModel):
-    """Cursor pagination input (matches your usage: first + after)"""
+class EvidenceEdgeInput(BaseModel):
+    type: EvidenceEdgeType
+    source: "EvidenceSourceRefInput"
+    target: "EvidenceTargetRefInput"
+    valid_at: Optional[Any] = Field(alias="validAt", default=None)
+    invalid_at: Optional[Any] = Field(alias="invalidAt", default=None)
+    expired_at: Optional[Any] = Field(alias="expiredAt", default=None)
+    created_at: Optional[Any] = Field(alias="createdAt", default=None)
+    mongo_run_id: str = Field(alias="mongoRunId")
+    mongo_plan_id: Optional[str] = Field(alias="mongoPlanId", default=None)
+    stage_key: Optional[str] = Field(alias="stageKey", default=None)
+    sub_stage_key: Optional[str] = Field(alias="subStageKey", default=None)
+    extractor_version: Optional[str] = Field(alias="extractorVersion", default=None)
+    extracted_at: Any = Field(alias="extractedAt")
+    aboutness: Optional[float] = None
+    aspect: Optional[str] = None
+    stance: Optional[str] = None
+    linking_method: Optional[str] = Field(alias="linkingMethod", default=None)
+    surface_form: Optional[str] = Field(alias="surfaceForm", default=None)
+    char_start: Optional[int] = Field(alias="charStart", default=None)
+    char_end: Optional[int] = Field(alias="charEnd", default=None)
+    notes: Optional[str] = None
+    confidence: Optional[float] = None
 
-    first: int
+
+class UpsertEvidenceEdgesInput(BaseModel):
+    edges: list["EvidenceEdgeInput"]
+
+
+class PhysicalLocationRelateInput(BaseModel):
+    create: Optional["PhysicalLocationInput"] = None
+    connect: Optional["PhysicalLocationConnectInput"] = None
+
+
+class PhysicalLocationRelateUpdateInput(BaseModel):
+    create: Optional["PhysicalLocationInput"] = None
+    connect: Optional["PhysicalLocationConnectInput"] = None
+    update: Optional["PhysicalLocationUpdateInput"] = None
+
+
+class PhysicalLocationConnectInput(BaseModel):
+    location_id: str = Field(alias="locationId")
+
+
+class HasLocationRelationshipInput(BaseModel):
+    location: "PhysicalLocationRelateInput"
+    location_role: str = Field(alias="locationRole")
+    is_primary: Optional[bool] = Field(alias="isPrimary", default=None)
+    start_date: Optional[Any] = Field(alias="startDate", default=None)
+    end_date: Optional[Any] = Field(alias="endDate", default=None)
+    claim_ids: Optional[list[str]] = Field(alias="claimIds", default=None)
+    valid_at: Optional[Any] = Field(alias="validAt", default=None)
+    invalid_at: Optional[Any] = Field(alias="invalidAt", default=None)
+    expired_at: Optional[Any] = Field(alias="expiredAt", default=None)
+    created_at: Optional[Any] = Field(alias="createdAt", default=None)
+
+
+class HasLocationRelationshipUpdateInput(BaseModel):
+    location: "PhysicalLocationRelateUpdateInput"
+    location_role: Optional[str] = Field(alias="locationRole", default=None)
+    is_primary: Optional[bool] = Field(alias="isPrimary", default=None)
+    start_date: Optional[Any] = Field(alias="startDate", default=None)
+    end_date: Optional[Any] = Field(alias="endDate", default=None)
+    claim_ids: Optional[list[str]] = Field(alias="claimIds", default=None)
+    valid_at: Optional[Any] = Field(alias="validAt", default=None)
+    invalid_at: Optional[Any] = Field(alias="invalidAt", default=None)
+    expired_at: Optional[Any] = Field(alias="expiredAt", default=None)
+    created_at: Optional[Any] = Field(alias="createdAt", default=None)
+
+
+class OrganizationRelateInput(BaseModel):
+    create: Optional["OrganizationInput"] = None
+    connect: Optional["OrganizationConnectInput"] = None
+
+
+class OrganizationRelateUpdateInput(BaseModel):
+    create: Optional["OrganizationInput"] = None
+    connect: Optional["OrganizationConnectInput"] = None
+    update: Optional["UpdateOrganizationInput"] = None
+
+
+class OrganizationConnectInput(BaseModel):
+    organization_id: str = Field(alias="organizationId")
+
+
+class OwnsOrControlsRelationshipInput(BaseModel):
+    organization: "OrganizationRelateInput"
+    relationship_type: str = Field(alias="relationshipType")
+    ownership_percent: Optional[float] = Field(alias="ownershipPercent", default=None)
+    control_type: Optional[str] = Field(alias="controlType", default=None)
+    effective_from: Optional[Any] = Field(alias="effectiveFrom", default=None)
+    effective_to: Optional[Any] = Field(alias="effectiveTo", default=None)
+    is_current: Optional[bool] = Field(alias="isCurrent", default=None)
+    claim_ids: Optional[list[str]] = Field(alias="claimIds", default=None)
+    valid_at: Optional[Any] = Field(alias="validAt", default=None)
+    invalid_at: Optional[Any] = Field(alias="invalidAt", default=None)
+    expired_at: Optional[Any] = Field(alias="expiredAt", default=None)
+    created_at: Optional[Any] = Field(alias="createdAt", default=None)
+
+
+class OwnsOrControlsRelationshipUpdateInput(BaseModel):
+    organization: "OrganizationRelateUpdateInput"
+    relationship_type: Optional[str] = Field(alias="relationshipType", default=None)
+    ownership_percent: Optional[float] = Field(alias="ownershipPercent", default=None)
+    control_type: Optional[str] = Field(alias="controlType", default=None)
+    effective_from: Optional[Any] = Field(alias="effectiveFrom", default=None)
+    effective_to: Optional[Any] = Field(alias="effectiveTo", default=None)
+    is_current: Optional[bool] = Field(alias="isCurrent", default=None)
+    claim_ids: Optional[list[str]] = Field(alias="claimIds", default=None)
+    valid_at: Optional[Any] = Field(alias="validAt", default=None)
+    invalid_at: Optional[Any] = Field(alias="invalidAt", default=None)
+    expired_at: Optional[Any] = Field(alias="expiredAt", default=None)
+    created_at: Optional[Any] = Field(alias="createdAt", default=None)
+
+
+class ListingRelateInput(BaseModel):
+    create: Optional["ListingInput"] = None
+    connect: Optional["ListingConnectInput"] = None
+
+
+class ListingRelateUpdateInput(BaseModel):
+    create: Optional["ListingInput"] = None
+    connect: Optional["ListingConnectInput"] = None
+    update: Optional["ListingUpdateInput"] = None
+
+
+class ListingConnectInput(BaseModel):
+    listing_id: str = Field(alias="listingId")
+
+
+class ListsRelationshipInput(BaseModel):
+    listing: "ListingRelateInput"
+    list_role: ListRole = Field(alias="listRole")
+    channel: Optional[Channel] = None
+    regions_overrides: Optional[list[str]] = Field(
+        alias="regionsOverrides", default=None
+    )
+    collection_modes_overrides: Optional[list[str]] = Field(
+        alias="collectionModesOverrides", default=None
+    )
+    availability_notes: Optional[str] = Field(alias="availabilityNotes", default=None)
+    claim_ids: Optional[list[str]] = Field(alias="claimIds", default=None)
+    valid_at: Optional[Any] = Field(alias="validAt", default=None)
+    invalid_at: Optional[Any] = Field(alias="invalidAt", default=None)
+    expired_at: Optional[Any] = Field(alias="expiredAt", default=None)
+    created_at: Optional[Any] = Field(alias="createdAt", default=None)
+
+
+class ListsRelationshipUpdateInput(BaseModel):
+    listing: "ListingRelateUpdateInput"
+    list_role: Optional[ListRole] = Field(alias="listRole", default=None)
+    channel: Optional[Channel] = None
+    regions_overrides: Optional[list[str]] = Field(
+        alias="regionsOverrides", default=None
+    )
+    collection_modes_overrides: Optional[list[str]] = Field(
+        alias="collectionModesOverrides", default=None
+    )
+    availability_notes: Optional[str] = Field(alias="availabilityNotes", default=None)
+    claim_ids: Optional[list[str]] = Field(alias="claimIds", default=None)
+    valid_at: Optional[Any] = Field(alias="validAt", default=None)
+    invalid_at: Optional[Any] = Field(alias="invalidAt", default=None)
+    expired_at: Optional[Any] = Field(alias="expiredAt", default=None)
+    created_at: Optional[Any] = Field(alias="createdAt", default=None)
+
+
+class ProductRelateInput(BaseModel):
+    create: Optional["ProductInput"] = None
+    connect: Optional["ProductConnectInput"] = None
+
+
+class ProductRelateUpdateInput(BaseModel):
+    create: Optional["ProductInput"] = None
+    connect: Optional["ProductConnectInput"] = None
+    update: Optional["ProductUpdateInput"] = None
+
+
+class ProductConnectInput(BaseModel):
+    product_id: str = Field(alias="productId")
+
+
+class LabTestRelateInput(BaseModel):
+    create: Optional["LabTestInput"] = None
+    connect: Optional["LabTestConnectInput"] = None
+
+
+class LabTestRelateUpdateInput(BaseModel):
+    create: Optional["LabTestInput"] = None
+    connect: Optional["LabTestConnectInput"] = None
+    update: Optional["LabTestUpdateInput"] = None
+
+
+class LabTestConnectInput(BaseModel):
+    lab_test_id: str = Field(alias="labTestId")
+
+
+class ProductCategoryRelateInput(BaseModel):
+    create: Optional["ProductCategoryInput"] = None
+    connect: Optional["ProductCategoryConnectInput"] = None
+
+
+class ProductCategoryRelateUpdateInput(BaseModel):
+    create: Optional["ProductCategoryInput"] = None
+    connect: Optional["ProductCategoryConnectInput"] = None
+    update: Optional["ProductCategoryUpdateInput"] = None
+
+
+class ProductCategoryConnectInput(BaseModel):
+    category_id: str = Field(alias="categoryId")
+
+
+class PanelDefinitionRelateInput(BaseModel):
+    create: Optional["PanelDefinitionInput"] = None
+    connect: Optional["PanelDefinitionConnectInput"] = None
+
+
+class PanelDefinitionRelateUpdateInput(BaseModel):
+    create: Optional["PanelDefinitionInput"] = None
+    connect: Optional["PanelDefinitionConnectInput"] = None
+    update: Optional["PanelDefinitionUpdateInput"] = None
+
+
+class PanelDefinitionConnectInput(BaseModel):
+    panel_definition_id: str = Field(alias="panelDefinitionId")
+
+
+class RegulatoryStatusRelateInput(BaseModel):
+    create: Optional["RegulatoryStatusInput"] = None
+    connect: Optional["RegulatoryStatusConnectInput"] = None
+
+
+class RegulatoryStatusRelateUpdateInput(BaseModel):
+    create: Optional["RegulatoryStatusInput"] = None
+    connect: Optional["RegulatoryStatusConnectInput"] = None
+    update: Optional["RegulatoryStatusUpdateInput"] = None
+
+
+class RegulatoryStatusConnectInput(BaseModel):
+    regulatory_status_id: str = Field(alias="regulatoryStatusId")
+
+
+class RegulatoryPathwayRelateInput(BaseModel):
+    create: Optional["RegulatoryPathwayInput"] = None
+    connect: Optional["RegulatoryPathwayConnectInput"] = None
+
+
+class RegulatoryPathwayRelateUpdateInput(BaseModel):
+    create: Optional["RegulatoryPathwayInput"] = None
+    connect: Optional["RegulatoryPathwayConnectInput"] = None
+    update: Optional["RegulatoryPathwayUpdateInput"] = None
+
+
+class RegulatoryPathwayConnectInput(BaseModel):
+    pathway_id: str = Field(alias="pathwayId")
+
+
+class OffersProductRelationshipInput(BaseModel):
+    product: "ProductRelateInput"
+    valid_at: Optional[Any] = Field(alias="validAt", default=None)
+    invalid_at: Optional[Any] = Field(alias="invalidAt", default=None)
+    expired_at: Optional[Any] = Field(alias="expiredAt", default=None)
+    created_at: Optional[Any] = Field(alias="createdAt", default=None)
+
+
+class OffersProductRelationshipUpdateInput(BaseModel):
+    product: "ProductRelateUpdateInput"
+    valid_at: Optional[Any] = Field(alias="validAt", default=None)
+    invalid_at: Optional[Any] = Field(alias="invalidAt", default=None)
+    expired_at: Optional[Any] = Field(alias="expiredAt", default=None)
+    created_at: Optional[Any] = Field(alias="createdAt", default=None)
+
+
+class CompoundFormRelateInput(BaseModel):
+    create: Optional["CompoundFormInput"] = None
+    connect: Optional["CompoundFormConnectInput"] = None
+
+
+class CompoundFormRelateUpdateInput(BaseModel):
+    create: Optional["CompoundFormInput"] = None
+    connect: Optional["CompoundFormConnectInput"] = None
+    update: Optional["CompoundFormUpdateInput"] = None
+
+
+class CompoundFormConnectInput(BaseModel):
+    compound_form_id: str = Field(alias="compoundFormId")
+
+
+class SuppliesCompoundFormRelationshipInput(BaseModel):
+    compound_form: "CompoundFormRelateInput" = Field(alias="compoundForm")
+    valid_at: Optional[Any] = Field(alias="validAt", default=None)
+    invalid_at: Optional[Any] = Field(alias="invalidAt", default=None)
+    expired_at: Optional[Any] = Field(alias="expiredAt", default=None)
+    created_at: Optional[Any] = Field(alias="createdAt", default=None)
+
+
+class SuppliesCompoundFormRelationshipUpdateInput(BaseModel):
+    compound_form: "CompoundFormRelateUpdateInput" = Field(alias="compoundForm")
+    valid_at: Optional[Any] = Field(alias="validAt", default=None)
+    invalid_at: Optional[Any] = Field(alias="invalidAt", default=None)
+    expired_at: Optional[Any] = Field(alias="expiredAt", default=None)
+    created_at: Optional[Any] = Field(alias="createdAt", default=None)
+
+
+class ManufacturingProcessRelateInput(BaseModel):
+    create: Optional["ManufacturingProcessInput"] = None
+    connect: Optional["ManufacturingProcessConnectInput"] = None
+
+
+class ManufacturingProcessRelateUpdateInput(BaseModel):
+    create: Optional["ManufacturingProcessInput"] = None
+    connect: Optional["ManufacturingProcessConnectInput"] = None
+    update: Optional["ManufacturingProcessUpdateInput"] = None
+
+
+class ManufacturingProcessConnectInput(BaseModel):
+    manufacturing_process_id: str = Field(alias="manufacturingProcessId")
+
+
+class TechnologyPlatformRelateInput(BaseModel):
+    create: Optional["TechnologyPlatformInput"] = None
+    connect: Optional["TechnologyPlatformConnectInput"] = None
+
+
+class TechnologyPlatformRelateUpdateInput(BaseModel):
+    create: Optional["TechnologyPlatformInput"] = None
+    connect: Optional["TechnologyPlatformConnectInput"] = None
+    update: Optional["TechnologyPlatformUpdateInput"] = None
+
+
+class TechnologyPlatformConnectInput(BaseModel):
+    platform_id: str = Field(alias="platformId")
+
+
+class ManufacturesRelationshipInput(BaseModel):
+    compound_form: "CompoundFormRelateInput" = Field(alias="compoundForm")
+    claim_ids: Optional[list[str]] = Field(alias="claimIds", default=None)
+    valid_at: Optional[Any] = Field(alias="validAt", default=None)
+    invalid_at: Optional[Any] = Field(alias="invalidAt", default=None)
+    expired_at: Optional[Any] = Field(alias="expiredAt", default=None)
+    created_at: Optional[Any] = Field(alias="createdAt", default=None)
+
+
+class ManufacturesRelationshipUpdateInput(BaseModel):
+    compound_form: "CompoundFormRelateUpdateInput" = Field(alias="compoundForm")
+    claim_ids: Optional[list[str]] = Field(alias="claimIds", default=None)
+    valid_at: Optional[Any] = Field(alias="validAt", default=None)
+    invalid_at: Optional[Any] = Field(alias="invalidAt", default=None)
+    expired_at: Optional[Any] = Field(alias="expiredAt", default=None)
+    created_at: Optional[Any] = Field(alias="createdAt", default=None)
+
+
+class ManufacturesProductRelationshipInput(BaseModel):
+    product: "ProductRelateInput"
+    claim_ids: Optional[list[str]] = Field(alias="claimIds", default=None)
+    valid_at: Optional[Any] = Field(alias="validAt", default=None)
+    invalid_at: Optional[Any] = Field(alias="invalidAt", default=None)
+    expired_at: Optional[Any] = Field(alias="expiredAt", default=None)
+    created_at: Optional[Any] = Field(alias="createdAt", default=None)
+
+
+class ManufacturesProductRelationshipUpdateInput(BaseModel):
+    product: "ProductRelateUpdateInput"
+    claim_ids: Optional[list[str]] = Field(alias="claimIds", default=None)
+    valid_at: Optional[Any] = Field(alias="validAt", default=None)
+    invalid_at: Optional[Any] = Field(alias="invalidAt", default=None)
+    expired_at: Optional[Any] = Field(alias="expiredAt", default=None)
+    created_at: Optional[Any] = Field(alias="createdAt", default=None)
+
+
+class ContractManufacturerForOrganizationRelationshipInput(BaseModel):
+    organization: "OrganizationRelateInput"
+    claim_ids: Optional[list[str]] = Field(alias="claimIds", default=None)
+    valid_at: Optional[Any] = Field(alias="validAt", default=None)
+    invalid_at: Optional[Any] = Field(alias="invalidAt", default=None)
+    expired_at: Optional[Any] = Field(alias="expiredAt", default=None)
+    created_at: Optional[Any] = Field(alias="createdAt", default=None)
+
+
+class ContractManufacturerForOrganizationRelationshipUpdateInput(BaseModel):
+    organization: "OrganizationRelateUpdateInput"
+    claim_ids: Optional[list[str]] = Field(alias="claimIds", default=None)
+    valid_at: Optional[Any] = Field(alias="validAt", default=None)
+    invalid_at: Optional[Any] = Field(alias="invalidAt", default=None)
+    expired_at: Optional[Any] = Field(alias="expiredAt", default=None)
+    created_at: Optional[Any] = Field(alias="createdAt", default=None)
+
+
+class ContractManufacturerForProductRelationshipInput(BaseModel):
+    product: "ProductRelateInput"
+    claim_ids: Optional[list[str]] = Field(alias="claimIds", default=None)
+    valid_at: Optional[Any] = Field(alias="validAt", default=None)
+    invalid_at: Optional[Any] = Field(alias="invalidAt", default=None)
+    expired_at: Optional[Any] = Field(alias="expiredAt", default=None)
+    created_at: Optional[Any] = Field(alias="createdAt", default=None)
+
+
+class ContractManufacturerForProductRelationshipUpdateInput(BaseModel):
+    product: "ProductRelateUpdateInput"
+    claim_ids: Optional[list[str]] = Field(alias="claimIds", default=None)
+    valid_at: Optional[Any] = Field(alias="validAt", default=None)
+    invalid_at: Optional[Any] = Field(alias="invalidAt", default=None)
+    expired_at: Optional[Any] = Field(alias="expiredAt", default=None)
+    created_at: Optional[Any] = Field(alias="createdAt", default=None)
+
+
+class ContractManufacturerForCompoundFormRelationshipInput(BaseModel):
+    compound_form: "CompoundFormRelateInput" = Field(alias="compoundForm")
+    claim_ids: Optional[list[str]] = Field(alias="claimIds", default=None)
+    valid_at: Optional[Any] = Field(alias="validAt", default=None)
+    invalid_at: Optional[Any] = Field(alias="invalidAt", default=None)
+    expired_at: Optional[Any] = Field(alias="expiredAt", default=None)
+    created_at: Optional[Any] = Field(alias="createdAt", default=None)
+
+
+class ContractManufacturerForCompoundFormRelationshipUpdateInput(BaseModel):
+    compound_form: "CompoundFormRelateUpdateInput" = Field(alias="compoundForm")
+    claim_ids: Optional[list[str]] = Field(alias="claimIds", default=None)
+    valid_at: Optional[Any] = Field(alias="validAt", default=None)
+    invalid_at: Optional[Any] = Field(alias="invalidAt", default=None)
+    expired_at: Optional[Any] = Field(alias="expiredAt", default=None)
+    created_at: Optional[Any] = Field(alias="createdAt", default=None)
+
+
+class PerformsManufacturingProcessRelationshipInput(BaseModel):
+    manufacturing_process: "ManufacturingProcessRelateInput" = Field(
+        alias="manufacturingProcess"
+    )
+    role: ManufacturingRole
+    claim_ids: Optional[list[str]] = Field(alias="claimIds", default=None)
+    valid_at: Optional[Any] = Field(alias="validAt", default=None)
+    invalid_at: Optional[Any] = Field(alias="invalidAt", default=None)
+    expired_at: Optional[Any] = Field(alias="expiredAt", default=None)
+    created_at: Optional[Any] = Field(alias="createdAt", default=None)
+
+
+class PerformsManufacturingProcessRelationshipUpdateInput(BaseModel):
+    manufacturing_process: "ManufacturingProcessRelateUpdateInput" = Field(
+        alias="manufacturingProcess"
+    )
+    role: Optional[ManufacturingRole] = None
+    claim_ids: Optional[list[str]] = Field(alias="claimIds", default=None)
+    valid_at: Optional[Any] = Field(alias="validAt", default=None)
+    invalid_at: Optional[Any] = Field(alias="invalidAt", default=None)
+    expired_at: Optional[Any] = Field(alias="expiredAt", default=None)
+    created_at: Optional[Any] = Field(alias="createdAt", default=None)
+
+
+class DevelopsPlatformRelationshipInput(BaseModel):
+    technology_platform: "TechnologyPlatformRelateInput" = Field(
+        alias="technologyPlatform"
+    )
+    relationship_role: Optional[RelationshipRole] = Field(
+        alias="relationshipRole", default=None
+    )
+    notes: Optional[str] = None
+    source: Optional[Source] = None
+    claim_ids: Optional[list[str]] = Field(alias="claimIds", default=None)
+    valid_at: Optional[Any] = Field(alias="validAt", default=None)
+    invalid_at: Optional[Any] = Field(alias="invalidAt", default=None)
+    expired_at: Optional[Any] = Field(alias="expiredAt", default=None)
+    created_at: Optional[Any] = Field(alias="createdAt", default=None)
+
+
+class DevelopsPlatformRelationshipUpdateInput(BaseModel):
+    technology_platform: "TechnologyPlatformRelateUpdateInput" = Field(
+        alias="technologyPlatform"
+    )
+    relationship_role: Optional[RelationshipRole] = Field(
+        alias="relationshipRole", default=None
+    )
+    notes: Optional[str] = None
+    source: Optional[Source] = None
+    claim_ids: Optional[list[str]] = Field(alias="claimIds", default=None)
+    valid_at: Optional[Any] = Field(alias="validAt", default=None)
+    invalid_at: Optional[Any] = Field(alias="invalidAt", default=None)
+    expired_at: Optional[Any] = Field(alias="expiredAt", default=None)
+    created_at: Optional[Any] = Field(alias="createdAt", default=None)
+
+
+class UsesPlatformRelationshipInput(BaseModel):
+    technology_platform: "TechnologyPlatformRelateInput" = Field(
+        alias="technologyPlatform"
+    )
+    usage_context: Optional[UsageContext] = Field(alias="usageContext", default=None)
+    is_primary: Optional[bool] = Field(alias="isPrimary", default=None)
+    notes: Optional[str] = None
+    source: Optional[Source] = None
+    claim_ids: Optional[list[str]] = Field(alias="claimIds", default=None)
+    valid_at: Optional[Any] = Field(alias="validAt", default=None)
+    invalid_at: Optional[Any] = Field(alias="invalidAt", default=None)
+    expired_at: Optional[Any] = Field(alias="expiredAt", default=None)
+    created_at: Optional[Any] = Field(alias="createdAt", default=None)
+
+
+class UsesPlatformRelationshipUpdateInput(BaseModel):
+    technology_platform: "TechnologyPlatformRelateUpdateInput" = Field(
+        alias="technologyPlatform"
+    )
+    usage_context: Optional[UsageContext] = Field(alias="usageContext", default=None)
+    is_primary: Optional[bool] = Field(alias="isPrimary", default=None)
+    notes: Optional[str] = None
+    source: Optional[Source] = None
+    claim_ids: Optional[list[str]] = Field(alias="claimIds", default=None)
+    valid_at: Optional[Any] = Field(alias="validAt", default=None)
+    invalid_at: Optional[Any] = Field(alias="invalidAt", default=None)
+    expired_at: Optional[Any] = Field(alias="expiredAt", default=None)
+    created_at: Optional[Any] = Field(alias="createdAt", default=None)
+
+
+class DeliversLabTestRelationshipInput(BaseModel):
+    lab_test: "LabTestRelateInput" = Field(alias="labTest")
+    role: LabTestRole
+    quantity: Optional[int] = None
+    component_name: Optional[str] = Field(alias="componentName", default=None)
+    claim_ids: Optional[list[str]] = Field(alias="claimIds", default=None)
+    valid_at: Optional[Any] = Field(alias="validAt", default=None)
+    invalid_at: Optional[Any] = Field(alias="invalidAt", default=None)
+    expired_at: Optional[Any] = Field(alias="expiredAt", default=None)
+    created_at: Optional[Any] = Field(alias="createdAt", default=None)
+
+
+class DeliversLabTestRelationshipUpdateInput(BaseModel):
+    lab_test: "LabTestRelateUpdateInput" = Field(alias="labTest")
+    role: Optional[LabTestRole] = None
+    quantity: Optional[int] = None
+    component_name: Optional[str] = Field(alias="componentName", default=None)
+    claim_ids: Optional[list[str]] = Field(alias="claimIds", default=None)
+    valid_at: Optional[Any] = Field(alias="validAt", default=None)
+    invalid_at: Optional[Any] = Field(alias="invalidAt", default=None)
+    expired_at: Optional[Any] = Field(alias="expiredAt", default=None)
+    created_at: Optional[Any] = Field(alias="createdAt", default=None)
+
+
+class ImplementsPanelRelationshipInput(BaseModel):
+    panel_definition: "PanelDefinitionRelateInput" = Field(alias="panelDefinition")
+    panel_role: Optional[PanelRole] = Field(alias="panelRole", default=None)
+    version_label: Optional[str] = Field(alias="versionLabel", default=None)
+    claim_ids: Optional[list[str]] = Field(alias="claimIds", default=None)
+    valid_at: Optional[Any] = Field(alias="validAt", default=None)
+    invalid_at: Optional[Any] = Field(alias="invalidAt", default=None)
+    expired_at: Optional[Any] = Field(alias="expiredAt", default=None)
+    created_at: Optional[Any] = Field(alias="createdAt", default=None)
+
+
+class ImplementsPanelRelationshipUpdateInput(BaseModel):
+    panel_definition: "PanelDefinitionRelateUpdateInput" = Field(
+        alias="panelDefinition"
+    )
+    panel_role: Optional[PanelRole] = Field(alias="panelRole", default=None)
+    version_label: Optional[str] = Field(alias="versionLabel", default=None)
+    claim_ids: Optional[list[str]] = Field(alias="claimIds", default=None)
+    valid_at: Optional[Any] = Field(alias="validAt", default=None)
+    invalid_at: Optional[Any] = Field(alias="invalidAt", default=None)
+    expired_at: Optional[Any] = Field(alias="expiredAt", default=None)
+    created_at: Optional[Any] = Field(alias="createdAt", default=None)
+
+
+class ContainsCompoundFormRelationshipInput(BaseModel):
+    compound_form: "CompoundFormRelateInput" = Field(alias="compoundForm")
+    dose: Optional[float] = None
+    dose_unit: Optional[str] = Field(alias="doseUnit", default=None)
+    role: Optional[CompoundFormRole] = None
+    standardized_to: Optional[str] = Field(alias="standardizedTo", default=None)
+    claim_ids: Optional[list[str]] = Field(alias="claimIds", default=None)
+    valid_at: Optional[Any] = Field(alias="validAt", default=None)
+    invalid_at: Optional[Any] = Field(alias="invalidAt", default=None)
+    expired_at: Optional[Any] = Field(alias="expiredAt", default=None)
+    created_at: Optional[Any] = Field(alias="createdAt", default=None)
+
+
+class ContainsCompoundFormRelationshipUpdateInput(BaseModel):
+    compound_form: "CompoundFormRelateUpdateInput" = Field(alias="compoundForm")
+    dose: Optional[float] = None
+    dose_unit: Optional[str] = Field(alias="doseUnit", default=None)
+    role: Optional[CompoundFormRole] = None
+    standardized_to: Optional[str] = Field(alias="standardizedTo", default=None)
+    claim_ids: Optional[list[str]] = Field(alias="claimIds", default=None)
+    valid_at: Optional[Any] = Field(alias="validAt", default=None)
+    invalid_at: Optional[Any] = Field(alias="invalidAt", default=None)
+    expired_at: Optional[Any] = Field(alias="expiredAt", default=None)
+    created_at: Optional[Any] = Field(alias="createdAt", default=None)
+
+
+class FollowsPathwayRelationshipInput(BaseModel):
+    regulatory_pathway: "RegulatoryPathwayRelateInput" = Field(
+        alias="regulatoryPathway"
+    )
+    jurisdiction_id: Optional[str] = Field(alias="jurisdictionId", default=None)
+    claim_ids: Optional[list[str]] = Field(alias="claimIds", default=None)
+    valid_at: Optional[Any] = Field(alias="validAt", default=None)
+    invalid_at: Optional[Any] = Field(alias="invalidAt", default=None)
+    expired_at: Optional[Any] = Field(alias="expiredAt", default=None)
+    created_at: Optional[Any] = Field(alias="createdAt", default=None)
+
+
+class FollowsPathwayRelationshipUpdateInput(BaseModel):
+    regulatory_pathway: "RegulatoryPathwayRelateUpdateInput" = Field(
+        alias="regulatoryPathway"
+    )
+    jurisdiction_id: Optional[str] = Field(alias="jurisdictionId", default=None)
+    claim_ids: Optional[list[str]] = Field(alias="claimIds", default=None)
+    valid_at: Optional[Any] = Field(alias="validAt", default=None)
+    invalid_at: Optional[Any] = Field(alias="invalidAt", default=None)
+    expired_at: Optional[Any] = Field(alias="expiredAt", default=None)
+    created_at: Optional[Any] = Field(alias="createdAt", default=None)
+
+
+class InCategoryRelationshipInput(BaseModel):
+    product_category: "ProductCategoryRelateInput" = Field(alias="productCategory")
+    claim_ids: Optional[list[str]] = Field(alias="claimIds", default=None)
+    valid_at: Optional[Any] = Field(alias="validAt", default=None)
+    invalid_at: Optional[Any] = Field(alias="invalidAt", default=None)
+    expired_at: Optional[Any] = Field(alias="expiredAt", default=None)
+    created_at: Optional[Any] = Field(alias="createdAt", default=None)
+
+
+class InCategoryRelationshipUpdateInput(BaseModel):
+    product_category: "ProductCategoryRelateUpdateInput" = Field(
+        alias="productCategory"
+    )
+    claim_ids: Optional[list[str]] = Field(alias="claimIds", default=None)
+    valid_at: Optional[Any] = Field(alias="validAt", default=None)
+    invalid_at: Optional[Any] = Field(alias="invalidAt", default=None)
+    expired_at: Optional[Any] = Field(alias="expiredAt", default=None)
+    created_at: Optional[Any] = Field(alias="createdAt", default=None)
+
+
+class ProductUsesPlatformRelationshipInput(BaseModel):
+    technology_platform: "TechnologyPlatformRelateInput" = Field(
+        alias="technologyPlatform"
+    )
+    claim_ids: Optional[list[str]] = Field(alias="claimIds", default=None)
+    valid_at: Optional[Any] = Field(alias="validAt", default=None)
+    invalid_at: Optional[Any] = Field(alias="invalidAt", default=None)
+    expired_at: Optional[Any] = Field(alias="expiredAt", default=None)
+    created_at: Optional[Any] = Field(alias="createdAt", default=None)
+
+
+class ProductUsesPlatformRelationshipUpdateInput(BaseModel):
+    technology_platform: "TechnologyPlatformRelateUpdateInput" = Field(
+        alias="technologyPlatform"
+    )
+    claim_ids: Optional[list[str]] = Field(alias="claimIds", default=None)
+    valid_at: Optional[Any] = Field(alias="validAt", default=None)
+    invalid_at: Optional[Any] = Field(alias="invalidAt", default=None)
+    expired_at: Optional[Any] = Field(alias="expiredAt", default=None)
+    created_at: Optional[Any] = Field(alias="createdAt", default=None)
+
+
+class HasRegulatoryStatusRelationshipInput(BaseModel):
+    regulatory_status: "RegulatoryStatusRelateInput" = Field(alias="regulatoryStatus")
+    status: Optional[str] = None
+    effective_date: Optional[Any] = Field(alias="effectiveDate", default=None)
+    status_details: Optional[str] = Field(alias="statusDetails", default=None)
+    claim_ids: Optional[list[str]] = Field(alias="claimIds", default=None)
+    valid_at: Optional[Any] = Field(alias="validAt", default=None)
+    invalid_at: Optional[Any] = Field(alias="invalidAt", default=None)
+    expired_at: Optional[Any] = Field(alias="expiredAt", default=None)
+    created_at: Optional[Any] = Field(alias="createdAt", default=None)
+
+
+class HasRegulatoryStatusRelationshipUpdateInput(BaseModel):
+    regulatory_status: "RegulatoryStatusRelateUpdateInput" = Field(
+        alias="regulatoryStatus"
+    )
+    status: Optional[str] = None
+    effective_date: Optional[Any] = Field(alias="effectiveDate", default=None)
+    status_details: Optional[str] = Field(alias="statusDetails", default=None)
+    claim_ids: Optional[list[str]] = Field(alias="claimIds", default=None)
+    valid_at: Optional[Any] = Field(alias="validAt", default=None)
+    invalid_at: Optional[Any] = Field(alias="invalidAt", default=None)
+    expired_at: Optional[Any] = Field(alias="expiredAt", default=None)
+    created_at: Optional[Any] = Field(alias="createdAt", default=None)
+
+
+class ManufacturedByRelationshipInput(BaseModel):
+    organization: "OrganizationRelateInput"
+    claim_ids: Optional[list[str]] = Field(alias="claimIds", default=None)
+    valid_at: Optional[Any] = Field(alias="validAt", default=None)
+    invalid_at: Optional[Any] = Field(alias="invalidAt", default=None)
+    expired_at: Optional[Any] = Field(alias="expiredAt", default=None)
+    created_at: Optional[Any] = Field(alias="createdAt", default=None)
+
+
+class ManufacturedByRelationshipUpdateInput(BaseModel):
+    organization: "OrganizationRelateUpdateInput"
+    claim_ids: Optional[list[str]] = Field(alias="claimIds", default=None)
+    valid_at: Optional[Any] = Field(alias="validAt", default=None)
+    invalid_at: Optional[Any] = Field(alias="invalidAt", default=None)
+    expired_at: Optional[Any] = Field(alias="expiredAt", default=None)
+    created_at: Optional[Any] = Field(alias="createdAt", default=None)
+
+
+class OrganizationInput(BaseModel):
+    organization_id: Optional[str] = Field(alias="organizationId", default=None)
+    name: str
+    aliases: Optional[list[str]] = None
+    org_type: OrgType = Field(alias="orgType")
+    description: Optional[str] = None
+    business_model: Optional[BusinessModel] = Field(alias="businessModel", default=None)
+    primary_industry_tags: Optional[list[str]] = Field(
+        alias="primaryIndustryTags", default=None
+    )
+    regions_served: Optional[list[str]] = Field(alias="regionsServed", default=None)
+    legal_name: Optional[str] = Field(alias="legalName", default=None)
+    legal_structure: Optional[str] = Field(alias="legalStructure", default=None)
+    ownership_type: Optional[str] = Field(alias="ownershipType", default=None)
+    jurisdictions_of_incorporation: Optional[list[str]] = Field(
+        alias="jurisdictionsOfIncorporation", default=None
+    )
+    website_url: Optional[str] = Field(alias="websiteUrl", default=None)
+    default_collection_modes: Optional[list[str]] = Field(
+        alias="defaultCollectionModes", default=None
+    )
+    default_regions_available: Optional[list[str]] = Field(
+        alias="defaultRegionsAvailable", default=None
+    )
+    public_ticker: Optional[str] = Field(alias="publicTicker", default=None)
+    funding_stage: Optional[str] = Field(alias="fundingStage", default=None)
+    employee_count_min: Optional[int] = Field(alias="employeeCountMin", default=None)
+    employee_count_max: Optional[int] = Field(alias="employeeCountMax", default=None)
+    employee_count_as_of: Optional[Any] = Field(alias="employeeCountAsOf", default=None)
+    revenue_annual_min: Optional[float] = Field(alias="revenueAnnualMin", default=None)
+    revenue_annual_max: Optional[float] = Field(alias="revenueAnnualMax", default=None)
+    revenue_annual_currency: Optional[str] = Field(
+        alias="revenueAnnualCurrency", default=None
+    )
+    revenue_annual_as_of: Optional[Any] = Field(alias="revenueAnnualAsOf", default=None)
+    valuation_min: Optional[float] = Field(alias="valuationMin", default=None)
+    valuation_max: Optional[float] = Field(alias="valuationMax", default=None)
+    valuation_currency: Optional[str] = Field(alias="valuationCurrency", default=None)
+    valuation_as_of: Optional[Any] = Field(alias="valuationAsOf", default=None)
+    valid_at: Optional[Any] = Field(alias="validAt", default=None)
+    invalid_at: Optional[Any] = Field(alias="invalidAt", default=None)
+    expired_at: Optional[Any] = Field(alias="expiredAt", default=None)
+    created_at: Optional[Any] = Field(alias="createdAt", default=None)
+    has_location: Optional[list["HasLocationRelationshipInput"]] = Field(
+        alias="hasLocation", default=None
+    )
+    owns_or_controls: Optional[list["OwnsOrControlsRelationshipInput"]] = Field(
+        alias="ownsOrControls", default=None
+    )
+    lists: Optional[list["ListsRelationshipInput"]] = None
+    offers_product: Optional[list["OffersProductRelationshipInput"]] = Field(
+        alias="offersProduct", default=None
+    )
+    supplies_compound_form: Optional[list["SuppliesCompoundFormRelationshipInput"]] = (
+        Field(alias="suppliesCompoundForm", default=None)
+    )
+    manufactures: Optional[list["ManufacturesRelationshipInput"]] = None
+    manufactures_product: Optional[list["ManufacturesProductRelationshipInput"]] = (
+        Field(alias="manufacturesProduct", default=None)
+    )
+    contract_manufacturer_for_organization: Optional[
+        list["ContractManufacturerForOrganizationRelationshipInput"]
+    ] = Field(alias="contractManufacturerForOrganization", default=None)
+    contract_manufacturer_for_product: Optional[
+        list["ContractManufacturerForProductRelationshipInput"]
+    ] = Field(alias="contractManufacturerForProduct", default=None)
+    contract_manufacturer_for_compound_form: Optional[
+        list["ContractManufacturerForCompoundFormRelationshipInput"]
+    ] = Field(alias="contractManufacturerForCompoundForm", default=None)
+    performs_manufacturing_process: Optional[
+        list["PerformsManufacturingProcessRelationshipInput"]
+    ] = Field(alias="performsManufacturingProcess", default=None)
+    develops_platform: Optional[list["DevelopsPlatformRelationshipInput"]] = Field(
+        alias="developsPlatform", default=None
+    )
+    uses_platform: Optional[list["UsesPlatformRelationshipInput"]] = Field(
+        alias="usesPlatform", default=None
+    )
+
+
+class UpdateOrganizationInput(BaseModel):
+    organization_id: Optional[str] = Field(alias="organizationId", default=None)
+    name: Optional[str] = None
+    aliases: Optional[list[str]] = None
+    org_type: Optional[OrgType] = Field(alias="orgType", default=None)
+    description: Optional[str] = None
+    business_model: Optional[BusinessModel] = Field(alias="businessModel", default=None)
+    primary_industry_tags: Optional[list[str]] = Field(
+        alias="primaryIndustryTags", default=None
+    )
+    regions_served: Optional[list[str]] = Field(alias="regionsServed", default=None)
+    legal_name: Optional[str] = Field(alias="legalName", default=None)
+    legal_structure: Optional[str] = Field(alias="legalStructure", default=None)
+    ownership_type: Optional[str] = Field(alias="ownershipType", default=None)
+    jurisdictions_of_incorporation: Optional[list[str]] = Field(
+        alias="jurisdictionsOfIncorporation", default=None
+    )
+    website_url: Optional[str] = Field(alias="websiteUrl", default=None)
+    default_collection_modes: Optional[list[str]] = Field(
+        alias="defaultCollectionModes", default=None
+    )
+    default_regions_available: Optional[list[str]] = Field(
+        alias="defaultRegionsAvailable", default=None
+    )
+    public_ticker: Optional[str] = Field(alias="publicTicker", default=None)
+    funding_stage: Optional[str] = Field(alias="fundingStage", default=None)
+    employee_count_min: Optional[int] = Field(alias="employeeCountMin", default=None)
+    employee_count_max: Optional[int] = Field(alias="employeeCountMax", default=None)
+    employee_count_as_of: Optional[Any] = Field(alias="employeeCountAsOf", default=None)
+    revenue_annual_min: Optional[float] = Field(alias="revenueAnnualMin", default=None)
+    revenue_annual_max: Optional[float] = Field(alias="revenueAnnualMax", default=None)
+    revenue_annual_currency: Optional[str] = Field(
+        alias="revenueAnnualCurrency", default=None
+    )
+    revenue_annual_as_of: Optional[Any] = Field(alias="revenueAnnualAsOf", default=None)
+    valuation_min: Optional[float] = Field(alias="valuationMin", default=None)
+    valuation_max: Optional[float] = Field(alias="valuationMax", default=None)
+    valuation_currency: Optional[str] = Field(alias="valuationCurrency", default=None)
+    valuation_as_of: Optional[Any] = Field(alias="valuationAsOf", default=None)
+    valid_at: Optional[Any] = Field(alias="validAt", default=None)
+    invalid_at: Optional[Any] = Field(alias="invalidAt", default=None)
+    expired_at: Optional[Any] = Field(alias="expiredAt", default=None)
+    has_location: Optional[list["HasLocationRelationshipUpdateInput"]] = Field(
+        alias="hasLocation", default=None
+    )
+    owns_or_controls: Optional[list["OwnsOrControlsRelationshipUpdateInput"]] = Field(
+        alias="ownsOrControls", default=None
+    )
+    lists: Optional[list["ListsRelationshipUpdateInput"]] = None
+    offers_product: Optional[list["OffersProductRelationshipUpdateInput"]] = Field(
+        alias="offersProduct", default=None
+    )
+    supplies_compound_form: Optional[
+        list["SuppliesCompoundFormRelationshipUpdateInput"]
+    ] = Field(alias="suppliesCompoundForm", default=None)
+    manufactures: Optional[list["ManufacturesRelationshipUpdateInput"]] = None
+    manufactures_product: Optional[
+        list["ManufacturesProductRelationshipUpdateInput"]
+    ] = Field(alias="manufacturesProduct", default=None)
+    contract_manufacturer_for_organization: Optional[
+        list["ContractManufacturerForOrganizationRelationshipUpdateInput"]
+    ] = Field(alias="contractManufacturerForOrganization", default=None)
+    contract_manufacturer_for_product: Optional[
+        list["ContractManufacturerForProductRelationshipUpdateInput"]
+    ] = Field(alias="contractManufacturerForProduct", default=None)
+    contract_manufacturer_for_compound_form: Optional[
+        list["ContractManufacturerForCompoundFormRelationshipUpdateInput"]
+    ] = Field(alias="contractManufacturerForCompoundForm", default=None)
+    performs_manufacturing_process: Optional[
+        list["PerformsManufacturingProcessRelationshipUpdateInput"]
+    ] = Field(alias="performsManufacturingProcess", default=None)
+    develops_platform: Optional[list["DevelopsPlatformRelationshipUpdateInput"]] = (
+        Field(alias="developsPlatform", default=None)
+    )
+    uses_platform: Optional[list["UsesPlatformRelationshipUpdateInput"]] = Field(
+        alias="usesPlatform", default=None
+    )
+
+
+class PageInput(BaseModel):
+    """Cursor pagination input.
+
+    Use `after` to fetch the next page.
+    `first` should be small-ish (10-50) for ranked search."""
+
+    first: int = 20
     after: Optional[str] = None
 
 
-class ProtocolStepGroupInput(BaseModel):
-    label: Optional[str] = None
-    time_of_day: Optional[ProtocolTimeOfDay] = Field(alias="timeOfDay", default=None)
-    items: list["ProtocolStepItemInput"]
-
-
-class EvidenceRefInput(BaseModel):
-    type: EvidenceRefType
-    ref_id: Optional[str] = Field(alias="refId", default=None)
-    label: Optional[str] = None
-    url: Optional[str] = None
-    episode_id: Optional[str] = Field(alias="episodeId", default=None)
-    timestamps: Optional[list[int]] = None
-    notes: Optional[str] = None
-
-
-class SafetyBucketInput(BaseModel):
-    warnings: Optional[list[str]] = None
-    contraindications: Optional[list[str]] = None
-    interactions: Optional[list[str]] = None
-    notes: Optional[str] = None
-
-
-class SeedFileRefInput(BaseModel):
-    file_path: Optional[str] = Field(alias="filePath", default=None)
-    s_3_key: Optional[str] = Field(alias="s3Key", default=None)
-    sha_256: Optional[str] = Field(alias="sha256", default=None)
-    kind: Optional[SeedFileRefKind] = None
-
-
-class SeedProvenanceUpsertInput(BaseModel):
-    plan_id: str = Field(alias="planId")
-    bundle_id: Optional[str] = Field(alias="bundleId", default=None)
-    run_id: Optional[str] = Field(alias="runId", default=None)
-    execution_run_id: Optional[str] = Field(alias="executionRunId", default=None)
-    pipeline_version: Optional[str] = Field(alias="pipelineVersion", default=None)
-    episode_id: Optional[str] = Field(alias="episodeId", default=None)
-    episode_url: Optional[str] = Field(alias="episodeUrl", default=None)
-    entity_key: Optional[str] = Field(alias="entityKey", default=None)
-    direction_type: Optional[SeedDirectionType] = Field(
-        alias="directionType", default=None
-    )
-    dedupe_group_id: Optional[str] = Field(alias="dedupeGroupId", default=None)
-    source: Optional[list["SeedFileRefInput"]] = None
-    seeded_at: Optional[Any] = Field(alias="seededAt", default=None)
-    seeded_by: Optional[str] = Field(alias="seededBy", default=None)
-
-
-class CreateUserProtocolInput(BaseModel):
-    title: str
-    goal_type: Optional[UserGoalType] = Field(alias="goalType", default=None)
-    status: Optional[UserProtocolStatus] = None
-    source_protocol_id: Optional[str] = Field(alias="sourceProtocolId", default=None)
-    steps_structured: Optional[list["ProtocolStepGroupInput"]] = Field(
-        alias="stepsStructured", default=None
-    )
-    evidence_refs: Optional[list["EvidenceRefInput"]] = Field(
-        alias="evidenceRefs", default=None
-    )
-    safety: Optional["SafetyBucketInput"] = None
-
-
-class UpdateUserProtocolInput(BaseModel):
-    id: str
-    title: Optional[str] = None
-    goal_type: Optional[UserGoalType] = Field(alias="goalType", default=None)
-    status: Optional[UserProtocolStatus] = None
-    steps_structured: Optional[list["ProtocolStepGroupInput"]] = Field(
-        alias="stepsStructured", default=None
-    )
-    evidence_refs: Optional[list["EvidenceRefInput"]] = Field(
-        alias="evidenceRefs", default=None
-    )
-    safety: Optional["SafetyBucketInput"] = None
-
-
-class UserGoalInput(BaseModel):
-    goal_type: GoalType = Field(alias="goalType")
-    priority: int
-    notes: Optional[str] = None
-
-
-class EntityPreferencesInput(BaseModel):
-    liked_entity_ids: Optional[list[str]] = Field(alias="likedEntityIds", default=None)
-    hidden_entity_ids: Optional[list[str]] = Field(
-        alias="hiddenEntityIds", default=None
-    )
-    blocked_entity_ids: Optional[list[str]] = Field(
-        alias="blockedEntityIds", default=None
-    )
-
-
-class UserProfileUpsertInput(BaseModel):
-    goals: Optional[list["UserGoalInput"]] = None
-    experience_level: Optional[ExperienceLevel] = Field(
-        alias="experienceLevel", default=None
-    )
-    diet_style: Optional[DietStyle] = Field(alias="dietStyle", default=None)
-    avoidances: Optional[list[str]] = None
-    time_budget: Optional[TimeBudget] = Field(alias="timeBudget", default=None)
-    preferred_formats: Optional[list[PreferredFormat]] = Field(
-        alias="preferredFormats", default=None
-    )
-    topic_interests: Optional[list[str]] = Field(alias="topicInterests", default=None)
-    entity_preferences: Optional["EntityPreferencesInput"] = Field(
-        alias="entityPreferences", default=None
-    )
-
-
-class MediaLinkInput(BaseModel):
-    url: str
-    description: Optional[str] = None
-    poster_url: Optional[str] = Field(alias="posterUrl", default=None)
-
-
-class UserUpsertInput(BaseModel):
-    user_id: Optional[str] = Field(alias="userId", default=None)
-    email: str
-    password: Optional[str] = None
-    provider: Optional[UserProvider] = None
-    provider_id: Optional[str] = Field(alias="providerId", default=None)
-    name: Optional[str] = None
-    role: Optional[UserRole] = None
-    media_links: Optional[list["MediaLinkInput"]] = Field(
-        alias="mediaLinks", default=None
-    )
-
-
-class UserCreateInput(BaseModel):
-    email: str
-    password: Optional[str] = None
-    provider: Optional[UserProvider] = None
-    provider_id: Optional[str] = Field(alias="providerId", default=None)
-    name: Optional[str] = None
-    role: Optional[UserRole] = None
-    media_links: Optional[list["MediaLinkInput"]] = Field(
-        alias="mediaLinks", default=None
-    )
-
-
-class BusinessCreateRelationsInput(BaseModel):
-    name: str
-    description: Optional[str] = None
-    biography: Optional[str] = None
-    website: Optional[str] = None
-    media_links: Optional[list["MediaLinkInput"]] = Field(
-        alias="mediaLinks", default=None
-    )
-    owner_ids: Optional[list[str]] = Field(alias="ownerIds", default=None)
-    owner_names: Optional[list[str]] = Field(alias="ownerNames", default=None)
-    product_ids: Optional[list[str]] = Field(alias="productIds", default=None)
-    product_names: Optional[list[str]] = Field(alias="productNames", default=None)
-    sponsor_episode_ids: Optional[list[str]] = Field(
-        alias="sponsorEpisodeIds", default=None
-    )
-    owners_nested: Optional[list["BusinessOwnerNestedInput"]] = Field(
-        alias="ownersNested", default=None
-    )
-    executives_nested: Optional[list["BusinessExecutiveNestedInput"]] = Field(
-        alias="executivesNested", default=None
-    )
-    products_nested: Optional[list["BusinessProductNestedInput"]] = Field(
-        alias="productsNested", default=None
-    )
-    sponsor_episodes_nested: Optional[list["BusinessEpisodeNestedInput"]] = Field(
-        alias="sponsorEpisodesNested", default=None
-    )
-    executives: Optional[list["BusinessExecutiveRelationInput"]] = None
-    seed: Optional["SeedProvenanceUpsertInput"] = None
-
-
-class BusinessUpdateWithIdsInput(BaseModel):
-    id: str
-    name: Optional[str] = None
-    description: Optional[str] = None
-    website: Optional[str] = None
-    media_links: Optional[list["MediaLinkInput"]] = Field(
-        alias="mediaLinks", default=None
-    )
-    owner_ids: Optional[list[str]] = Field(alias="ownerIds", default=None)
-    owner_names: Optional[list[str]] = Field(alias="ownerNames", default=None)
-    product_ids: Optional[list[str]] = Field(alias="productIds", default=None)
-    product_names: Optional[list[str]] = Field(alias="productNames", default=None)
-    sponsor_episode_ids: Optional[list[str]] = Field(
-        alias="sponsorEpisodeIds", default=None
-    )
-    seed: Optional["SeedProvenanceUpsertInput"] = None
-
-
-class BusinessOwnerNestedInput(BaseModel):
-    id: Optional[str] = None
-    name: Optional[str] = None
-    role: Optional[str] = None
-    bio: Optional[str] = None
-    media_links: Optional[list["MediaLinkInput"]] = Field(
-        alias="mediaLinks", default=None
-    )
-    seed: Optional["SeedProvenanceUpsertInput"] = None
-
-
-class BusinessProductNestedInput(BaseModel):
-    id: Optional[str] = None
-    name: Optional[str] = None
-    price: Optional[float] = None
-    description: Optional[str] = None
-    ingredients: Optional[list[str]] = None
-    media_links: Optional[list["MediaLinkInput"]] = Field(
-        alias="mediaLinks", default=None
-    )
-    source_url: Optional[str] = Field(alias="sourceUrl", default=None)
-
-
-class BusinessExecutiveRelationInput(BaseModel):
-    person_id: str = Field(alias="personId")
-    title: Optional[str] = None
-    role: Optional[str] = None
-
-
-class SponsorLinkObjectInput(BaseModel):
-    text: Optional[str] = None
-    links: Optional[list[str]] = None
-    has_code_dave: Optional[bool] = Field(alias="hasCodeDave", default=None)
-    code: Optional[str] = None
-    brand: Optional[str] = None
-    discount_percent: Optional[float] = Field(alias="discountPercent", default=None)
-
-
-class WebPageTimelineInput(BaseModel):
-    from_: str = Field(alias="from")
-    to: str
-    title: Optional[str] = None
-    description: Optional[str] = None
-
-
-class BusinessEpisodeNestedInput(BaseModel):
-    id: Optional[str] = None
-    channel_name: str = Field(alias="channelName")
-    episode_number: Optional[int] = Field(alias="episodeNumber", default=None)
-    episode_page_url: str = Field(alias="episodePageUrl")
-    episode_title: Optional[str] = Field(alias="episodeTitle", default=None)
-    published_at: Optional[Any] = Field(alias="publishedAt", default=None)
-    summary_short: Optional[str] = Field(alias="summaryShort", default=None)
-    web_page_summary: Optional[str] = Field(alias="webPageSummary", default=None)
-    summary_detailed: Optional[str] = Field(alias="summaryDetailed", default=None)
-    youtube_video_id: Optional[str] = Field(alias="youtubeVideoId", default=None)
-    youtube_watch_url: Optional[str] = Field(alias="youtubeWatchUrl", default=None)
-    youtube_embed_url: Optional[str] = Field(alias="youtubeEmbedUrl", default=None)
-    takeaways: Optional[list[str]] = None
-    s_3_transcript_key: Optional[str] = Field(alias="s3TranscriptKey", default=None)
-    s_3_transcript_url: Optional[str] = Field(alias="s3TranscriptUrl", default=None)
-    media_links: Optional[list["MediaLinkInput"]] = Field(
-        alias="mediaLinks", default=None
-    )
-    sponsor_link_objects: Optional[list["SponsorLinkObjectInput"]] = Field(
-        alias="sponsorLinkObjects", default=None
-    )
-    web_page_timelines: Optional[list["WebPageTimelineInput"]] = Field(
-        alias="webPageTimelines", default=None
-    )
-
-
-class BusinessExecutiveNestedInput(BaseModel):
-    id: Optional[str] = None
-    name: Optional[str] = None
-    title: Optional[str] = None
-    role: Optional[str] = None
-    media_links: Optional[list["MediaLinkInput"]] = Field(
-        alias="mediaLinks", default=None
-    )
-    seed: Optional["SeedProvenanceUpsertInput"] = None
-
-
-class BusinessUpsertRelationFieldsInput(BaseModel):
-    id: Optional[str] = None
-    name: Optional[str] = None
-    description: Optional[str] = None
-    website: Optional[str] = None
-    biography: Optional[str] = None
-    media_links: Optional[list["MediaLinkInput"]] = Field(
-        alias="mediaLinks", default=None
-    )
-    owner_ids: Optional[list[str]] = Field(alias="ownerIds", default=None)
-    owner_names: Optional[list[str]] = Field(alias="ownerNames", default=None)
-    owners_nested: Optional[list["BusinessOwnerNestedInput"]] = Field(
-        alias="ownersNested", default=None
-    )
-    product_ids: Optional[list[str]] = Field(alias="productIds", default=None)
-    product_names: Optional[list[str]] = Field(alias="productNames", default=None)
-    products_nested: Optional[list["BusinessProductNestedInput"]] = Field(
-        alias="productsNested", default=None
-    )
-    executives: Optional[list["BusinessExecutiveRelationInput"]] = None
-    executives_nested: Optional[list["BusinessExecutiveNestedInput"]] = Field(
-        alias="executivesNested", default=None
+class OrganizationFilterInput(BaseModel):
+    org_type_in: Optional[list[OrgType]] = Field(alias="orgTypeIn", default=None)
+    business_model_in: Optional[list[BusinessModel]] = Field(
+        alias="businessModelIn", default=None
     )
-    sponsor_episode_ids: Optional[list[str]] = Field(
-        alias="sponsorEpisodeIds", default=None
+    regions_served_any: Optional[list[str]] = Field(
+        alias="regionsServedAny", default=None
     )
-    sponsor_episodes_nested: Optional[list["BusinessEpisodeNestedInput"]] = Field(
-        alias="sponsorEpisodesNested", default=None
+    primary_industry_tags_any: Optional[list[str]] = Field(
+        alias="primaryIndustryTagsAny", default=None
     )
-    seed: Optional["SeedProvenanceUpsertInput"] = None
-
-
-class ProductCreateWithIdsInput(BaseModel):
-    name: str
-    business_id: str = Field(alias="businessId")
-    description: Optional[str] = None
-    price: Optional[float] = None
-    ingredients: Optional[list[str]] = None
-    media_links: Optional[list["MediaLinkInput"]] = Field(
-        alias="mediaLinks", default=None
-    )
-    source_url: Optional[str] = Field(alias="sourceUrl", default=None)
-    compound_ids: Optional[list[str]] = Field(alias="compoundIds", default=None)
-    compound_names: Optional[list[str]] = Field(alias="compoundNames", default=None)
-    compounds_nested: Optional[list["ProductCompoundNestedInput"]] = Field(
-        alias="compoundsNested", default=None
-    )
-    protocol_ids: Optional[list[str]] = Field(alias="protocolIds", default=None)
-    seed: Optional["SeedProvenanceUpsertInput"] = None
-
-
-class ProductUpdateWithIdsInput(BaseModel):
-    id: str
-    name: Optional[str] = None
-    description: Optional[str] = None
-    price: Optional[float] = None
-    ingredients: Optional[list[str]] = None
-    media_links: Optional[list["MediaLinkInput"]] = Field(
-        alias="mediaLinks", default=None
-    )
-    source_url: Optional[str] = Field(alias="sourceUrl", default=None)
-    compound_ids: Optional[list[str]] = Field(alias="compoundIds", default=None)
-    compound_names: Optional[list[str]] = Field(alias="compoundNames", default=None)
-    compounds_nested: Optional[list["ProductCompoundNestedInput"]] = Field(
-        alias="compoundsNested", default=None
-    )
-    protocol_ids: Optional[list[str]] = Field(alias="protocolIds", default=None)
-    seed: Optional["SeedProvenanceUpsertInput"] = None
-
-
-class ProductCompoundNestedInput(BaseModel):
-    id: Optional[str] = None
-    name: Optional[str] = None
-    description: Optional[str] = None
-    aliases: Optional[list[str]] = None
-    media_links: Optional[list["MediaLinkInput"]] = Field(
-        alias="mediaLinks", default=None
-    )
-    seed: Optional["SeedProvenanceUpsertInput"] = None
-
-
-class ProductProtocolNestedInput(BaseModel):
-    id: Optional[str] = None
-    name: Optional[str] = None
-    description: Optional[str] = None
-    categories: Optional[list[ProtocolCategory]] = None
-    goals: Optional[list[str]] = None
-    steps: Optional[list[str]] = None
-    cautions: Optional[list[str]] = None
-    aliases: Optional[list[str]] = None
-    source_url: Optional[str] = Field(alias="sourceUrl", default=None)
-
-
-class ProductUpsertRelationFieldsInput(BaseModel):
-    id: Optional[str] = None
-    name: Optional[str] = None
-    change_business_id: Optional[bool] = Field(alias="changeBusinessId", default=None)
-    description: Optional[str] = None
-    price: Optional[float] = None
-    business_id: Optional[str] = Field(alias="businessId", default=None)
-    ingredients: Optional[list[str]] = None
-    media_links: Optional[list["MediaLinkInput"]] = Field(
-        alias="mediaLinks", default=None
-    )
-    source_url: Optional[str] = Field(alias="sourceUrl", default=None)
-    compound_ids: Optional[list[str]] = Field(alias="compoundIds", default=None)
-    compound_names: Optional[list[str]] = Field(alias="compoundNames", default=None)
-    compounds_nested: Optional[list["ProductCompoundNestedInput"]] = Field(
-        alias="compoundsNested", default=None
-    )
-    protocol_ids: Optional[list[str]] = Field(alias="protocolIds", default=None)
-    protocols_nested: Optional[list["ProductProtocolNestedInput"]] = Field(
-        alias="protocolsNested", default=None
-    )
-    seed: Optional["SeedProvenanceUpsertInput"] = None
-
-
-class PersonCreateInput(BaseModel):
-    name: str
-    role: Optional[str] = None
-    bio: Optional[str] = None
-    media_links: Optional[list["MediaLinkInput"]] = Field(
-        alias="mediaLinks", default=None
-    )
-    seed: Optional["SeedProvenanceUpsertInput"] = None
-
-
-class PersonUpdateInput(BaseModel):
-    id: str
-    name: Optional[str] = None
-    role: Optional[str] = None
-    bio: Optional[str] = None
-    media_links: Optional[list["MediaLinkInput"]] = Field(
-        alias="mediaLinks", default=None
-    )
-    seed: Optional["SeedProvenanceUpsertInput"] = None
-
-
-class EpisodeCreateWithIdsInput(BaseModel):
-    channel_name: str = Field(alias="channelName")
-    episode_number: Optional[int] = Field(alias="episodeNumber", default=None)
-    episode_title: Optional[str] = Field(alias="episodeTitle", default=None)
-    episode_page_url: str = Field(alias="episodePageUrl")
-    episode_transcript_url: Optional[str] = Field(
-        alias="episodeTranscriptUrl", default=None
-    )
-    published_at: Optional[Any] = Field(alias="publishedAt", default=None)
-    summary_short: Optional[str] = Field(alias="summaryShort", default=None)
-    web_page_summary: Optional[str] = Field(alias="webPageSummary", default=None)
-    summary_detailed: Optional[str] = Field(alias="summaryDetailed", default=None)
-    published_summary: Optional[str] = Field(alias="publishedSummary", default=None)
-    youtube_video_id: Optional[str] = Field(alias="youtubeVideoId", default=None)
-    youtube_watch_url: Optional[str] = Field(alias="youtubeWatchUrl", default=None)
-    youtube_embed_url: Optional[str] = Field(alias="youtubeEmbedUrl", default=None)
-    takeaways: Optional[list[str]] = None
-    s_3_transcript_key: Optional[str] = Field(alias="s3TranscriptKey", default=None)
-    s_3_transcript_url: Optional[str] = Field(alias="s3TranscriptUrl", default=None)
-    media_links: Optional[list["MediaLinkInput"]] = Field(
-        alias="mediaLinks", default=None
-    )
-    sponsor_link_objects: Optional[list["SponsorLinkObjectInput"]] = Field(
-        alias="sponsorLinkObjects", default=None
-    )
-    web_page_timelines: Optional[list["WebPageTimelineInput"]] = Field(
-        alias="webPageTimelines", default=None
-    )
-    business_links: Optional[list[str]] = Field(alias="businessLinks", default=None)
-    guest_ids: Optional[list[str]] = Field(alias="guestIds", default=None)
-    sponsor_business_ids: Optional[list[str]] = Field(
-        alias="sponsorBusinessIds", default=None
-    )
-    protocol_ids: Optional[list[str]] = Field(alias="protocolIds", default=None)
-
-
-class EpisodeUpdateWithIdsInput(BaseModel):
-    id: str
-    channel_name: Optional[str] = Field(alias="channelName", default=None)
-    episode_number: Optional[int] = Field(alias="episodeNumber", default=None)
-    episode_title: Optional[str] = Field(alias="episodeTitle", default=None)
-    episode_page_url: Optional[str] = Field(alias="episodePageUrl", default=None)
-    episode_transcript_url: Optional[str] = Field(
-        alias="episodeTranscriptUrl", default=None
-    )
-    published_at: Optional[Any] = Field(alias="publishedAt", default=None)
-    summary_short: Optional[str] = Field(alias="summaryShort", default=None)
-    web_page_summary: Optional[str] = Field(alias="webPageSummary", default=None)
-    summary_detailed: Optional[str] = Field(alias="summaryDetailed", default=None)
-    published_summary: Optional[str] = Field(alias="publishedSummary", default=None)
-    youtube_video_id: Optional[str] = Field(alias="youtubeVideoId", default=None)
-    youtube_watch_url: Optional[str] = Field(alias="youtubeWatchUrl", default=None)
-    youtube_embed_url: Optional[str] = Field(alias="youtubeEmbedUrl", default=None)
-    takeaways: Optional[list[str]] = None
-    s_3_transcript_key: Optional[str] = Field(alias="s3TranscriptKey", default=None)
-    s_3_transcript_url: Optional[str] = Field(alias="s3TranscriptUrl", default=None)
-    media_links: Optional[list["MediaLinkInput"]] = Field(
-        alias="mediaLinks", default=None
-    )
-    sponsor_link_objects: Optional[list["SponsorLinkObjectInput"]] = Field(
-        alias="sponsorLinkObjects", default=None
-    )
-    web_page_timelines: Optional[list["WebPageTimelineInput"]] = Field(
-        alias="webPageTimelines", default=None
+    public_ticker: Optional[str] = Field(alias="publicTicker", default=None)
+    employee_count_min_gte: Optional[int] = Field(
+        alias="employeeCountMinGte", default=None
     )
-    business_links: Optional[list[str]] = Field(alias="businessLinks", default=None)
-    guest_ids: Optional[list[str]] = Field(alias="guestIds", default=None)
-    sponsor_business_ids: Optional[list[str]] = Field(
-        alias="sponsorBusinessIds", default=None
+    employee_count_max_lte: Optional[int] = Field(
+        alias="employeeCountMaxLte", default=None
     )
-    protocol_ids: Optional[list[str]] = Field(alias="protocolIds", default=None)
+    is_active: Optional[bool] = Field(alias="isActive", default=None)
+    "Optional: if you materialize isActive on the node.\nIf you don't store it yet, ignore this field in resolvers (or treat null as no-op)."
 
 
-class EpisodeGuestNestedInput(BaseModel):
-    id: Optional[str] = None
-    name: Optional[str] = None
-    role: Optional[str] = None
-    bio: Optional[str] = None
-    media_links: Optional[list["MediaLinkInput"]] = Field(
-        alias="mediaLinks", default=None
-    )
-
-
-class EpisodeSponsorBusinessNestedInput(BaseModel):
-    id: Optional[str] = None
-    name: Optional[str] = None
-    description: Optional[str] = None
-    website: Optional[str] = None
-    media_links: Optional[list["MediaLinkInput"]] = Field(
-        alias="mediaLinks", default=None
-    )
-
-
-class EpisodeUpdateRelationFieldsInput(BaseModel):
-    id: Optional[str] = None
-    episode_page_url: Optional[str] = Field(alias="episodePageUrl", default=None)
-    guest_ids: Optional[list[str]] = Field(alias="guestIds", default=None)
-    guests_nested: Optional[list["EpisodeGuestNestedInput"]] = Field(
-        alias="guestsNested", default=None
-    )
-    sponsor_business_ids: Optional[list[str]] = Field(
-        alias="sponsorBusinessIds", default=None
-    )
-    sponsor_businesses_nested: Optional[list["EpisodeSponsorBusinessNestedInput"]] = (
-        Field(alias="sponsorBusinessesNested", default=None)
-    )
-    protocol_ids: Optional[list[str]] = Field(alias="protocolIds", default=None)
-
-
-class ProtocolCreateWithIdsInput(BaseModel):
-    name: str
-    description: Optional[str] = None
-    categories: Optional[list[ProtocolCategory]] = None
-    goals: Optional[list[str]] = None
-    steps: Optional[list[str]] = None
-    cautions: Optional[list[str]] = None
-    aliases: Optional[list[str]] = None
-    source_url: Optional[str] = Field(alias="sourceUrl", default=None)
-    product_ids: Optional[list[str]] = Field(alias="productIds", default=None)
-    compound_ids: Optional[list[str]] = Field(alias="compoundIds", default=None)
-
-
-class ProtocolUpdateWithIdsInput(BaseModel):
-    id: str
-    name: Optional[str] = None
-    description: Optional[str] = None
-    categories: Optional[list[ProtocolCategory]] = None
-    goals: Optional[list[str]] = None
-    steps: Optional[list[str]] = None
-    cautions: Optional[list[str]] = None
-    aliases: Optional[list[str]] = None
-    source_url: Optional[str] = Field(alias="sourceUrl", default=None)
-    product_ids: Optional[list[str]] = Field(alias="productIds", default=None)
-    compound_ids: Optional[list[str]] = Field(alias="compoundIds", default=None)
-    steps_structured: Optional[list["ProtocolStepGroupInput"]] = Field(
-        alias="stepsStructured", default=None
-    )
-    evidence_refs: Optional[list["EvidenceRefInput"]] = Field(
-        alias="evidenceRefs", default=None
-    )
-    safety: Optional["SafetyBucketInput"] = None
-    overwrite_evidence_refs: Optional[bool] = Field(
-        alias="overwriteEvidenceRefs", default=None
-    )
-    add_to_evidence_refs: Optional[bool] = Field(
-        alias="addToEvidenceRefs", default=None
-    )
-
+class OrganizationSortInput(BaseModel):
+    field: OrganizationSortField
+    direction: SortDirection = SortDirection.DESC
 
-class ProtocolProductNestedInput(BaseModel):
-    id: Optional[str] = None
-    name: Optional[str] = None
-    description: Optional[str] = None
-    business_id: Optional[str] = Field(alias="businessId", default=None)
-    ingredients: Optional[list[str]] = None
-    media_links: Optional[list["MediaLinkInput"]] = Field(
-        alias="mediaLinks", default=None
-    )
-    source_url: Optional[str] = Field(alias="sourceUrl", default=None)
-
-
-class ProtocolCompoundNestedInput(BaseModel):
-    id: Optional[str] = None
-    name: Optional[str] = None
-    description: Optional[str] = None
-    aliases: Optional[list[str]] = None
-    media_links: Optional[list["MediaLinkInput"]] = Field(
-        alias="mediaLinks", default=None
-    )
-
-
-class ProtocolUpdateRelationFieldsInput(BaseModel):
-    id: str
-    product_ids: Optional[list[str]] = Field(alias="productIds", default=None)
-    products_nested: Optional[list["ProtocolProductNestedInput"]] = Field(
-        alias="productsNested", default=None
-    )
-    compound_ids: Optional[list[str]] = Field(alias="compoundIds", default=None)
-    compounds_nested: Optional[list["ProtocolCompoundNestedInput"]] = Field(
-        alias="compoundsNested", default=None
-    )
-
 
-class CompoundCreateWithIdsInput(BaseModel):
-    name: str
-    description: Optional[str] = None
-    aliases: Optional[list[str]] = None
-    media_links: Optional[list["MediaLinkInput"]] = Field(
-        alias="mediaLinks", default=None
+class OrganizationSearchInput(BaseModel):
+    q: Optional[str] = None
+    "Query text. If omitted/empty, FIELD_ONLY mode is usually used."
+    mode: Optional[SearchMode] = SearchMode.HYBRID
+    filter: Optional["OrganizationFilterInput"] = None
+    sort: Optional["OrganizationSortInput"] = None
+    "Sort is only guaranteed to be respected when mode=FIELD_ONLY or q is empty.\nRanked modes (FULLTEXT/VECTOR/HYBRID) primarily sort by score."
+    page: Optional["PageInput"] = Field(
+        default_factory=lambda: globals()["PageInput"].model_validate({"first": 20})
     )
-    product_ids: Optional[list[str]] = Field(alias="productIds", default=None)
-    seed: Optional["SeedProvenanceUpsertInput"] = None
+    explain: Optional[bool] = False
+    "When true, return score reasons (why it matched).\nOff by default to keep responses small/fast."
 
 
-class CompoundUpdateWithIdsInput(BaseModel):
-    id: str
-    name: Optional[str] = None
-    description: Optional[str] = None
-    aliases: Optional[list[str]] = None
-    media_links: Optional[list["MediaLinkInput"]] = Field(
-        alias="mediaLinks", default=None
+class ProductFilterInput(BaseModel):
+    product_domain_in: Optional[list[ProductDomain]] = Field(
+        alias="productDomainIn", default=None
     )
-    product_ids: Optional[list[str]] = Field(alias="productIds", default=None)
-    seed: Optional["SeedProvenanceUpsertInput"] = None
+    risk_class_in: Optional[list[str]] = Field(alias="riskClassIn", default=None)
+    currency: Optional[str] = None
+    price_amount_gte: Optional[float] = Field(alias="priceAmountGte", default=None)
+    price_amount_lte: Optional[float] = Field(alias="priceAmountLte", default=None)
+    brand_name: Optional[str] = Field(alias="brandName", default=None)
+    model_number: Optional[str] = Field(alias="modelNumber", default=None)
+    ndc_code: Optional[str] = Field(alias="ndcCode", default=None)
+    upc: Optional[str] = None
+    gtin: Optional[str] = None
+    is_active: Optional[bool] = Field(alias="isActive", default=None)
 
 
-class CompoundProductNestedInput(BaseModel):
-    id: Optional[str] = None
-    name: Optional[str] = None
-    description: Optional[str] = None
-    ingredients: Optional[list[str]] = None
-    media_links: Optional[list["MediaLinkInput"]] = Field(
-        alias="mediaLinks", default=None
-    )
-    source_url: Optional[str] = Field(alias="sourceUrl", default=None)
-
-
-class CompoundUpdateRelationFieldsInput(BaseModel):
-    id: str
-    product_ids: Optional[list[str]] = Field(alias="productIds", default=None)
-    products_nested: Optional[list["CompoundProductNestedInput"]] = Field(
-        alias="productsNested", default=None
-    )
-    seed: Optional["SeedProvenanceUpsertInput"] = None
-
+class ProductSortInput(BaseModel):
+    field: ProductSortField
+    direction: SortDirection = SortDirection.DESC
 
-class CaseStudyCreateWithOptionalIdsInput(BaseModel):
-    title: str
-    summary: str
-    url: Optional[str] = None
-    source_type: Optional[CaseStudySourceType] = Field(alias="sourceType", default=None)
-    episode_ids: Optional[list[str]] = Field(alias="episodeIds", default=None)
-    episode_page_urls: Optional[list[str]] = Field(
-        alias="episodePageUrls", default=None
-    )
-    compound_ids: Optional[list[str]] = Field(alias="compoundIds", default=None)
-    compound_names: Optional[list[str]] = Field(alias="compoundNames", default=None)
-    product_ids: Optional[list[str]] = Field(alias="productIds", default=None)
-    product_names: Optional[list[str]] = Field(alias="productNames", default=None)
-    seed: Optional["SeedProvenanceUpsertInput"] = None
-
 
-class CaseStudyUpdateWithOptionalIdsInput(BaseModel):
-    id: str
-    title: Optional[str] = None
-    summary: Optional[str] = None
-    url: Optional[str] = None
-    source_type: Optional[CaseStudySourceType] = Field(alias="sourceType", default=None)
-    episode_ids: Optional[list[str]] = Field(alias="episodeIds", default=None)
-    episode_page_urls: Optional[list[str]] = Field(
-        alias="episodePageUrls", default=None
+class ProductSearchInput(BaseModel):
+    q: Optional[str] = None
+    mode: Optional[SearchMode] = SearchMode.HYBRID
+    filter: Optional["ProductFilterInput"] = None
+    sort: Optional["ProductSortInput"] = None
+    page: Optional["PageInput"] = Field(
+        default_factory=lambda: globals()["PageInput"].model_validate({"first": 20})
     )
-    compound_ids: Optional[list[str]] = Field(alias="compoundIds", default=None)
-    compound_names: Optional[list[str]] = Field(alias="compoundNames", default=None)
-    product_ids: Optional[list[str]] = Field(alias="productIds", default=None)
-    product_names: Optional[list[str]] = Field(alias="productNames", default=None)
-    seed: Optional["SeedProvenanceUpsertInput"] = None
-
-
-class UserProtocolsFilterInput(BaseModel):
-    """Filter input for user protocols listing"""
-
-    status: Optional[UserProtocolStatus] = None
-    goal_type: Optional[UserGoalType] = Field(alias="goalType", default=None)
-    search: Optional[str] = None
+    explain: Optional[bool] = False
 
 
-class SaveEntityInput(BaseModel):
-    target_type: SavedEntityType = Field(alias="targetType")
+class UpsertEmbeddingInput(BaseModel):
+    target_type: EmbeddingTargetType = Field(alias="targetType")
     target_id: str = Field(alias="targetId")
-    note: Optional[str] = None
-    tags: Optional[list[str]] = None
-    pinned: Optional[bool] = None
-    source: Optional[SaveSource] = None
+    force: Optional[bool] = False
+    request_id: Optional[str] = Field(alias="requestId", default=None)
 
 
-class UnsaveEntityInput(BaseModel):
-    target_type: SavedEntityType = Field(alias="targetType")
-    target_id: str = Field(alias="targetId")
-
-
-class SavedEntitiesFilterInput(BaseModel):
-    target_type: Optional[SavedEntityType] = Field(alias="targetType", default=None)
-    search: Optional[str] = None
-    tags: Optional[list[str]] = None
-    pinned: Optional[bool] = None
-
-
-class HumanUpgradeParentPolicyInput(BaseModel):
-    mode: HumanUpgradeParentPolicyMode = HumanUpgradeParentPolicyMode.THRESHOLD
-    min_chunks_from_parent: Optional[int] = Field(
-        alias="minChunksFromParent", default=2
-    )
-    min_best_score: Optional[float] = Field(alias="minBestScore", default=0.0)
-    include_summary_detailed_for_all_parents: Optional[bool] = Field(
-        alias="includeSummaryDetailedForAllParents", default=True
-    )
-    include_summary_detailed_for_top_parent_only: Optional[bool] = Field(
-        alias="includeSummaryDetailedForTopParentOnly", default=True
-    )
-    max_parents: Optional[int] = Field(alias="maxParents", default=20)
-
-
-class HumanUpgradeContextWindowInput(BaseModel):
-    around: HumanUpgradeContextWindowAround = (
-        HumanUpgradeContextWindowAround.BEST_CHUNK_PER_PARENT
-    )
-    left: Optional[int] = 2
-    right: Optional[int] = 2
-
-
-class HumanUpgradeEpisodeSearchInput(BaseModel):
-    query_text: Optional[str] = Field(alias="queryText", default=None)
-    query_vector: Optional[list[float]] = Field(alias="queryVector", default=None)
-    top_k_chunks: Optional[int] = Field(alias="topKChunks", default=50)
-    chunks_per_episode: Optional[int] = Field(alias="chunksPerEpisode", default=8)
-    source: Optional[str] = None
-    episode_url: Optional[str] = Field(alias="episodeUrl", default=None)
-    parent_policy: Optional["HumanUpgradeParentPolicyInput"] = Field(
-        alias="parentPolicy",
-        default_factory=lambda: globals()[
-            "HumanUpgradeParentPolicyInput"
-        ].model_validate({"mode": HumanUpgradeParentPolicyInput.THRESHOLD}),
-    )
-    context_window: Optional["HumanUpgradeContextWindowInput"] = Field(
-        alias="contextWindow",
-        default_factory=lambda: globals()[
-            "HumanUpgradeContextWindowInput"
-        ].model_validate(
-            {
-                "around": HumanUpgradeContextWindowInput.BEST_CHUNK_PER_PARENT,
-                "left": 2,
-                "right": 2,
-            }
-        ),
-    )
-
-
-class VectorSearchArgs(BaseModel):
-    query: str
-    num_candidates: Optional[int] = Field(alias="numCandidates", default=None)
-    limit: Optional[int] = None
-
-
-ProtocolStepGroupInput.model_rebuild()
-SeedProvenanceUpsertInput.model_rebuild()
-CreateUserProtocolInput.model_rebuild()
-UpdateUserProtocolInput.model_rebuild()
-UserProfileUpsertInput.model_rebuild()
-UserUpsertInput.model_rebuild()
-UserCreateInput.model_rebuild()
-BusinessCreateRelationsInput.model_rebuild()
-BusinessUpdateWithIdsInput.model_rebuild()
-BusinessOwnerNestedInput.model_rebuild()
-BusinessProductNestedInput.model_rebuild()
-BusinessEpisodeNestedInput.model_rebuild()
-BusinessExecutiveNestedInput.model_rebuild()
-BusinessUpsertRelationFieldsInput.model_rebuild()
-ProductCreateWithIdsInput.model_rebuild()
-ProductUpdateWithIdsInput.model_rebuild()
-ProductCompoundNestedInput.model_rebuild()
-ProductUpsertRelationFieldsInput.model_rebuild()
-PersonCreateInput.model_rebuild()
-PersonUpdateInput.model_rebuild()
-EpisodeCreateWithIdsInput.model_rebuild()
-EpisodeUpdateWithIdsInput.model_rebuild()
-EpisodeGuestNestedInput.model_rebuild()
-EpisodeSponsorBusinessNestedInput.model_rebuild()
-EpisodeUpdateRelationFieldsInput.model_rebuild()
-ProtocolUpdateWithIdsInput.model_rebuild()
-ProtocolProductNestedInput.model_rebuild()
-ProtocolCompoundNestedInput.model_rebuild()
-ProtocolUpdateRelationFieldsInput.model_rebuild()
-CompoundCreateWithIdsInput.model_rebuild()
-CompoundUpdateWithIdsInput.model_rebuild()
-CompoundProductNestedInput.model_rebuild()
-CompoundUpdateRelationFieldsInput.model_rebuild()
-CaseStudyCreateWithOptionalIdsInput.model_rebuild()
-CaseStudyUpdateWithOptionalIdsInput.model_rebuild()
-HumanUpgradeEpisodeSearchInput.model_rebuild()
+ProductInput.model_rebuild()
+ProductUpdateInput.model_rebuild()
+InlineChunkBundleInput.model_rebuild()
+UpsertDocumentInput.model_rebuild()
+DocumentTextVersionInput.model_rebuild()
+UpsertDocumentTextVersionBundleInput.model_rebuild()
+EvidenceEdgeInput.model_rebuild()
+UpsertEvidenceEdgesInput.model_rebuild()
+PhysicalLocationRelateInput.model_rebuild()
+PhysicalLocationRelateUpdateInput.model_rebuild()
+HasLocationRelationshipInput.model_rebuild()
+HasLocationRelationshipUpdateInput.model_rebuild()
+OrganizationRelateInput.model_rebuild()
+OrganizationRelateUpdateInput.model_rebuild()
+OwnsOrControlsRelationshipInput.model_rebuild()
+OwnsOrControlsRelationshipUpdateInput.model_rebuild()
+ListingRelateInput.model_rebuild()
+ListingRelateUpdateInput.model_rebuild()
+ListsRelationshipInput.model_rebuild()
+ListsRelationshipUpdateInput.model_rebuild()
+ProductRelateInput.model_rebuild()
+ProductRelateUpdateInput.model_rebuild()
+LabTestRelateInput.model_rebuild()
+LabTestRelateUpdateInput.model_rebuild()
+ProductCategoryRelateInput.model_rebuild()
+ProductCategoryRelateUpdateInput.model_rebuild()
+PanelDefinitionRelateInput.model_rebuild()
+PanelDefinitionRelateUpdateInput.model_rebuild()
+RegulatoryStatusRelateInput.model_rebuild()
+RegulatoryStatusRelateUpdateInput.model_rebuild()
+RegulatoryPathwayRelateInput.model_rebuild()
+RegulatoryPathwayRelateUpdateInput.model_rebuild()
+OffersProductRelationshipInput.model_rebuild()
+OffersProductRelationshipUpdateInput.model_rebuild()
+CompoundFormRelateInput.model_rebuild()
+CompoundFormRelateUpdateInput.model_rebuild()
+SuppliesCompoundFormRelationshipInput.model_rebuild()
+SuppliesCompoundFormRelationshipUpdateInput.model_rebuild()
+ManufacturingProcessRelateInput.model_rebuild()
+ManufacturingProcessRelateUpdateInput.model_rebuild()
+TechnologyPlatformRelateInput.model_rebuild()
+TechnologyPlatformRelateUpdateInput.model_rebuild()
+ManufacturesRelationshipInput.model_rebuild()
+ManufacturesRelationshipUpdateInput.model_rebuild()
+ManufacturesProductRelationshipInput.model_rebuild()
+ManufacturesProductRelationshipUpdateInput.model_rebuild()
+ContractManufacturerForOrganizationRelationshipInput.model_rebuild()
+ContractManufacturerForOrganizationRelationshipUpdateInput.model_rebuild()
+ContractManufacturerForProductRelationshipInput.model_rebuild()
+ContractManufacturerForProductRelationshipUpdateInput.model_rebuild()
+ContractManufacturerForCompoundFormRelationshipInput.model_rebuild()
+ContractManufacturerForCompoundFormRelationshipUpdateInput.model_rebuild()
+PerformsManufacturingProcessRelationshipInput.model_rebuild()
+PerformsManufacturingProcessRelationshipUpdateInput.model_rebuild()
+DevelopsPlatformRelationshipInput.model_rebuild()
+DevelopsPlatformRelationshipUpdateInput.model_rebuild()
+UsesPlatformRelationshipInput.model_rebuild()
+UsesPlatformRelationshipUpdateInput.model_rebuild()
+DeliversLabTestRelationshipInput.model_rebuild()
+DeliversLabTestRelationshipUpdateInput.model_rebuild()
+ImplementsPanelRelationshipInput.model_rebuild()
+ImplementsPanelRelationshipUpdateInput.model_rebuild()
+ContainsCompoundFormRelationshipInput.model_rebuild()
+ContainsCompoundFormRelationshipUpdateInput.model_rebuild()
+FollowsPathwayRelationshipInput.model_rebuild()
+FollowsPathwayRelationshipUpdateInput.model_rebuild()
+InCategoryRelationshipInput.model_rebuild()
+InCategoryRelationshipUpdateInput.model_rebuild()
+ProductUsesPlatformRelationshipInput.model_rebuild()
+ProductUsesPlatformRelationshipUpdateInput.model_rebuild()
+HasRegulatoryStatusRelationshipInput.model_rebuild()
+HasRegulatoryStatusRelationshipUpdateInput.model_rebuild()
+ManufacturedByRelationshipInput.model_rebuild()
+ManufacturedByRelationshipUpdateInput.model_rebuild()
+OrganizationInput.model_rebuild()
+UpdateOrganizationInput.model_rebuild()
+OrganizationSearchInput.model_rebuild()
+ProductSearchInput.model_rebuild()

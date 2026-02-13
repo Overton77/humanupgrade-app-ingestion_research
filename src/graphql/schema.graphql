@@ -1,1407 +1,2637 @@
 scalar DateTime
+scalar JSON
 
-enum UserProtocolStatus {
-  draft
+# ============================================================================
+# Enums
+# ============================================================================
+
+enum OrgType {
+  COMPANY
+  NONPROFIT
+  RESEARCH_GROUP
+  COMMUNITY
+  MEDIA_OUTLET
+  CLINIC
+  FOUNDATION
+  REGULATOR
+  JOURNAL
+  LAB_NETWORK
+  DISTRIBUTOR
+  MANUFACTURER
+  SUPPLIER
+  PLATFORM
+  OTHER
+}
+
+enum BusinessModel {
+  B2C
+  B2B
+  B2B2C
+  HYBRID
+  UNKNOWN
+}
+
+enum LocationType {
+  HEADQUARTERS
+  REGISTERED_ADDRESS
+  OFFICE
+  LAB_FACILITY
+  CLINIC_SITE
+  MANUFACTURING_SITE
+  WAREHOUSE
+  RETAIL_SITE
+  DATA_CENTER
+  RESEARCH_SITE
+  COLLECTION_SITE
+  CONFERENCE_VENUE
+  OTHER
+}
+
+enum ListingDomain {
+  DIAGNOSTICS
+  SUPPLEMENT
+  DEVICE
+  TELEHEALTH
+  SOFTWARE
+  SERVICE
+  OTHER
+}
+
+enum PriceType {
+  LIST
+  PROMO
+  MEMBER_ONLY
+  INSURANCE_ESTIMATE
+  UNKNOWN
+}
+
+enum CollectionMode {
+  AT_HOME_KIT
+  IN_PERSON_DRAW
+  MOBILE_PHLEBOTOMY
+  IN_CLINIC
+  SHIPPING
+  TELEHEALTH
+  VIRTUAL
+  OTHER
+}
+
+enum ProductDomain {
+  DIAGNOSTICS
+  SUPPLEMENT
+  DEVICE
+  TELEHEALTH
+  SOFTWARE
+  SERVICE
+  OTHER
+}
+
+enum ListRole {
+  OPERATOR
+  PROVIDER
+  SELLER
+  DISTRIBUTOR
+  MARKETER
+  FULFILLMENT_PARTNER
+  BILLING_ENTITY
+  OTHER
+}
+
+enum Channel {
+  ONLINE
+  IN_PERSON
+  PHONE
+  PARTNER
+  MARKETPLACE
+  OTHER
+}
+
+enum ProcessType {
+  chemical_synthesis
+  fermentation
+  extraction
+  semi_synthesis
+  formulation
+  assembly
+  packaging
+  qc_release
+  other
+}
+
+enum ScalabilityLevel {
+  lab
+  pilot
+  commercial
+  unknown
+}
+
+enum PlatformType {
+  THERAPEUTIC_PLATFORM
+  DIAGNOSTIC_PLATFORM
+  MANUFACTURING_PLATFORM
+  MODALITY_PLATFORM
+  ANALYTICS_PLATFORM
+  OTHER
+}
+
+enum RelationshipRole {
+  PRIMARY_DEVELOPER
+  CO_DEVELOPER
+  MAINTAINER
+  STEWARD
+  UNKNOWN
+}
+
+enum UsageContext {
+  R_AND_D
+  PRODUCTION
+  QC
+  CLINICAL
+  ANALYTICS
+  OTHER
+  UNKNOWN
+}
+
+enum Source {
+  CURATED
+  IMPORTED
+  DERIVED
+}
+
+enum ManufacturingRole {
+  primary
+  subcontractor
+  cdmo
+  cmo
+  api_supplier
+  other
+}
+
+enum LabTestRole {
+  primary
+  component
+  reflex
+  add_on
+  eligibility_gate
+}
+
+enum PanelRole {
+  primary
+  variant
+  legacy
+}
+
+enum CompoundFormRole {
   active
-  archived
-}
-
-enum UserGoalType {
-  sleep
-  energy
-  fatLoss
-  circadian
-  fitness
-  nutrition
-  cognition
-  longevity
-  strength
-  stress
-  recovery
-  health
+  excipient
+  carrier
   other
 }
 
-enum ProtocolStepItemType {
-  Product
-  Compound
-  Action
+# ============================================================================
+# Base Node Types
+# ============================================================================
+
+type PhysicalLocation {
+  locationId: ID!
+  canonicalName: String!
+  locationType: LocationType!
+  addressLine1: String
+  addressLine2: String
+  city: String
+  region: String
+  postalCode: String
+  countryCode: String
+  geoLat: Float
+  geoLon: Float
+  timezone: String
+  jurisdiction: String
+  placeTags: [String!]
+  hoursOfOperation: String
+  contactPhone: String
+  contactEmail: String
 }
 
-enum ProtocolTimeOfDay {
-  morning
-  midday
-  evening
-  bedtime
-  any
-}
-
-enum EvidenceRefType {
-  Episode
-  CaseStudy
-  Article
-  External
-}
-
-enum SeedDirectionType {
-  Guest
-  Business
-  Product
-  Compound
-  Platform
-  CaseStudy 
-  Person 
-}
-
-enum SeedFileRefKind {
-  checkpoint
-  final_report
-  merged_seed_doc
-}
-
-union ProtocolStepItemEntity = Product | Compound
-
-type ProtocolStepItem {
-  type: ProtocolStepItemType!
-  refId: ID
-  nameOverride: String
-  dosage: String
-  timing: String
-  notes: String
-  itemEntity: ProtocolStepItemEntity
-}
-
-type ProtocolStepGroup {
-  label: String
-  timeOfDay: ProtocolTimeOfDay
-  items: [ProtocolStepItem!]!
-}
-
-union EvidenceRefEntity = Article | CaseStudy | Episode | External
-
-type EvidenceRef {
-  type: EvidenceRefType!
-  refId: ID
-  label: String
-  url: String
-  episodeId: ID
-  timestamps: [Int!]!
-  notes: String
-  evidenceRefEntity: EvidenceRefEntity
-}
-
-type SafetyBucket {
-  warnings: [String!]!
-  contraindications: [String!]!
-  interactions: [String!]!
-  notes: String
-}
-
-type SeedFileRef {
-  filePath: String
-  s3Key: String
-  sha256: String
-  kind: SeedFileRefKind
-}
-
-type SeedProvenance {
-  planId: String
-  bundleId: String
-  runId: String
-  executionRunId: String
-  pipelineVersion: String
-  episodeId: ID
-  episodeUrl: String
-  entityKey: String
-  directionType: SeedDirectionType
-  dedupeGroupId: String
-  source: [SeedFileRef!]
-  seededAt: DateTime
-  seededBy: String
-}
-
-type UserProtocol {
-  id: ID!
-  userId: ID!
+type Listing {
+  listingId: ID!
+  listingDomain: ListingDomain!
   title: String!
-  goalType: UserGoalType
-  status: UserProtocolStatus!
-
-  sourceProtocolId: ID
-
-  stepsStructured: [ProtocolStepGroup!]!
-  evidenceRefs: [EvidenceRef!]!
-  safety: SafetyBucket
-
-  lastEditedAt: DateTime
-  createdAt: DateTime!
-  updatedAt: DateTime!
-}
-
-input ProtocolStepItemInput {
-  type: ProtocolStepItemType!
-  refId: ID
-  nameOverride: String
-  dosage: String
-  timing: String
-  notes: String
-}
-
-input CursorPageInput {
-  first: Int!
-  after: String
-}
-
-input ProtocolStepGroupInput {
-  label: String
-  timeOfDay: ProtocolTimeOfDay
-  items: [ProtocolStepItemInput!]!
-}
-
-input EvidenceRefInput {
-  type: EvidenceRefType!
-  refId: ID
-  label: String
+  description: String
+  sku: String
   url: String
-  episodeId: ID
-  timestamps: [Int!]
-  notes: String
-}
-
-input SafetyBucketInput {
-  warnings: [String!]
-  contraindications: [String!]
-  interactions: [String!]
-  notes: String
-}
-
-input SeedFileRefInput {
-  filePath: String
-  s3Key: String
-  sha256: String
-  kind: SeedFileRefKind
-}
-
-input SeedProvenanceUpsertInput {
-  planId: String!
-  bundleId: String
-  runId: String
-  executionRunId: String
-  pipelineVersion: String
-  episodeId: ID
-  episodeUrl: String
-  entityKey: String
-  directionType: SeedDirectionType
-  dedupeGroupId: String
-  source: [SeedFileRefInput!]
-  seededAt: DateTime
-  seededBy: String
-}
-
-input CreateUserProtocolInput {
-  title: String!
-  goalType: UserGoalType
-  status: UserProtocolStatus
-  sourceProtocolId: ID
-  stepsStructured: [ProtocolStepGroupInput!]
-  evidenceRefs: [EvidenceRefInput!]
-  safety: SafetyBucketInput
-}
-
-input UpdateUserProtocolInput {
-  id: ID!
-  title: String
-  goalType: UserGoalType
-  status: UserProtocolStatus
-  stepsStructured: [ProtocolStepGroupInput!]
-  evidenceRefs: [EvidenceRefInput!]
-  safety: SafetyBucketInput
-}
-
-type UserProtocolConnection {
-  edges: [UserProtocolEdge!]!
-  pageInfo: PageInfo!
-}
-
-type UserProtocolEdge {
-  cursor: String!
-  node: UserProtocol!
-}
-
-enum ArticleSourceType {
-  human_upgrade
-  external
-}
-
-type Article {
-  id: ID!
-
-  title: String!
-  summary: String!
-  url: String
-
-  sourceType: ArticleSourceType!
-  publishedAt: DateTime
-  authorName: String
-
-  tags: [String!]!
-  mediaLinks: [MediaLink!]
-
-  episodeIds: [ID!]
-  personIds: [ID!]
-  businessIds: [ID!]
-  productIds: [ID!]
-  compoundIds: [ID!]
-  protocolIds: [ID!]
-
-  createdAt: DateTime!
-  updatedAt: DateTime!
-}
-
-enum GoalType {
-  sleep
-  energy
-  fatLoss
-  circadian
-  fitness
-  nutrition
-  cognition
-  longevity
-  strength
-  stress
-  recovery
-  health
-  other
-}
-
-enum ExperienceLevel {
-  beginner
-  intermediate
-  advanced
-}
-
-enum DietStyle {
-  none
-  keto
-  paleo
-  vegan
-  vegetarian
-  mediterranean
-  lowCarb
-  omnivore
-  other
-}
-
-enum TimeBudget {
-  min5
-  min15
-  min30
-  min60
-}
-
-enum PreferredFormat {
-  video
-  summary
-  protocol
-  caseStudy
-}
-
-type UserGoal {
-  goalType: GoalType!
-  priority: Int!
-  notes: String
-}
-
-type EntityPreferences {
-  likedEntityIds: [ID!]!
-  hiddenEntityIds: [ID!]!
-  blockedEntityIds: [ID!]!
-}
-
-type UserProfile {
-  id: ID!
-  userId: ID!
-
-  goals: [UserGoal!]!
-
-  experienceLevel: ExperienceLevel
-  dietStyle: DietStyle
-
-  avoidances: [String!]!
-  timeBudget: TimeBudget
-
-  preferredFormats: [PreferredFormat!]!
-  topicInterests: [String!]!
-
-  entityPreferences: EntityPreferences
-
-  createdAt: DateTime!
-  updatedAt: DateTime!
-}
-
-input UserGoalInput {
-  goalType: GoalType!
-  priority: Int!
-  notes: String
-}
-
-input EntityPreferencesInput {
-  likedEntityIds: [ID!]
-  hiddenEntityIds: [ID!]
-  blockedEntityIds: [ID!]
-}
-
-input UserProfileUpsertInput {
-  goals: [UserGoalInput!]
-  experienceLevel: ExperienceLevel
-  dietStyle: DietStyle
-  avoidances: [String!]
-  timeBudget: TimeBudget
-  preferredFormats: [PreferredFormat!]
-  topicInterests: [String!]
-  entityPreferences: EntityPreferencesInput
-}
-
-type MediaLink {
-  url: String!
-  description: String
-  posterUrl: String
-}
-
-enum UserProvider {
-  LOCAL
-  GOOGLE
-  GITHUB
-  APPLE
-}
-
-enum UserRole {
-  ADMIN
-  USER
-}
-
-enum ProtocolCategory {
-  sleep
-  energy
-  fatLoss
-  circadian
-  fitness
-  nutrition
-  cognition
-  stress
-  recovery
-  longevity
-  health
-  strength
-  other
-}
-
-input MediaLinkInput {
-  url: String!
-  description: String
-  posterUrl: String
-}
-
-input UserUpsertInput {
-  userId: ID
-  email: String!
-  password: String
-  provider: UserProvider
-  providerId: String
-  name: String
-  role: UserRole
-  mediaLinks: [MediaLinkInput!]
-}
-
-input UserCreateInput {
-  email: String!
-  password: String
-  provider: UserProvider
-  providerId: String
-  name: String
-  role: UserRole
-  mediaLinks: [MediaLinkInput!]
-}
-
-input BusinessCreateRelationsInput {
-  name: String!
-  description: String
-  biography: String
-  website: String
-  mediaLinks: [MediaLinkInput!]
-  ownerIds: [ID!]
-  ownerNames: [String!]
-  productIds: [ID!]
-  productNames: [String!]
-  sponsorEpisodeIds: [ID!]
-  ownersNested: [BusinessOwnerNestedInput!]
-  executivesNested: [BusinessExecutiveNestedInput!]
-  productsNested: [BusinessProductNestedInput!]
-  sponsorEpisodesNested: [BusinessEpisodeNestedInput!]
-  executives: [BusinessExecutiveRelationInput!]
-  seed: SeedProvenanceUpsertInput
-}
-
-input BusinessUpdateWithIdsInput {
-  id: ID!
-  name: String
-  description: String
-  website: String
-  mediaLinks: [MediaLinkInput!]
-  ownerIds: [ID!]
-  ownerNames: [String!]
-  productIds: [ID!]
-  productNames: [String!]
-  sponsorEpisodeIds: [ID!]
-  seed: SeedProvenanceUpsertInput
-}
-
-input BusinessOwnerNestedInput {
-  id: ID
-  name: String
-  role: String
-  bio: String
-  mediaLinks: [MediaLinkInput!]
-  seed: SeedProvenanceUpsertInput
-}
-
-input BusinessProductNestedInput {
-  id: ID
-  name: String
-  price: Float
-  description: String
-  ingredients: [String!]
-  mediaLinks: [MediaLinkInput!]
-  sourceUrl: String
-}
-
-input BusinessExecutiveRelationInput {
-  personId: ID!
-  title: String
-  role: String
-}
-
-input SponsorLinkObjectInput {
-  text: String
-  links: [String!]
-  hasCodeDave: Boolean
-  code: String
-  brand: String
-  discountPercent: Float
-}
-
-input WebPageTimelineInput {
-  from: String!
-  to: String!
-  title: String
-  description: String
-}
-
-input BusinessEpisodeNestedInput {
-  id: ID
-  channelName: String!
-  episodeNumber: Int
-  episodePageUrl: String!
-  episodeTitle: String
-  publishedAt: DateTime
-  summaryShort: String
-  webPageSummary: String
-  summaryDetailed: String
-  youtubeVideoId: String
-  youtubeWatchUrl: String
-  youtubeEmbedUrl: String
-  takeaways: [String!]
-  s3TranscriptKey: String
-  s3TranscriptUrl: String
-  mediaLinks: [MediaLinkInput!]
-  sponsorLinkObjects: [SponsorLinkObjectInput!]
-  webPageTimelines: [WebPageTimelineInput!]
-}
-
-input BusinessExecutiveNestedInput {
-  id: ID
-  name: String
-  title: String
-  role: String
-  mediaLinks: [MediaLinkInput!]
-  seed: SeedProvenanceUpsertInput
-}
-
-input BusinessUpsertRelationFieldsInput {
-  id: ID
-
-  name: String
-  description: String
-  website: String
-  biography: String
-  mediaLinks: [MediaLinkInput!]
-
-  ownerIds: [ID!]
-  ownerNames: [String!]
-  ownersNested: [BusinessOwnerNestedInput!]
-
-  productIds: [ID!]
-  productNames: [String!]
-  productsNested: [BusinessProductNestedInput!]
-
-  executives: [BusinessExecutiveRelationInput!]
-  executivesNested: [BusinessExecutiveNestedInput!]
-
-  sponsorEpisodeIds: [ID!]
-  sponsorEpisodesNested: [BusinessEpisodeNestedInput!]
-  seed: SeedProvenanceUpsertInput
-}
-
-# --- Product Inputs ---
-
-input ProductCreateWithIdsInput {
-  name: String!
-  businessId: ID!
-  description: String
-  price: Float
-  ingredients: [String!]
-  mediaLinks: [MediaLinkInput!]
-  sourceUrl: String
-  compoundIds: [ID!]
-  compoundNames: [String!]
-  compoundsNested: [ProductCompoundNestedInput!]
-  protocolIds: [ID!]
-  seed: SeedProvenanceUpsertInput
-}
-
-input ProductUpdateWithIdsInput {
-  id: ID!
-  name: String
-  description: String
-  price: Float
-  ingredients: [String!]
-  mediaLinks: [MediaLinkInput!]
-  sourceUrl: String
-  compoundIds: [ID!]
-  compoundNames: [String!]
-  compoundsNested: [ProductCompoundNestedInput!]
-  protocolIds: [ID!]
-  seed: SeedProvenanceUpsertInput
-}
-
-input ProductCompoundNestedInput {
-  id: ID
-  name: String
-  description: String
-  aliases: [String!]
-  mediaLinks: [MediaLinkInput!]
-  seed: SeedProvenanceUpsertInput
-}
-
-input ProductProtocolNestedInput {
-  id: ID
-  name: String
-  description: String
-  categories: [ProtocolCategory!]
-  goals: [String!]
-  steps: [String!]
-  cautions: [String!]
-  aliases: [String!]
-  sourceUrl: String
-}
-
-input ProductUpsertRelationFieldsInput {
-  id: ID
-  name: String
-  changeBusinessId: Boolean
-  description: String
-  price: Float
-  businessId: ID
-  ingredients: [String!]
-  mediaLinks: [MediaLinkInput!]
-  sourceUrl: String
-  compoundIds: [ID!]
-  compoundNames: [String!]
-  compoundsNested: [ProductCompoundNestedInput!]
-  protocolIds: [ID!]
-  protocolsNested: [ProductProtocolNestedInput!]
-  seed: SeedProvenanceUpsertInput
-}
-
-# --- Person Inputs ---
-
-input PersonCreateInput {
-  name: String!
-  role: String
-  bio: String
-  mediaLinks: [MediaLinkInput!]
-  seed: SeedProvenanceUpsertInput
-}
-
-input PersonUpdateInput {
-  id: ID!
-  name: String
-  role: String
-  bio: String
-  mediaLinks: [MediaLinkInput!]
-  seed: SeedProvenanceUpsertInput
-}
-
-# --- Episode Inputs ---
-
-input EpisodeCreateWithIdsInput {
-  channelName: String!
-  episodeNumber: Int
-  episodeTitle: String
-  episodePageUrl: String!
-  episodeTranscriptUrl: String
-  publishedAt: DateTime
-  summaryShort: String
-  webPageSummary: String
-  summaryDetailed: String
-  publishedSummary: String
-  youtubeVideoId: String
-  youtubeWatchUrl: String
-  youtubeEmbedUrl: String
-  takeaways: [String!]
-  s3TranscriptKey: String
-  s3TranscriptUrl: String
-  mediaLinks: [MediaLinkInput!]
-  sponsorLinkObjects: [SponsorLinkObjectInput!]
-  webPageTimelines: [WebPageTimelineInput!]
-  businessLinks: [String!]
-  guestIds: [ID!]
-  sponsorBusinessIds: [ID!]
-  protocolIds: [ID!]
-}
-
-input EpisodeUpdateWithIdsInput {
-  id: ID!
-  channelName: String
-  episodeNumber: Int
-  episodeTitle: String
-  episodePageUrl: String
-  episodeTranscriptUrl: String
-  publishedAt: DateTime
-  summaryShort: String
-  webPageSummary: String
-  summaryDetailed: String
-  publishedSummary: String
-  youtubeVideoId: String
-  youtubeWatchUrl: String
-  youtubeEmbedUrl: String
-  takeaways: [String!]
-  s3TranscriptKey: String
-  s3TranscriptUrl: String
-  mediaLinks: [MediaLinkInput!]
-  sponsorLinkObjects: [SponsorLinkObjectInput!]
-  webPageTimelines: [WebPageTimelineInput!]
-  businessLinks: [String!]
-  guestIds: [ID!]
-  sponsorBusinessIds: [ID!]
-  protocolIds: [ID!]
-}
-
-input EpisodeGuestNestedInput {
-  id: ID
-  name: String
-  role: String
-  bio: String
-  mediaLinks: [MediaLinkInput!]
-}
-
-input EpisodeSponsorBusinessNestedInput {
-  id: ID
-  name: String
-  description: String
-  website: String
-  mediaLinks: [MediaLinkInput!]
-}
-
-input EpisodeUpdateRelationFieldsInput {
-  id: ID
-  episodePageUrl: String
-
-  guestIds: [ID!]
-  guestsNested: [EpisodeGuestNestedInput!]
-
-  sponsorBusinessIds: [ID!]
-  sponsorBusinessesNested: [EpisodeSponsorBusinessNestedInput!]
-
-  protocolIds: [ID!]
-}
-
-# --- Compound Inputs ---
-
-input ProtocolCreateWithIdsInput {
-  name: String!
-  description: String
-  categories: [ProtocolCategory!]
-  goals: [String!]
-  steps: [String!]
-  cautions: [String!]
-  aliases: [String!]
-  sourceUrl: String
-  productIds: [ID!]
-  compoundIds: [ID!]
-}
-
-input ProtocolUpdateWithIdsInput {
-  id: ID!
-  name: String
-  description: String
-  categories: [ProtocolCategory!]
-  goals: [String!]
-  steps: [String!]
-  cautions: [String!]
-  aliases: [String!]
-  sourceUrl: String
-  productIds: [ID!]
-  compoundIds: [ID!]
-  stepsStructured: [ProtocolStepGroupInput!]
-  evidenceRefs: [EvidenceRefInput!]
-  safety: SafetyBucketInput
-  overwriteEvidenceRefs: Boolean
-  addToEvidenceRefs: Boolean
-}
-
-input ProtocolProductNestedInput {
-  id: ID
-  name: String
-  description: String
-  businessId: ID
-  ingredients: [String!]
-  mediaLinks: [MediaLinkInput!]
-  sourceUrl: String
-}
-
-input ProtocolCompoundNestedInput {
-  id: ID
-  name: String
-  description: String
-  aliases: [String!]
-  mediaLinks: [MediaLinkInput!]
-}
-
-input ProtocolUpdateRelationFieldsInput {
-  id: ID!
-  productIds: [ID!]
-  productsNested: [ProtocolProductNestedInput!]
-  compoundIds: [ID!]
-  compoundsNested: [ProtocolCompoundNestedInput!]
-}
-
-input CompoundCreateWithIdsInput {
-  name: String!
-  description: String
-  aliases: [String!]
-  mediaLinks: [MediaLinkInput!]
-  productIds: [ID!]
-  seed: SeedProvenanceUpsertInput
-}
-
-input CompoundUpdateWithIdsInput {
-  id: ID!
-  name: String
-  description: String
-  aliases: [String!]
-  mediaLinks: [MediaLinkInput!]
-  productIds: [ID!]
-  seed: SeedProvenanceUpsertInput
-}
-
-input CompoundProductNestedInput {
-  id: ID
-  name: String
-  description: String
-  ingredients: [String!]
-  mediaLinks: [MediaLinkInput!]
-  sourceUrl: String
-}
-
-input CompoundUpdateRelationFieldsInput {
-  id: ID!
-
-  productIds: [ID!]
-  productsNested: [CompoundProductNestedInput!]
-  seed: SeedProvenanceUpsertInput
-}
-
-type User {
-  id: ID!
-  email: String!
-  name: String
-  role: String!
-  profile: UserProfile
-}
-
-type WebPageTimeline {
-  from: String!
-  to: String!
-  title: String
-  description: String
-}
-
-type SponsorLinkObject {
-  text: String
-  links: [String!]
-  hasCodeDave: Boolean
-  code: String
-  brand: String
-  discountPercent: Float
-}
-type Episode {
-  id: ID!
-  channelName: String!
-  episodeNumber: Int
-  episodeTitle: String
-  episodeTranscriptUrl: String
-  episodePageUrl: String
-  webPageSummary: String
-  webPageTimelines: [WebPageTimeline!]
-  sponsorLinkObjects: [SponsorLinkObject!]
-  takeaways: [String!]!
-  s3TranscriptKey: String
-  s3TranscriptUrl: String
-  youtubeVideoId: String
-  youtubeWatchUrl: String
-  youtubeEmbedUrl: String
-  mediaLinks: [MediaLink!]
-  publishedAt: DateTime
-  guests: [Person!]
-  summaryShort: String
-  summaryDetailed: String
-  publishedSummary: String
-  businessLinks: [String!]
-  sponsorBusinesses: [Business!]
-  protocols: [Protocol!]
-}
-
-type Person {
-  id: ID!
-  name: String!
-  mediaLinks: [MediaLink!]
-  role: String
-  bio: String
-  businesses: [Business!]
-  episodes: [Episode!]
-}
-
-type BusinessExecutive {
-  person: Person!
-  title: String
-  role: String
-}
-
-type Business {
-  id: ID!
-  name: String!
-  mediaLinks: [MediaLink!]
-  description: String
-  website: String
-  products: [Product!]
-  owners: [Person!]
-  executives: [BusinessExecutive!]
-  sponsoredEpisodes: [Episode!]
+  brandName: String
+  currency: String!
+  priceAmount: Float
+  priceType: PriceType
+  pricingNotes: String
+  constraints: String
+  regionsAvailable: [String!]
+  requiresAppointment: Boolean
+  collectionMode: CollectionMode
+  turnaroundTime: String
 }
 
 type Product {
-  id: ID!
+  productId: ID!
   name: String!
-  mediaLinks: [MediaLink!]
-  price: Float
-  business: Business!
+  synonyms: [String!]
+  productDomain: ProductDomain!
+  productType: String
+  productFingerprint: String
+  intendedUse: String
   description: String
-  ingredients: [String!]!
-  sponsorEpisodes: [Episode!]
-  sourceUrl: String
-  compounds: [Compound!]
+  brandName: String
+  modelNumber: String
+  ndcCode: String
+  upc: String
+  gtin: String
+  riskClass: String
+  currency: String
+  priceAmount: Float
+  validAt: DateTime
+  invalidAt: DateTime
+  expiredAt: DateTime
+  createdAt: DateTime! 
+
+  # Searchability and Vector 
+
+  searchText: String   
+  embedding: [Float!] 
+  # Relationships
+  deliversLabTest: [DeliversLabTestEdge!]
+  implementsPanel: [ImplementsPanelEdge!]
+  containsCompoundForm: [ContainsCompoundFormEdge!]
+  followsPathway: [FollowsPathwayEdge!]
+  inCategory: [InCategoryEdge!]
+  usesPlatform: [ProductUsesPlatformEdge!]
+  hasRegulatoryStatus: [HasRegulatoryStatusEdge!]
+  manufacturedBy: [ManufacturedByEdge!]
 }
 
-type Compound {
-  id: ID!
+type CompoundForm {
+  compoundFormId: ID!
+  canonicalName: String!
+  formType: String!
+  chemicalDifferences: String
+  stabilityProfile: String
+  solubilityProfile: String
+  bioavailabilityNotes: String
+  regulatoryStatusSummary: String
+}
+
+type ManufacturingProcess {
+  manufacturingProcessId: ID!
+  canonicalName: String!
+  processType: ProcessType!
+  description: String
+  inputs: [String!]
+  outputs: [String!]
+  qualityRisks: [String!]
+  scalabilityLevel: ScalabilityLevel
+  validAt: DateTime
+  invalidAt: DateTime
+  expiredAt: DateTime
+  createdAt: DateTime!
+}
+
+type TechnologyPlatform {
+  platformId: ID!
+  canonicalName: String!
+  aliases: [String!]
+  platformType: PlatformType!
+  description: String
+  validAt: DateTime
+  invalidAt: DateTime
+  expiredAt: DateTime
+  createdAt: DateTime!
+}
+
+type LabTest {
+  labTestId: ID!
+  name: String!
+  synonyms: [String!]
+  loincCodes: [String!]
+  cptCodes: [String!]
+  whatItMeasures: String
+  prepRequirements: String
+  validAt: DateTime
+  invalidAt: DateTime
+  expiredAt: DateTime
+  createdAt: DateTime!
+}
+
+type ProductCategory {
+  categoryId: ID!
   name: String!
   description: String
-  mediaLinks: [MediaLink!]
-  aliases: [String!]!
-  products: [Product!]!
-  caseStudies: [CaseStudy!]!
+  aliases: [String!]
+  validAt: DateTime
+  invalidAt: DateTime
+  expiredAt: DateTime
+  createdAt: DateTime!
 }
 
-type Protocol {
-  id: ID!
-  name: String!
+type PanelDefinition {
+  panelDefinitionId: ID!
+  canonicalName: String!
+  aliases: [String!]
   description: String
-  categories: [ProtocolCategory!]!
-  goals: [String!]!
-  steps: [String!]!
-  cautions: [String!]!
-  stepsStructured: [ProtocolStepGroup!]
-  evidenceRefs: [EvidenceRef!]!
-  safety: SafetyBucket
-  aliases: [String!]!
-  sourceUrl: String
-  products: [Product!]!
-  compounds: [Compound!]!
+  validAt: DateTime
+  invalidAt: DateTime
+  expiredAt: DateTime
+  createdAt: DateTime!
 }
 
-enum CaseStudySourceType {
-  pubmed
-  clinicaltrial
-  article
-  other
+type RegulatoryStatus {
+  regulatoryStatusId: ID!
+  status: String
+  effectiveDate: DateTime
+  statusDetails: String
+  validAt: DateTime
+  invalidAt: DateTime
+  expiredAt: DateTime
+  createdAt: DateTime!
 }
 
-type CaseStudy {
-  id: ID!
-  title: String!
-  summary: String!
-  mediaLinks: [MediaLink!]
-  url: String
-  sourceType: String!
-  episodes: [Episode!]
-  compounds: [Compound!]
-  products: [Product!]
-  protocols: [Protocol!]
+type RegulatoryPathway {
+  pathwayId: ID!
+  authority: String!
+  pathwayType: String!
+  pathwayName: String!
+  requirementsSummary: String
+  validAt: DateTime
+  invalidAt: DateTime
+  expiredAt: DateTime
+  createdAt: DateTime!
 }
 
-input CaseStudyCreateWithOptionalIdsInput {
-  title: String!
-  summary: String!
-  url: String
-  sourceType: CaseStudySourceType
-  episodeIds: [ID!]
-  episodePageUrls: [String!]
-  compoundIds: [ID!]
-  compoundNames: [String!]
-  productIds: [ID!]
-  productNames: [String!]
-  seed: SeedProvenanceUpsertInput
-}
+# ============================================================================
+# Document Ingestion Types
+# ============================================================================
 
-input CaseStudyUpdateWithOptionalIdsInput {
-  id: ID!
-  title: String
-  summary: String
-  url: String
-  sourceType: CaseStudySourceType
-  episodeIds: [ID!]
-  episodePageUrls: [String!]
-  compoundIds: [ID!]
-  compoundNames: [String!]
-  productIds: [ID!]
-  productNames: [String!]
-  seed: SeedProvenanceUpsertInput
-}
-
-type UserDeleteResult {
-  message: String!
-  success: Boolean
-}
-
-enum SavedEntityType {
-  Product
-  Compound
-  Person
-  Business
-  Protocol
-  Episode
-  CaseStudy
-  UserProtocol
-  Article
-}
-
-enum SaveSource {
-  dashboard
-  episode
-  assistant
-  search
-  protocol_builder
-  profile
-  other
-}
-
-type External {
-  url: String
+type ResearchPlanRef {
+  researchPlanRefId: ID!
+  mongoPlanId: String!
   label: String
-}
-
-type UserSaved {
-  id: ID!
-  userId: ID!
-
-  targetType: SavedEntityType!
-  targetId: ID!
-
-  note: String
-  tags: [String!]!
-  pinned: Boolean!
-  source: SaveSource
-
+  version: String
+  validAt: DateTime
+  invalidAt: DateTime
+  expiredAt: DateTime
   createdAt: DateTime!
   updatedAt: DateTime!
+}
 
-  # hydrated via dataloaders
-  target: SavedTargetUnion
+type ResearchRunRef {
+  researchRunRefId: ID!
+  mongoRunId: String!
+  label: String
+  startedAt: DateTime!
+  endedAt: DateTime!
+  validAt: DateTime
+  invalidAt: DateTime
+  expiredAt: DateTime
+  createdAt: DateTime!
+  updatedAt: DateTime!
+  usesPlan: [UsesPlanEdge!]
+}
+
+type SearchSurface {
+  searchText: String
+  searchTextEmbedding: [Float!]
+  searchTextModel: String
+  searchTextVersion: String
+  searchTextUpdatedAt: DateTime
+}
+
+type DocumentTextVersion {
+  documentTextVersionId: ID!
+  textVersionHash: String!
+  source: String!
+  language: String
+  text: String!
+  validAt: DateTime
+  invalidAt: DateTime
+  expiredAt: DateTime
+  createdAt: DateTime!
+  updatedAt: DateTime!
+  searchText: String
+  searchTextEmbedding: [Float!]
+  searchTextModel: String
+  searchTextVersion: String
+  searchTextUpdatedAt: DateTime
+  hasSegmentation: [HasSegmentationEdge!]
+}
+
+type Segmentation {
+  segmentationId: ID!
+  segmentationHash: String!
+  strategy: String!
+  chunkSize: Int!
+  overlap: Int!
+  validAt: DateTime
+  invalidAt: DateTime
+  expiredAt: DateTime
+  createdAt: DateTime!
+  updatedAt: DateTime!
+  hasChunk: [SegmentationHasChunkEdge!]
+}
+
+type Chunk {
+  chunkId: ID!
+  chunkKey: String!
+  index: Int!
+  text: String!
+  charStart: Int
+  charEnd: Int
+  startMs: Int
+  endMs: Int
+  embedding: [Float!]
+  embeddingModel: String
+  embeddingVersion: String
+  validAt: DateTime
+  invalidAt: DateTime
+  expiredAt: DateTime
+  createdAt: DateTime!
+  updatedAt: DateTime!
+  nextChunk: NextChunkEdge
+  mentions: [MentionsEdge!]
+  about: [AboutEdge!]
+}
+
+type Document {
+  documentId: ID!
+  documentKey: String!
+  type: String!
+  title: String
+  url: String
+  publishedAt: DateTime!
+  retrievedAt: DateTime!
+  validAt: DateTime
+  invalidAt: DateTime
+  expiredAt: DateTime
+  createdAt: DateTime!
+  updatedAt: DateTime!
+  searchText: String
+  searchTextEmbedding: [Float!]
+  searchTextModel: String
+  searchTextVersion: String
+  searchTextUpdatedAt: DateTime
+  hasTextVersion: [HasTextVersionEdge!]
+  chunks: [HasChunkEdge!]
+  generatedBy: [GeneratedByEdge!]
+}
+
+# ============================================================================
+# Edge Types (Relationships with Properties)
+# ============================================================================
+
+type HasLocationEdge {
+  location: PhysicalLocation!
+  locationRole: String!
+  isPrimary: Boolean
+  startDate: DateTime
+  endDate: DateTime
+  claimIds: [String!]!
+  validAt: DateTime
+  invalidAt: DateTime
+  expiredAt: DateTime
+  createdAt: DateTime!
+}
+
+type OwnsOrControlsEdge {
+  organization: Organization!
+  relationshipType: String!
+  ownershipPercent: Float
+  controlType: String
+  effectiveFrom: DateTime
+  effectiveTo: DateTime
+  isCurrent: Boolean
+  claimIds: [String!]!
+  validAt: DateTime
+  invalidAt: DateTime
+  expiredAt: DateTime
+  createdAt: DateTime!
+}
+
+type ListsEdge {
+  listing: Listing!
+  listRole: ListRole!
+  channel: Channel
+  regionsOverrides: [String!]
+  collectionModesOverrides: [String!]
+  availabilityNotes: String
+  claimIds: [String!]!
+  validAt: DateTime
+  invalidAt: DateTime
+  expiredAt: DateTime
+  createdAt: DateTime!
+}
+
+type OffersProductEdge {
+  product: Product!
+  validAt: DateTime
+  invalidAt: DateTime
+  expiredAt: DateTime
+  createdAt: DateTime!
+}
+
+type SuppliesCompoundFormEdge {
+  compoundForm: CompoundForm!
+  validAt: DateTime
+  invalidAt: DateTime
+  expiredAt: DateTime
+  createdAt: DateTime!
+}
+
+type ManufacturesEdge {
+  compoundForm: CompoundForm!
+  claimIds: [String!]!
+  validAt: DateTime
+  invalidAt: DateTime
+  expiredAt: DateTime
+  createdAt: DateTime!
+}
+
+type ManufacturesProductEdge {
+  product: Product!
+  claimIds: [String!]!
+  validAt: DateTime
+  invalidAt: DateTime
+  expiredAt: DateTime
+  createdAt: DateTime!
+}
+
+type ContractManufacturerForOrganizationEdge {
+  organization: Organization!
+  claimIds: [String!]!
+  validAt: DateTime
+  invalidAt: DateTime
+  expiredAt: DateTime
+  createdAt: DateTime!
+}
+
+type ContractManufacturerForProductEdge {
+  product: Product!
+  claimIds: [String!]!
+  validAt: DateTime
+  invalidAt: DateTime
+  expiredAt: DateTime
+  createdAt: DateTime!
+}
+
+type ContractManufacturerForCompoundFormEdge {
+  compoundForm: CompoundForm!
+  claimIds: [String!]!
+  validAt: DateTime
+  invalidAt: DateTime
+  expiredAt: DateTime
+  createdAt: DateTime!
+}
+
+type PerformsManufacturingProcessEdge {
+  manufacturingProcess: ManufacturingProcess!
+  role: ManufacturingRole!
+  claimIds: [String!]!
+  validAt: DateTime
+  invalidAt: DateTime
+  expiredAt: DateTime
+  createdAt: DateTime!
+}
+
+type DevelopsPlatformEdge {
+  technologyPlatform: TechnologyPlatform!
+  relationshipRole: RelationshipRole
+  notes: String
+  source: Source
+  claimIds: [String!]!
+  validAt: DateTime
+  invalidAt: DateTime
+  expiredAt: DateTime
+  createdAt: DateTime!
+}
+
+type UsesPlatformEdge {
+  technologyPlatform: TechnologyPlatform!
+  usageContext: UsageContext
+  isPrimary: Boolean
+  notes: String
+  source: Source
+  claimIds: [String!]!
+  validAt: DateTime
+  invalidAt: DateTime
+  expiredAt: DateTime
+  createdAt: DateTime!
+}
+
+type DeliversLabTestEdge {
+  labTest: LabTest!
+  role: LabTestRole!
+  quantity: Int
+  componentName: String
+  claimIds: [String!]!
+  validAt: DateTime
+  invalidAt: DateTime
+  expiredAt: DateTime
+  createdAt: DateTime!
+}
+
+type ImplementsPanelEdge {
+  panelDefinition: PanelDefinition!
+  panelRole: PanelRole
+  versionLabel: String
+  claimIds: [String!]!
+  validAt: DateTime
+  invalidAt: DateTime
+  expiredAt: DateTime
+  createdAt: DateTime!
+}
+
+type ContainsCompoundFormEdge {
+  compoundForm: CompoundForm!
+  dose: Float
+  doseUnit: String
+  role: CompoundFormRole
+  standardizedTo: String
+  claimIds: [String!]!
+  validAt: DateTime
+  invalidAt: DateTime
+  expiredAt: DateTime
+  createdAt: DateTime!
+}
+
+type FollowsPathwayEdge {
+  regulatoryPathway: RegulatoryPathway!
+  jurisdictionId: String
+  claimIds: [String!]!
+  validAt: DateTime
+  invalidAt: DateTime
+  expiredAt: DateTime
+  createdAt: DateTime!
+}
+
+type InCategoryEdge {
+  productCategory: ProductCategory!
+  claimIds: [String!]!
+  validAt: DateTime
+  invalidAt: DateTime
+  expiredAt: DateTime
+  createdAt: DateTime!
+}
+
+type ProductUsesPlatformEdge {
+  technologyPlatform: TechnologyPlatform!
+  claimIds: [String!]!
+  validAt: DateTime
+  invalidAt: DateTime
+  expiredAt: DateTime
+  createdAt: DateTime!
+}
+
+type HasRegulatoryStatusEdge {
+  regulatoryStatus: RegulatoryStatus!
+  status: String
+  effectiveDate: DateTime
+  statusDetails: String
+  claimIds: [String!]!
+  validAt: DateTime
+  invalidAt: DateTime
+  expiredAt: DateTime
+  createdAt: DateTime!
+}
+
+type ManufacturedByEdge {
+  organization: Organization!
+  claimIds: [String!]!
+  validAt: DateTime
+  invalidAt: DateTime
+  expiredAt: DateTime
+  createdAt: DateTime!
+}
+
+# Document Ingestion Edge Types
+
+type UsesPlanEdge {
+  researchPlanRef: ResearchPlanRef!
+  validAt: DateTime
+  invalidAt: DateTime
+  expiredAt: DateTime
+  createdAt: DateTime!
+}
+
+type HasSegmentationEdge {
+  segmentation: Segmentation!
+  validAt: DateTime
+  invalidAt: DateTime
+  expiredAt: DateTime
+  createdAt: DateTime!
+}
+
+type SegmentationHasChunkEdge {
+  chunk: Chunk!
+  validAt: DateTime
+  invalidAt: DateTime
+  expiredAt: DateTime
+  createdAt: DateTime!
+}
+
+type NextChunkEdge {
+  chunk: Chunk!
+  validAt: DateTime
+  invalidAt: DateTime
+  expiredAt: DateTime
+  createdAt: DateTime!
+}
+
+type MentionsEdge {
+  # Target node properties will be resolved at query time
+  # For now, we include provenance fields that are on the relationship
+  confidence: Float
+  linkingMethod: String
+  surfaceForm: String
+  # Provenance fields (also on relationship)
+  mongoRunId: String!
+  mongoPlanId: String
+  stageKey: String
+  subStageKey: String
+  extractorVersion: String
+  extractedAt: DateTime!
+  validAt: DateTime
+  invalidAt: DateTime
+  expiredAt: DateTime
+  createdAt: DateTime!
+}
+
+type AboutEdge {
+  # Target node properties will be resolved at query time
+  # For now, we include relationship-specific properties
+  aboutness: Float
+  aspect: String
+  stance: String
+  # Provenance fields (also on relationship)
+  mongoRunId: String!
+  mongoPlanId: String
+  stageKey: String
+  subStageKey: String
+  extractorVersion: String
+  extractedAt: DateTime!
+  confidence: Float
+  validAt: DateTime
+  invalidAt: DateTime
+  expiredAt: DateTime
+  createdAt: DateTime!
+}
+
+type HasTextVersionEdge {
+  documentTextVersion: DocumentTextVersion!
+  validAt: DateTime
+  invalidAt: DateTime
+  expiredAt: DateTime
+  createdAt: DateTime!
+}
+
+type HasChunkEdge {
+  chunk: Chunk!
+  validAt: DateTime
+  invalidAt: DateTime
+  expiredAt: DateTime
+  createdAt: DateTime!
+}
+
+type GeneratedByEdge {
+  researchRunRef: ResearchRunRef!
+  operation: String!
+  stageKey: String
+  subStageKey: String
+  extractorVersion: String
+  extractedAt: DateTime!
+  validAt: DateTime
+  invalidAt: DateTime
+  expiredAt: DateTime
+  createdAt: DateTime!
+}
+
+# ============================================================================
+# Organization Type
+# ============================================================================
+
+type Organization {
+  organizationId: ID!
+  name: String!
+  aliases: [String!]
+  orgType: OrgType!
+  description: String
+  businessModel: BusinessModel
+  primaryIndustryTags: [String!]
+  regionsServed: [String!] 
+  # add isActive or use validAt/invalidAt/expiredAt
+  legalName: String
+  legalStructure: String
+  ownershipType: String
+  jurisdictionsOfIncorporation: [String!]
+  websiteUrl: String
+  defaultCollectionModes: [String!]
+  defaultRegionsAvailable: [String!]
+  publicTicker: String
+  fundingStage: String
+  employeeCountMin: Int
+  employeeCountMax: Int
+  employeeCountAsOf: DateTime
+  revenueAnnualMin: Float
+  revenueAnnualMax: Float
+  revenueAnnualCurrency: String
+  revenueAnnualAsOf: DateTime
+  valuationMin: Float
+  valuationMax: Float
+  valuationCurrency: String
+  valuationAsOf: DateTime
+  validAt: DateTime
+  invalidAt: DateTime
+  expiredAt: DateTime
+  createdAt: DateTime! 
+
+  # Searchability and Vector 
+  searchText: String   
+  embedding: [Float!] 
+  # Relationships
+  hasLocation: [HasLocationEdge!]
+  ownsOrControls: [OwnsOrControlsEdge!]
+  lists: [ListsEdge!]
+  offersProduct: [OffersProductEdge!]
+  suppliesCompoundForm: [SuppliesCompoundFormEdge!]
+  manufactures: [ManufacturesEdge!]
+  manufacturesProduct: [ManufacturesProductEdge!]
+  contractManufacturerForOrganization: [ContractManufacturerForOrganizationEdge!]
+  contractManufacturerForProduct: [ContractManufacturerForProductEdge!]
+  contractManufacturerForCompoundForm: [ContractManufacturerForCompoundFormEdge!]
+  performsManufacturingProcess: [PerformsManufacturingProcessEdge!]
+  developsPlatform: [DevelopsPlatformEdge!]
+  usesPlatform: [UsesPlatformEdge!]
+}
+
+# ============================================================================
+# Input Types
+# ============================================================================
+
+input TemporalValidityInput {
+  validAt: DateTime
+  invalidAt: DateTime
+  expiredAt: DateTime
+  createdAt: DateTime
+}
+
+input PhysicalLocationInput {
+  locationId: ID
+  canonicalName: String!
+  locationType: LocationType!
+  addressLine1: String
+  addressLine2: String
+  city: String
+  region: String
+  postalCode: String
+  countryCode: String
+  geoLat: Float
+  geoLon: Float
+  timezone: String
+  jurisdiction: String
+  placeTags: [String!]
+  hoursOfOperation: String
+  contactPhone: String
+  contactEmail: String
+}
+
+input ListingInput {
+  listingId: ID
+  listingDomain: ListingDomain!
+  title: String!
+  description: String
+  sku: String
+  url: String
+  brandName: String
+  currency: String!
+  priceAmount: Float
+  priceType: PriceType
+  pricingNotes: String
+  constraints: String
+  regionsAvailable: [String!]
+  requiresAppointment: Boolean
+  collectionMode: CollectionMode
+  turnaroundTime: String
+}
+
+input ProductInput {
+  productId: ID
+  name: String!
+  synonyms: [String!]
+  productDomain: ProductDomain!
+  productType: String
+  productFingerprint: String
+  intendedUse: String
+  description: String
+  brandName: String
+  modelNumber: String
+  ndcCode: String
+  upc: String
+  gtin: String
+  riskClass: String
+  currency: String
+  priceAmount: Float
+  validAt: DateTime
+  invalidAt: DateTime
+  expiredAt: DateTime
+  createdAt: DateTime
+  # Relationships
+  deliversLabTest: [DeliversLabTestRelationshipInput!]
+  implementsPanel: [ImplementsPanelRelationshipInput!]
+  containsCompoundForm: [ContainsCompoundFormRelationshipInput!]
+  followsPathway: [FollowsPathwayRelationshipInput!]
+  inCategory: [InCategoryRelationshipInput!]
+  usesPlatform: [ProductUsesPlatformRelationshipInput!]
+  hasRegulatoryStatus: [HasRegulatoryStatusRelationshipInput!]
+  manufacturedBy: [ManufacturedByRelationshipInput!]
+}
+
+input CompoundFormInput {
+  compoundFormId: ID
+  canonicalName: String!
+  formType: String!
+  chemicalDifferences: String
+  stabilityProfile: String
+  solubilityProfile: String
+  bioavailabilityNotes: String
+  regulatoryStatusSummary: String
+}
+
+input LabTestInput {
+  labTestId: ID
+  name: String!
+  synonyms: [String!]
+  loincCodes: [String!]
+  cptCodes: [String!]
+  whatItMeasures: String
+  prepRequirements: String
+  validAt: DateTime
+  invalidAt: DateTime
+  expiredAt: DateTime
+  createdAt: DateTime
+}
+
+input ProductCategoryInput {
+  categoryId: ID
+  name: String!
+  description: String
+  aliases: [String!]
+  validAt: DateTime
+  invalidAt: DateTime
+  expiredAt: DateTime
+  createdAt: DateTime
+}
+
+input PanelDefinitionInput {
+  panelDefinitionId: ID
+  canonicalName: String!
+  aliases: [String!]
+  description: String
+  validAt: DateTime
+  invalidAt: DateTime
+  expiredAt: DateTime
+  createdAt: DateTime
+}
+
+input RegulatoryStatusInput {
+  regulatoryStatusId: ID
+  status: String
+  effectiveDate: DateTime
+  statusDetails: String
+  validAt: DateTime
+  invalidAt: DateTime
+  expiredAt: DateTime
+  createdAt: DateTime
+}
+
+input RegulatoryPathwayInput {
+  pathwayId: ID
+  authority: String!
+  pathwayType: String!
+  pathwayName: String!
+  requirementsSummary: String
+  validAt: DateTime
+  invalidAt: DateTime
+  expiredAt: DateTime
+  createdAt: DateTime
+}
+
+# ============================================================================
+# Update Input Types (all fields optional for partial updates)
+# ============================================================================
+
+input PhysicalLocationUpdateInput {
+  locationId: ID
+  canonicalName: String
+  locationType: LocationType
+  addressLine1: String
+  addressLine2: String
+  city: String
+  region: String
+  postalCode: String
+  countryCode: String
+  geoLat: Float
+  geoLon: Float
+  timezone: String
+  jurisdiction: String
+  placeTags: [String!]
+  hoursOfOperation: String
+  contactPhone: String
+  contactEmail: String
+}
+
+input ListingUpdateInput {
+  listingId: ID
+  listingDomain: ListingDomain
+  title: String
+  description: String
+  sku: String
+  url: String
+  brandName: String
+  currency: String
+  priceAmount: Float
+  priceType: PriceType
+  pricingNotes: String
+  constraints: String
+  regionsAvailable: [String!]
+  requiresAppointment: Boolean
+  collectionMode: CollectionMode
+  turnaroundTime: String
+}
+
+input ProductUpdateInput {
+  productId: ID
+  name: String
+  synonyms: [String!]
+  productDomain: ProductDomain
+  productType: String
+  productFingerprint: String
+  intendedUse: String
+  description: String
+  brandName: String
+  modelNumber: String
+  ndcCode: String
+  upc: String
+  gtin: String
+  riskClass: String
+  currency: String
+  priceAmount: Float
+  validAt: DateTime
+  invalidAt: DateTime
+  expiredAt: DateTime
+  # Relationships (using update versions)
+  deliversLabTest: [DeliversLabTestRelationshipUpdateInput!]
+  implementsPanel: [ImplementsPanelRelationshipUpdateInput!]
+  containsCompoundForm: [ContainsCompoundFormRelationshipUpdateInput!]
+  followsPathway: [FollowsPathwayRelationshipUpdateInput!]
+  inCategory: [InCategoryRelationshipUpdateInput!]
+  usesPlatform: [ProductUsesPlatformRelationshipUpdateInput!]
+  hasRegulatoryStatus: [HasRegulatoryStatusRelationshipUpdateInput!]
+  manufacturedBy: [ManufacturedByRelationshipUpdateInput!]
+}
+
+input CompoundFormUpdateInput {
+  compoundFormId: ID
+  canonicalName: String
+  formType: String
+  chemicalDifferences: String
+  stabilityProfile: String
+  solubilityProfile: String
+  bioavailabilityNotes: String
+  regulatoryStatusSummary: String
+}
+
+input LabTestUpdateInput {
+  labTestId: ID
+  name: String
+  synonyms: [String!]
+  loincCodes: [String!]
+  cptCodes: [String!]
+  whatItMeasures: String
+  prepRequirements: String
+  validAt: DateTime
+  invalidAt: DateTime
+  expiredAt: DateTime
+  createdAt: DateTime
+}
+
+input ProductCategoryUpdateInput {
+  categoryId: ID
+  name: String
+  description: String
+  aliases: [String!]
+  validAt: DateTime
+  invalidAt: DateTime
+  expiredAt: DateTime
+  createdAt: DateTime
+}
+
+input PanelDefinitionUpdateInput {
+  panelDefinitionId: ID
+  canonicalName: String
+  aliases: [String!]
+  description: String
+  validAt: DateTime
+  invalidAt: DateTime
+  expiredAt: DateTime
+  createdAt: DateTime
+}
+
+input RegulatoryStatusUpdateInput {
+  regulatoryStatusId: ID
+  status: String
+  effectiveDate: DateTime
+  statusDetails: String
+  validAt: DateTime
+  invalidAt: DateTime
+  expiredAt: DateTime
+  createdAt: DateTime
+}
+
+input RegulatoryPathwayUpdateInput {
+  pathwayId: ID
+  authority: String
+  pathwayType: String
+  pathwayName: String
+  requirementsSummary: String
+  validAt: DateTime
+  invalidAt: DateTime
+  expiredAt: DateTime
+  createdAt: DateTime
+}
+
+input ManufacturingProcessInput {
+  manufacturingProcessId: ID
+  canonicalName: String!
+  processType: ProcessType!
+  description: String
+  inputs: [String!]
+  outputs: [String!]
+  qualityRisks: [String!]
+  scalabilityLevel: ScalabilityLevel
+  validAt: DateTime
+  invalidAt: DateTime
+  expiredAt: DateTime
+  createdAt: DateTime
+}
+
+input ManufacturingProcessUpdateInput {
+  manufacturingProcessId: ID
+  canonicalName: String
+  processType: ProcessType
+  description: String
+  inputs: [String!]
+  outputs: [String!]
+  qualityRisks: [String!]
+  scalabilityLevel: ScalabilityLevel
+  validAt: DateTime
+  invalidAt: DateTime
+  expiredAt: DateTime
+  createdAt: DateTime
+}
+
+input TechnologyPlatformInput {
+  platformId: ID
+  canonicalName: String!
+  aliases: [String!]
+  platformType: PlatformType!
+  description: String
+  validAt: DateTime
+  invalidAt: DateTime
+  expiredAt: DateTime
+  createdAt: DateTime
+}
+
+input TechnologyPlatformUpdateInput {
+  platformId: ID
+  canonicalName: String
+  aliases: [String!]
+  platformType: PlatformType
+  description: String
+  validAt: DateTime
+  invalidAt: DateTime
+  expiredAt: DateTime
+  createdAt: DateTime
+}
+
+# ============================================================================
+# Document Ingestion Input Types
+# ============================================================================
+
+input UpsertResearchPlanRefInput {
+  mongoPlanId: String!
+  label: String
+  version: String
+  validAt: DateTime!
+  expiredAt: DateTime
+  invalidAt: DateTime
+  createdAt: DateTime!
+  updatedAt: DateTime!
+}
+
+input UpsertResearchRunRefInput {
+  mongoRunId: String!
+  label: String
+  startedAt: DateTime
+  endedAt: DateTime
+  validAt: DateTime!
+  expiredAt: DateTime
+  invalidAt: DateTime
+  createdAt: DateTime!
+  updatedAt: DateTime!
+}
+
+input LinkResearchRunUsesPlanInput {
+  mongoRunId: String!
+  mongoPlanId: String!
+  validAt: DateTime
+  expiredAt: DateTime
+  invalidAt: DateTime
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input DocumentGeneratedByInput {
+  mongoRunId: String!
+  operation: String!
+  stageKey: String
+  subStageKey: String
+  extractorVersion: String
+  extractedAt: DateTime
+  validAt: DateTime
+  expiredAt: DateTime
+  invalidAt: DateTime
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input InlineChunkBundleSyntheticInput {
+  source: String
+  strategy: String
+  chunkSize: Int
+  overlap: Int
+}
+
+input InlineChunkBundleInput {
+  textVersion: DocumentTextVersionInput
+  segmentation: SegmentationInput
+  chunks: [ChunkInput!]!
+  hasTextVersionEdge: TemporalValidityInput
+  hasSegmentationEdge: TemporalValidityInput
+  segmentationHasChunkEdge: TemporalValidityInput
+  documentHasChunkEdge: TemporalValidityInput
+  nextChunkEdge: TemporalValidityInput
+  alsoCreateDocumentHasChunkEdges: Boolean = true
+  alsoCreateNextChunkEdges: Boolean = true
+  synthetic: InlineChunkBundleSyntheticInput
+}
+
+input SearchSurfaceInput {
+  searchText: String
+  searchTextEmbedding: [Float!]
+  searchTextModel: String
+  searchTextVersion: String
+  searchTextUpdatedAt: DateTime
+}
+
+input UpsertDocumentInput {
+  documentKey: String!
+  type: String!
+  title: String
+  url: String
+  publishedAt: DateTime
+  retrievedAt: DateTime
+  validAt: DateTime!
+  expiredAt: DateTime
+  invalidAt: DateTime
+  createdAt: DateTime!
+  updatedAt: DateTime!
+  searchSurface: SearchSurfaceInput
+  generatedBy: DocumentGeneratedByInput
+  chunkBundle: InlineChunkBundleInput
+}
+
+input DocumentTextVersionInput {
+  textVersionHash: String!
+  source: String!
+  language: String
+  text: String!
+  searchSurface: SearchSurfaceInput
+  validAt: DateTime!
+  expiredAt: DateTime
+  invalidAt: DateTime
+  createdAt: DateTime!
+  updatedAt: DateTime!
+}
+
+input SegmentationInput {
+  segmentationHash: String!
+  strategy: String!
+  chunkSize: Int!
+  overlap: Int!
+  validAt: DateTime!
+  expiredAt: DateTime
+  invalidAt: DateTime
+  createdAt: DateTime!
+  updatedAt: DateTime!
+}
+
+input ChunkInput {
+  chunkKey: String!
+  index: Int!
+  text: String!
+  charStart: Int
+  charEnd: Int
+  startMs: Int
+  endMs: Int
+  embedding: [Float!]
+  embeddingModel: String
+  embeddingVersion: String
+  validAt: DateTime!
+  expiredAt: DateTime
+  invalidAt: DateTime
+  createdAt: DateTime!
+  updatedAt: DateTime!
+}
+
+input UpsertDocumentTextVersionBundleInput {
+  documentId: String!
+  textVersion: DocumentTextVersionInput!
+  segmentation: SegmentationInput!
+  chunks: [ChunkInput!]!
+  hasTextVersionEdge: TemporalValidityInput
+  hasSegmentationEdge: TemporalValidityInput
+  segmentationHasChunkEdge: TemporalValidityInput
+  documentHasChunkEdge: TemporalValidityInput
+  nextChunkEdge: TemporalValidityInput
+  alsoCreateDocumentHasChunkEdges: Boolean = true
+  alsoCreateNextChunkEdges: Boolean = true
+}
+
+# ============================================================================
+# Evidence Edge Types - Linking Documents/Chunks to Entities
+# ============================================================================
+
+enum EvidenceEdgeType {
+  ABOUT
+  MENTIONS
+  IS_PRIMARY_SOURCE
+}
+
+# ============================================================================
+# Evidence Provenance Input
+# ============================================================================
+
+input EvidenceProvenanceInput {
+  mongoRunId: String!
+  mongoPlanId: String
+  stageKey: String
+  subStageKey: String
+  extractorVersion: String
+  extractedAt: DateTime!
+}
+
+# ============================================================================
+# Evidence Source Reference Input (Discriminated Union)
+# ============================================================================
+
+input EvidenceSourceRefInput {
+  kind: EvidenceSourceKind!
+  # For kind="Document", provide documentId
+  documentId: String
+  # For kind="Chunk", provide chunkId
+  chunkId: String
+}
+
+enum EvidenceSourceKind {
+  Document
+  Chunk
+}
+
+# ============================================================================
+# Evidence Target Reference Input
+# ============================================================================
+# Prefer nodeId; allow fallback resolution using label + uniqueKey + uniqueKeyValue
+
+input EvidenceTargetRefInput {
+  nodeId: String
+  
+  # Fallback fields (only used if nodeId is missing)
+  label: String
+  uniqueKey: String
+  uniqueKeyValue: String
+}
+
+# ============================================================================
+# Evidence Edge Property Inputs
+# ============================================================================
+
+input AboutEdgePropsInput {
+  # Temporal validity fields
+  validAt: DateTime
+  invalidAt: DateTime
+  expiredAt: DateTime
+  createdAt: DateTime
+  
+  # Provenance fields
+  mongoRunId: String!
+  mongoPlanId: String
+  stageKey: String
+  subStageKey: String
+  extractorVersion: String
+  extractedAt: DateTime!
+  
+  # About-specific fields
+  aboutness: Float
+  aspect: String
+  stance: String
+  confidence: Float
+}
+
+input MentionsEdgePropsInput {
+  # Temporal validity fields
+  validAt: DateTime
+  invalidAt: DateTime
+  expiredAt: DateTime
+  createdAt: DateTime
+  
+  # Provenance fields
+  mongoRunId: String!
+  mongoPlanId: String
+  stageKey: String
+  subStageKey: String
+  extractorVersion: String
+  extractedAt: DateTime!
+  
+  # Mentions-specific fields
+  confidence: Float
+  linkingMethod: String
+  surfaceForm: String
+  charStart: Int
+  charEnd: Int
+}
+
+input IsPrimarySourceEdgePropsInput {
+  # Temporal validity fields
+  validAt: DateTime
+  invalidAt: DateTime
+  expiredAt: DateTime
+  createdAt: DateTime
+  
+  # Provenance fields
+  mongoRunId: String!
+  mongoPlanId: String
+  stageKey: String
+  subStageKey: String
+  extractorVersion: String
+  extractedAt: DateTime!
+  
+  # IS_PRIMARY_SOURCE-specific fields
+  confidence: Float
+  notes: String
+}
+
+# ============================================================================
+# Evidence Edge Input Types
+# ============================================================================
+# Note: GraphQL doesn't support union input types, so we use a flattened discriminated union pattern.
+# The resolver should validate that the correct fields are provided based on the "type" field.
+# All edge-specific property fields are flattened into EvidenceEdgeInput for simplicity.
+
+input EvidenceEdgeInput {
+  type: EvidenceEdgeType!
+  source: EvidenceSourceRefInput!
+  target: EvidenceTargetRefInput!
+  
+  # Temporal validity fields (common to all edge types)
+  validAt: DateTime
+  invalidAt: DateTime
+  expiredAt: DateTime
+  createdAt: DateTime
+  
+  # Provenance fields (common to all edge types)
+  mongoRunId: String!
+  mongoPlanId: String
+  stageKey: String
+  subStageKey: String
+  extractorVersion: String
+  extractedAt: DateTime!
+  
+  # ABOUT edge specific fields (used when type="ABOUT")
+  aboutness: Float
+  aspect: String
+  stance: String
+  
+  # MENTIONS edge specific fields (used when type="MENTIONS")
+  linkingMethod: String
+  surfaceForm: String
+  charStart: Int
+  charEnd: Int
+  
+  # IS_PRIMARY_SOURCE edge specific fields (used when type="IS_PRIMARY_SOURCE")
+  notes: String
+  
+  # Confidence (used by ABOUT, MENTIONS, and IS_PRIMARY_SOURCE)
+  confidence: Float
+}
+
+input UpsertEvidenceEdgesInput {
+  edges: [EvidenceEdgeInput!]!
+}
+
+# ============================================================================
+# Evidence Edge Result Types
+# ============================================================================
+
+# Union type for source reference result (GraphQL supports union types for outputs)
+union EvidenceSourceRefResult = EvidenceSourceRefDocumentResult | EvidenceSourceRefChunkResult
+
+type EvidenceSourceRefDocumentResult {
+  kind: EvidenceSourceKind! # Always "Document"
+  documentId: String!
+}
+
+type EvidenceSourceRefChunkResult {
+  kind: EvidenceSourceKind! # Always "Chunk"
+  chunkId: String!
+}
+
+type EvidenceTargetRefResolved {
+  nodeId: String!
+  label: String!
+  uniqueKey: String
+  uniqueKeyValue: String
+}
+
+type UpsertEvidenceEdgeResult {
+  ok: Boolean! # Always true for successful results
+  edgeType: EvidenceEdgeType!
+  relKey: String!
+  relationshipId: String
+  
+  source: EvidenceSourceRefResult!
+  target: EvidenceTargetRefResolved!
+  
+  created: Boolean!
+  updated: Boolean!
+}
+
+type UpsertEvidenceEdgeError {
+  index: Int!
+  edgeType: EvidenceEdgeType
+  message: String!
+  code: String
+}
+
+type UpsertEvidenceEdgesCounts {
+  received: Int!
+  attempted: Int!
+  created: Int!
+  updated: Int!
+  failed: Int!
+}
+
+type UpsertEvidenceEdgesResult {
+  ok: Boolean!
+  counts: UpsertEvidenceEdgesCounts!
+  results: [UpsertEvidenceEdgeResult!]!
+  errors: [UpsertEvidenceEdgeError!]!
+}
+
+# Relationship Inputs with nested create/connect/update
+# Note: GraphQL doesn't support union types for inputs, so we use optional fields
+# Resolvers should validate that exactly one of create/connect is provided
+
+input PhysicalLocationRelateInput {
+  create: PhysicalLocationInput
+  connect: PhysicalLocationConnectInput
+}
+
+input PhysicalLocationRelateUpdateInput {
+  create: PhysicalLocationInput
+  connect: PhysicalLocationConnectInput
+  update: PhysicalLocationUpdateInput
+}
+
+input PhysicalLocationConnectInput {
+  locationId: ID!
+}
+
+input HasLocationRelationshipInput {
+  location: PhysicalLocationRelateInput!
+  locationRole: String!
+  isPrimary: Boolean
+  startDate: DateTime
+  endDate: DateTime
+  claimIds: [String!]
+  validAt: DateTime
+  invalidAt: DateTime
+  expiredAt: DateTime
+  createdAt: DateTime
+}
+
+input HasLocationRelationshipUpdateInput {
+  location: PhysicalLocationRelateUpdateInput!
+  locationRole: String
+  isPrimary: Boolean
+  startDate: DateTime
+  endDate: DateTime
+  claimIds: [String!]
+  validAt: DateTime
+  invalidAt: DateTime
+  expiredAt: DateTime
+  createdAt: DateTime
+}
+
+input OrganizationRelateInput {
+  create: OrganizationInput
+  connect: OrganizationConnectInput
+}
+
+input OrganizationRelateUpdateInput {
+  create: OrganizationInput
+  connect: OrganizationConnectInput
+  update: UpdateOrganizationInput
+}
+
+input OrganizationConnectInput {
+  organizationId: ID!
+}
+
+input OwnsOrControlsRelationshipInput {
+  organization: OrganizationRelateInput!
+  relationshipType: String!
+  ownershipPercent: Float
+  controlType: String
+  effectiveFrom: DateTime
+  effectiveTo: DateTime
+  isCurrent: Boolean
+  claimIds: [String!]
+  validAt: DateTime
+  invalidAt: DateTime
+  expiredAt: DateTime
+  createdAt: DateTime
+}
+
+input OwnsOrControlsRelationshipUpdateInput {
+  organization: OrganizationRelateUpdateInput!
+  relationshipType: String
+  ownershipPercent: Float
+  controlType: String
+  effectiveFrom: DateTime
+  effectiveTo: DateTime
+  isCurrent: Boolean
+  claimIds: [String!]
+  validAt: DateTime
+  invalidAt: DateTime
+  expiredAt: DateTime
+  createdAt: DateTime
+}
+
+input ListingRelateInput {
+  create: ListingInput
+  connect: ListingConnectInput
+}
+
+input ListingRelateUpdateInput {
+  create: ListingInput
+  connect: ListingConnectInput
+  update: ListingUpdateInput
+}
+
+input ListingConnectInput {
+  listingId: ID!
+}
+
+input ListsRelationshipInput {
+  listing: ListingRelateInput!
+  listRole: ListRole!
+  channel: Channel
+  regionsOverrides: [String!]
+  collectionModesOverrides: [String!]
+  availabilityNotes: String
+  claimIds: [String!]
+  validAt: DateTime
+  invalidAt: DateTime
+  expiredAt: DateTime
+  createdAt: DateTime
+}
+
+input ListsRelationshipUpdateInput {
+  listing: ListingRelateUpdateInput!
+  listRole: ListRole
+  channel: Channel
+  regionsOverrides: [String!]
+  collectionModesOverrides: [String!]
+  availabilityNotes: String
+  claimIds: [String!]
+  validAt: DateTime
+  invalidAt: DateTime
+  expiredAt: DateTime
+  createdAt: DateTime
+}
+
+input ProductRelateInput {
+  create: ProductInput
+  connect: ProductConnectInput
+}
+
+input ProductRelateUpdateInput {
+  create: ProductInput
+  connect: ProductConnectInput
+  update: ProductUpdateInput
+}
+
+input ProductConnectInput {
+  productId: ID!
+}
+
+input LabTestRelateInput {
+  create: LabTestInput
+  connect: LabTestConnectInput
+}
+
+input LabTestRelateUpdateInput {
+  create: LabTestInput
+  connect: LabTestConnectInput
+  update: LabTestUpdateInput
+}
+
+input LabTestConnectInput {
+  labTestId: ID!
+}
+
+input ProductCategoryRelateInput {
+  create: ProductCategoryInput
+  connect: ProductCategoryConnectInput
+}
+
+input ProductCategoryRelateUpdateInput {
+  create: ProductCategoryInput
+  connect: ProductCategoryConnectInput
+  update: ProductCategoryUpdateInput
+}
+
+input ProductCategoryConnectInput {
+  categoryId: ID!
+}
+
+input PanelDefinitionRelateInput {
+  create: PanelDefinitionInput
+  connect: PanelDefinitionConnectInput
+}
+
+input PanelDefinitionRelateUpdateInput {
+  create: PanelDefinitionInput
+  connect: PanelDefinitionConnectInput
+  update: PanelDefinitionUpdateInput
+}
+
+input PanelDefinitionConnectInput {
+  panelDefinitionId: ID!
+}
+
+input RegulatoryStatusRelateInput {
+  create: RegulatoryStatusInput
+  connect: RegulatoryStatusConnectInput
+}
+
+input RegulatoryStatusRelateUpdateInput {
+  create: RegulatoryStatusInput
+  connect: RegulatoryStatusConnectInput
+  update: RegulatoryStatusUpdateInput
+}
+
+input RegulatoryStatusConnectInput {
+  regulatoryStatusId: ID!
+}
+
+input RegulatoryPathwayRelateInput {
+  create: RegulatoryPathwayInput
+  connect: RegulatoryPathwayConnectInput
+}
+
+input RegulatoryPathwayRelateUpdateInput {
+  create: RegulatoryPathwayInput
+  connect: RegulatoryPathwayConnectInput
+  update: RegulatoryPathwayUpdateInput
+}
+
+input RegulatoryPathwayConnectInput {
+  pathwayId: ID!
+}
+
+input OffersProductRelationshipInput {
+  product: ProductRelateInput!
+  validAt: DateTime
+  invalidAt: DateTime
+  expiredAt: DateTime
+  createdAt: DateTime
+}
+
+input OffersProductRelationshipUpdateInput {
+  product: ProductRelateUpdateInput!
+  validAt: DateTime
+  invalidAt: DateTime
+  expiredAt: DateTime
+  createdAt: DateTime
+}
+
+input CompoundFormRelateInput {
+  create: CompoundFormInput
+  connect: CompoundFormConnectInput
+}
+
+input CompoundFormRelateUpdateInput {
+  create: CompoundFormInput
+  connect: CompoundFormConnectInput
+  update: CompoundFormUpdateInput
+}
+
+input CompoundFormConnectInput {
+  compoundFormId: ID!
+}
+
+input SuppliesCompoundFormRelationshipInput {
+  compoundForm: CompoundFormRelateInput!
+  validAt: DateTime
+  invalidAt: DateTime
+  expiredAt: DateTime
+  createdAt: DateTime
+}
+
+input SuppliesCompoundFormRelationshipUpdateInput {
+  compoundForm: CompoundFormRelateUpdateInput!
+  validAt: DateTime
+  invalidAt: DateTime
+  expiredAt: DateTime
+  createdAt: DateTime
+}
+
+input ManufacturingProcessRelateInput {
+  create: ManufacturingProcessInput
+  connect: ManufacturingProcessConnectInput
+}
+
+input ManufacturingProcessRelateUpdateInput {
+  create: ManufacturingProcessInput
+  connect: ManufacturingProcessConnectInput
+  update: ManufacturingProcessUpdateInput
+}
+
+input ManufacturingProcessConnectInput {
+  manufacturingProcessId: ID!
+}
+
+input TechnologyPlatformRelateInput {
+  create: TechnologyPlatformInput
+  connect: TechnologyPlatformConnectInput
+}
+
+input TechnologyPlatformRelateUpdateInput {
+  create: TechnologyPlatformInput
+  connect: TechnologyPlatformConnectInput
+  update: TechnologyPlatformUpdateInput
+}
+
+input TechnologyPlatformConnectInput {
+  platformId: ID!
+}
+
+input ManufacturesRelationshipInput {
+  compoundForm: CompoundFormRelateInput!
+  claimIds: [String!]
+  validAt: DateTime
+  invalidAt: DateTime
+  expiredAt: DateTime
+  createdAt: DateTime
+}
+
+input ManufacturesRelationshipUpdateInput {
+  compoundForm: CompoundFormRelateUpdateInput!
+  claimIds: [String!]
+  validAt: DateTime
+  invalidAt: DateTime
+  expiredAt: DateTime
+  createdAt: DateTime
+}
+
+input ManufacturesProductRelationshipInput {
+  product: ProductRelateInput!
+  claimIds: [String!]
+  validAt: DateTime
+  invalidAt: DateTime
+  expiredAt: DateTime
+  createdAt: DateTime
+}
+
+input ManufacturesProductRelationshipUpdateInput {
+  product: ProductRelateUpdateInput!
+  claimIds: [String!]
+  validAt: DateTime
+  invalidAt: DateTime
+  expiredAt: DateTime
+  createdAt: DateTime
+}
+
+input ContractManufacturerForOrganizationRelationshipInput {
+  organization: OrganizationRelateInput!
+  claimIds: [String!]
+  validAt: DateTime
+  invalidAt: DateTime
+  expiredAt: DateTime
+  createdAt: DateTime
+}
+
+input ContractManufacturerForOrganizationRelationshipUpdateInput {
+  organization: OrganizationRelateUpdateInput!
+  claimIds: [String!]
+  validAt: DateTime
+  invalidAt: DateTime
+  expiredAt: DateTime
+  createdAt: DateTime
+}
+
+input ContractManufacturerForProductRelationshipInput {
+  product: ProductRelateInput!
+  claimIds: [String!]
+  validAt: DateTime
+  invalidAt: DateTime
+  expiredAt: DateTime
+  createdAt: DateTime
+}
+
+input ContractManufacturerForProductRelationshipUpdateInput {
+  product: ProductRelateUpdateInput!
+  claimIds: [String!]
+  validAt: DateTime
+  invalidAt: DateTime
+  expiredAt: DateTime
+  createdAt: DateTime
+}
+
+input ContractManufacturerForCompoundFormRelationshipInput {
+  compoundForm: CompoundFormRelateInput!
+  claimIds: [String!]
+  validAt: DateTime
+  invalidAt: DateTime
+  expiredAt: DateTime
+  createdAt: DateTime
+}
+
+input ContractManufacturerForCompoundFormRelationshipUpdateInput {
+  compoundForm: CompoundFormRelateUpdateInput!
+  claimIds: [String!]
+  validAt: DateTime
+  invalidAt: DateTime
+  expiredAt: DateTime
+  createdAt: DateTime
+}
+
+input PerformsManufacturingProcessRelationshipInput {
+  manufacturingProcess: ManufacturingProcessRelateInput!
+  role: ManufacturingRole!
+  claimIds: [String!]
+  validAt: DateTime
+  invalidAt: DateTime
+  expiredAt: DateTime
+  createdAt: DateTime
+}
+
+input PerformsManufacturingProcessRelationshipUpdateInput {
+  manufacturingProcess: ManufacturingProcessRelateUpdateInput!
+  role: ManufacturingRole
+  claimIds: [String!]
+  validAt: DateTime
+  invalidAt: DateTime
+  expiredAt: DateTime
+  createdAt: DateTime
+}
+
+input DevelopsPlatformRelationshipInput {
+  technologyPlatform: TechnologyPlatformRelateInput!
+  relationshipRole: RelationshipRole
+  notes: String
+  source: Source
+  claimIds: [String!]
+  validAt: DateTime
+  invalidAt: DateTime
+  expiredAt: DateTime
+  createdAt: DateTime
+}
+
+input DevelopsPlatformRelationshipUpdateInput {
+  technologyPlatform: TechnologyPlatformRelateUpdateInput!
+  relationshipRole: RelationshipRole
+  notes: String
+  source: Source
+  claimIds: [String!]
+  validAt: DateTime
+  invalidAt: DateTime
+  expiredAt: DateTime
+  createdAt: DateTime
+}
+
+input UsesPlatformRelationshipInput {
+  technologyPlatform: TechnologyPlatformRelateInput!
+  usageContext: UsageContext
+  isPrimary: Boolean
+  notes: String
+  source: Source
+  claimIds: [String!]
+  validAt: DateTime
+  invalidAt: DateTime
+  expiredAt: DateTime
+  createdAt: DateTime
+}
+
+input UsesPlatformRelationshipUpdateInput {
+  technologyPlatform: TechnologyPlatformRelateUpdateInput!
+  usageContext: UsageContext
+  isPrimary: Boolean
+  notes: String
+  source: Source
+  claimIds: [String!]
+  validAt: DateTime
+  invalidAt: DateTime
+  expiredAt: DateTime
+  createdAt: DateTime
+}
+
+input DeliversLabTestRelationshipInput {
+  labTest: LabTestRelateInput!
+  role: LabTestRole!
+  quantity: Int
+  componentName: String
+  claimIds: [String!]
+  validAt: DateTime
+  invalidAt: DateTime
+  expiredAt: DateTime
+  createdAt: DateTime
+}
+
+input DeliversLabTestRelationshipUpdateInput {
+  labTest: LabTestRelateUpdateInput!
+  role: LabTestRole
+  quantity: Int
+  componentName: String
+  claimIds: [String!]
+  validAt: DateTime
+  invalidAt: DateTime
+  expiredAt: DateTime
+  createdAt: DateTime
+}
+
+input ImplementsPanelRelationshipInput {
+  panelDefinition: PanelDefinitionRelateInput!
+  panelRole: PanelRole
+  versionLabel: String
+  claimIds: [String!]
+  validAt: DateTime
+  invalidAt: DateTime
+  expiredAt: DateTime
+  createdAt: DateTime
+}
+
+input ImplementsPanelRelationshipUpdateInput {
+  panelDefinition: PanelDefinitionRelateUpdateInput!
+  panelRole: PanelRole
+  versionLabel: String
+  claimIds: [String!]
+  validAt: DateTime
+  invalidAt: DateTime
+  expiredAt: DateTime
+  createdAt: DateTime
+}
+
+input ContainsCompoundFormRelationshipInput {
+  compoundForm: CompoundFormRelateInput!
+  dose: Float
+  doseUnit: String
+  role: CompoundFormRole
+  standardizedTo: String
+  claimIds: [String!]
+  validAt: DateTime
+  invalidAt: DateTime
+  expiredAt: DateTime
+  createdAt: DateTime
+}
+
+input ContainsCompoundFormRelationshipUpdateInput {
+  compoundForm: CompoundFormRelateUpdateInput!
+  dose: Float
+  doseUnit: String
+  role: CompoundFormRole
+  standardizedTo: String
+  claimIds: [String!]
+  validAt: DateTime
+  invalidAt: DateTime
+  expiredAt: DateTime
+  createdAt: DateTime
+}
+
+input FollowsPathwayRelationshipInput {
+  regulatoryPathway: RegulatoryPathwayRelateInput!
+  jurisdictionId: String
+  claimIds: [String!]
+  validAt: DateTime
+  invalidAt: DateTime
+  expiredAt: DateTime
+  createdAt: DateTime
+}
+
+input FollowsPathwayRelationshipUpdateInput {
+  regulatoryPathway: RegulatoryPathwayRelateUpdateInput!
+  jurisdictionId: String
+  claimIds: [String!]
+  validAt: DateTime
+  invalidAt: DateTime
+  expiredAt: DateTime
+  createdAt: DateTime
+}
+
+input InCategoryRelationshipInput {
+  productCategory: ProductCategoryRelateInput!
+  claimIds: [String!]
+  validAt: DateTime
+  invalidAt: DateTime
+  expiredAt: DateTime
+  createdAt: DateTime
+}
+
+input InCategoryRelationshipUpdateInput {
+  productCategory: ProductCategoryRelateUpdateInput!
+  claimIds: [String!]
+  validAt: DateTime
+  invalidAt: DateTime
+  expiredAt: DateTime
+  createdAt: DateTime
+}
+
+input ProductUsesPlatformRelationshipInput {
+  technologyPlatform: TechnologyPlatformRelateInput!
+  claimIds: [String!]
+  validAt: DateTime
+  invalidAt: DateTime
+  expiredAt: DateTime
+  createdAt: DateTime
+}
+
+input ProductUsesPlatformRelationshipUpdateInput {
+  technologyPlatform: TechnologyPlatformRelateUpdateInput!
+  claimIds: [String!]
+  validAt: DateTime
+  invalidAt: DateTime
+  expiredAt: DateTime
+  createdAt: DateTime
+}
+
+input HasRegulatoryStatusRelationshipInput {
+  regulatoryStatus: RegulatoryStatusRelateInput!
+  status: String
+  effectiveDate: DateTime
+  statusDetails: String
+  claimIds: [String!]
+  validAt: DateTime
+  invalidAt: DateTime
+  expiredAt: DateTime
+  createdAt: DateTime
+}
+input HasRegulatoryStatusRelationshipUpdateInput {
+  regulatoryStatus: RegulatoryStatusRelateUpdateInput!
+  status: String
+  effectiveDate: DateTime
+  statusDetails: String
+  claimIds: [String!]
+  validAt: DateTime
+  invalidAt: DateTime
+  expiredAt: DateTime
+  createdAt: DateTime
+}
+
+input ManufacturedByRelationshipInput {
+  organization: OrganizationRelateInput!
+  claimIds: [String!]
+  validAt: DateTime
+  invalidAt: DateTime
+  expiredAt: DateTime
+  createdAt: DateTime
+}
+
+input ManufacturedByRelationshipUpdateInput {
+  organization: OrganizationRelateUpdateInput!
+  claimIds: [String!]
+  validAt: DateTime
+  invalidAt: DateTime
+  expiredAt: DateTime
+  createdAt: DateTime
+}
+
+input OrganizationInput {
+  organizationId: ID
+  name: String!
+  aliases: [String!]
+  orgType: OrgType!
+  description: String
+  businessModel: BusinessModel
+  primaryIndustryTags: [String!]
+  regionsServed: [String!]
+  legalName: String
+  legalStructure: String
+  ownershipType: String
+  jurisdictionsOfIncorporation: [String!]
+  websiteUrl: String
+  defaultCollectionModes: [String!]
+  defaultRegionsAvailable: [String!]
+  publicTicker: String
+  fundingStage: String
+  employeeCountMin: Int
+  employeeCountMax: Int
+  employeeCountAsOf: DateTime
+  revenueAnnualMin: Float
+  revenueAnnualMax: Float
+  revenueAnnualCurrency: String
+  revenueAnnualAsOf: DateTime
+  valuationMin: Float
+  valuationMax: Float
+  valuationCurrency: String
+  valuationAsOf: DateTime
+  validAt: DateTime
+  invalidAt: DateTime
+  expiredAt: DateTime
+  createdAt: DateTime
+  # Relationships
+  hasLocation: [HasLocationRelationshipInput!]
+  ownsOrControls: [OwnsOrControlsRelationshipInput!]
+  lists: [ListsRelationshipInput!]
+  offersProduct: [OffersProductRelationshipInput!]
+  suppliesCompoundForm: [SuppliesCompoundFormRelationshipInput!]
+  manufactures: [ManufacturesRelationshipInput!]
+  manufacturesProduct: [ManufacturesProductRelationshipInput!]
+  contractManufacturerForOrganization: [ContractManufacturerForOrganizationRelationshipInput!]
+  contractManufacturerForProduct: [ContractManufacturerForProductRelationshipInput!]
+  contractManufacturerForCompoundForm: [ContractManufacturerForCompoundFormRelationshipInput!]
+  performsManufacturingProcess: [PerformsManufacturingProcessRelationshipInput!]
+  developsPlatform: [DevelopsPlatformRelationshipInput!]
+  usesPlatform: [UsesPlatformRelationshipInput!]
+}
+
+input UpdateOrganizationInput {
+  organizationId: ID
+  name: String
+  aliases: [String!]
+  orgType: OrgType
+  description: String
+  businessModel: BusinessModel
+  primaryIndustryTags: [String!]
+  regionsServed: [String!]
+  legalName: String
+  legalStructure: String
+  ownershipType: String
+  jurisdictionsOfIncorporation: [String!]
+  websiteUrl: String
+  defaultCollectionModes: [String!]
+  defaultRegionsAvailable: [String!]
+  publicTicker: String
+  fundingStage: String
+  employeeCountMin: Int
+  employeeCountMax: Int
+  employeeCountAsOf: DateTime
+  revenueAnnualMin: Float
+  revenueAnnualMax: Float
+  revenueAnnualCurrency: String
+  revenueAnnualAsOf: DateTime
+  valuationMin: Float
+  valuationMax: Float
+  valuationCurrency: String
+  valuationAsOf: DateTime
+  validAt: DateTime
+  invalidAt: DateTime
+  expiredAt: DateTime
+  # Relationships (using update versions)
+  hasLocation: [HasLocationRelationshipUpdateInput!]
+  ownsOrControls: [OwnsOrControlsRelationshipUpdateInput!]
+  lists: [ListsRelationshipUpdateInput!]
+  offersProduct: [OffersProductRelationshipUpdateInput!]
+  suppliesCompoundForm: [SuppliesCompoundFormRelationshipUpdateInput!]
+  manufactures: [ManufacturesRelationshipUpdateInput!]
+  manufacturesProduct: [ManufacturesProductRelationshipUpdateInput!]
+  contractManufacturerForOrganization: [ContractManufacturerForOrganizationRelationshipUpdateInput!]
+  contractManufacturerForProduct: [ContractManufacturerForProductRelationshipUpdateInput!]
+  contractManufacturerForCompoundForm: [ContractManufacturerForCompoundFormRelationshipUpdateInput!]
+  performsManufacturingProcess: [PerformsManufacturingProcessRelationshipUpdateInput!]
+  developsPlatform: [DevelopsPlatformRelationshipUpdateInput!]
+  usesPlatform: [UsesPlatformRelationshipUpdateInput!]
+}  
+
+
+
+# ============================================================================
+# Search Input Types
+# ============================================================================   
+
+"""
+Which retrieval strategy to use.
+- FIELD_ONLY: filters/sorts only (no q ranking)
+- FULLTEXT_ONLY: lexical match via Neo4j fulltext index
+- VECTOR_ONLY: semantic match via Neo4j vector index
+- HYBRID: combines FULLTEXT + VECTOR (recommended default)
+"""
+enum SearchMode {
+  FIELD_ONLY
+  FULLTEXT_ONLY
+  VECTOR_ONLY
+  HYBRID
 }
 
 """
-Relay-style pagination info
+Cursor pagination input.
+
+Use `after` to fetch the next page.
+`first` should be small-ish (10-50) for ranked search.
+"""
+input PageInput {
+  first: Int! = 20
+  after: String
+}
+
+"""
+Standard page info for cursor pagination.
 """
 type PageInfo {
   hasNextPage: Boolean!
   endCursor: String
 }
 
-"""
-Cursor pagination input (matches your usage: first + after)
-"""
-input CursorPageInput {
-  first: Int!
-  after: String
+# ----------------------------------------------------------------------------
+# Explainable scoring
+# ----------------------------------------------------------------------------
+
+enum SearchReasonKind {
+  FULLTEXT_MATCH
+  VECTOR_MATCH
+  EXACT_MATCH
+  FILTER_APPLIED
+  BOOST_APPLIED
 }
 
-"""
-UserSaved connection types
-"""
-type UserSavedConnection {
-  edges: [UserSavedEdge!]!
+type SearchReason {
+  kind: SearchReasonKind!
+  field: String
+  value: String
+  score: Float
+  detail: String
+}
+
+# ----------------------------------------------------------------------------
+# Organization Search
+# ----------------------------------------------------------------------------
+
+input OrganizationFilterInput {
+  orgTypeIn: [OrgType!]
+  businessModelIn: [BusinessModel!]
+
+  regionsServedAny: [String!]
+  primaryIndustryTagsAny: [String!]
+
+  publicTicker: String
+
+  employeeCountMinGte: Int
+  employeeCountMaxLte: Int
+
+  """
+  Optional: if you materialize isActive on the node.
+  If you don't store it yet, ignore this field in resolvers (or treat null as no-op).
+  """
+  isActive: Boolean
+}
+
+enum OrganizationSortField {
+  NAME
+  CREATED_AT
+  EMPLOYEE_COUNT_MIN
+  EMPLOYEE_COUNT_MAX
+}
+
+enum SortDirection {
+  ASC
+  DESC
+}
+
+input OrganizationSortInput {
+  field: OrganizationSortField!
+  direction: SortDirection! = DESC
+}
+
+input OrganizationSearchInput {
+  """
+  Query text. If omitted/empty, FIELD_ONLY mode is usually used.
+  """
+  q: String
+
+  mode: SearchMode = HYBRID
+
+  filter: OrganizationFilterInput
+
+  """
+  Sort is only guaranteed to be respected when mode=FIELD_ONLY or q is empty.
+  Ranked modes (FULLTEXT/VECTOR/HYBRID) primarily sort by score.
+  """
+  sort: OrganizationSortInput
+
+  page: PageInput = { first: 20 }
+
+  """
+  When true, return score reasons (why it matched).
+  Off by default to keep responses small/fast.
+  """
+  explain: Boolean = false
+}
+
+type OrganizationSearchHit {
+  node: Organization!
+  score: Float
+  reasons: [SearchReason!]
+}
+
+type OrganizationSearchResult {
+  items: [OrganizationSearchHit!]!
   pageInfo: PageInfo!
 }
 
-type UserSavedEdge {
-  cursor: String!
-  node: UserSaved!
+# ----------------------------------------------------------------------------
+# Product Search
+# ----------------------------------------------------------------------------
+
+input ProductFilterInput {
+  productDomainIn: [ProductDomain!]
+  riskClassIn: [String!]
+
+  currency: String
+  priceAmountGte: Float
+  priceAmountLte: Float
+
+  # Identifier exact matches
+  brandName: String
+  modelNumber: String
+  ndcCode: String
+  upc: String
+  gtin: String
+
+  isActive: Boolean
 }
 
-"""
-Filter input for user protocols listing
-"""
-input UserProtocolsFilterInput {
-  status: UserProtocolStatus
-  goalType: UserGoalType
-  search: String
+enum ProductSortField {
+  NAME
+  CREATED_AT
+  PRICE_AMOUNT
 }
 
-union SavedTargetUnion =
-    Product
-  | Compound
-  | CaseStudy
-  | Protocol
-  | Person
-  | Business
-  | Episode
-  | Article
-  | UserProtocol
+input ProductSortInput {
+  field: ProductSortField!
+  direction: SortDirection! = DESC
+}
 
-input SaveEntityInput {
-  targetType: SavedEntityType!
+input ProductSearchInput {
+  q: String
+  mode: SearchMode = HYBRID
+
+  filter: ProductFilterInput
+  sort: ProductSortInput
+
+  page: PageInput = { first: 20 }
+  explain: Boolean = false
+}
+
+type ProductSearchHit {
+  node: Product!
+  score: Float
+  reasons: [SearchReason!]
+}
+
+type ProductSearchResult {
+  items: [ProductSearchHit!]!
+  pageInfo: PageInfo!
+}
+
+# ----------------------------------------------------------------------------
+# Autocomplete
+# ----------------------------------------------------------------------------
+
+enum AutocompleteEntityType {
+  ORGANIZATION
+  PRODUCT
+}
+
+type AutocompleteItem {
+  id: ID!
+  label: String!
+  subtitle: String
+} 
+
+# ----------------------------------------------------------------------------
+# Embedding
+# ----------------------------------------------------------------------------
+
+enum EmbeddingTargetType {
+  ORGANIZATION
+  PRODUCT  
+  # Add All Other Types that have embeddings on their searchText or other fields 
+} 
+
+enum EmbeddingJobStatus {
+  QUEUED
+  RUNNING
+  COMPLETE
+  SKIPPED
+  FAILED
+}
+ 
+
+
+
+input UpsertEmbeddingInput {
+  targetType: EmbeddingTargetType!
+  targetId: ID! 
+
+  # Optional: let you override rules (rarely used)
+  force: Boolean = false 
+
+  requestId: String 
+}
+
+type UpsertEmbeddingResult {
+  targetType: EmbeddingTargetType!
   targetId: ID!
+  status: EmbeddingJobStatus!
+  message: String 
+  jobId: String 
+} 
 
-  note: String
-  tags: [String!]
-  pinned: Boolean
-  source: SaveSource
-}
-
-input UnsaveEntityInput {
-  targetType: SavedEntityType!
+type EmbeddingJobEvent {
+  targetType: EmbeddingTargetType!
   targetId: ID!
+  status: EmbeddingJobStatus!
+  jobId: String
+  requestId: String
+  message: String
+  error: String
+  updatedAt: DateTime!
+} 
+
+
+type UpsertDocumentTextVersionBundleResult {
+  documentId: String!
+  documentTextVersionId: String!
+  segmentationId: String!
+  chunkMetas: [ChunkMeta!]!
+  nextChunkEdgesCreated: Boolean!
 }
 
-input SavedEntitiesFilterInput {
-  targetType: SavedEntityType
-  search: String
-  tags: [String!]
-  pinned: Boolean
+type ChunkMeta {
+  chunkId: String!
+  chunkKey: String!
+  index: Int!
 }
 
-"""
-Qdrant Episode Search and User-Assistant Conversation Persistence
-"""
-enum HumanUpgradeParentPolicyMode {
-  NONE
-  UNIQUE_PARENTS
-  THRESHOLD
-}
-
-enum HumanUpgradeContextWindowAround {
-  BEST_CHUNK_PER_PARENT
-  EACH_CHUNK
-}
-
-input HumanUpgradeParentPolicyInput {
-  mode: HumanUpgradeParentPolicyMode! = THRESHOLD
-
-  # Used only when mode = THRESHOLD
-  minChunksFromParent: Int = 2
-  minBestScore: Float = 0.0
-
-  # SummaryDetailed inclusion rules
-  # - UNIQUE_PARENTS: default true (return summaryDetailed for all returned parents)
-  includeSummaryDetailedForAllParents: Boolean = true
-
-  # - THRESHOLD: default true (return summaryDetailed for top parent only; others chunks-only)
-  includeSummaryDetailedForTopParentOnly: Boolean = true
-
-  # Safety cap (optional)
-  maxParents: Int = 20
-}
-
-input HumanUpgradeContextWindowInput {
-  around: HumanUpgradeContextWindowAround! = BEST_CHUNK_PER_PARENT
-  left: Int = 2
-  right: Int = 2
-}
-
-input HumanUpgradeEpisodeSearchInput {
-  queryText: String
-  queryVector: [Float!]
-
-  # Raw chunk retrieval (Qdrant)
-  topKChunks: Int = 50
-
-  # Per-episode output shaping
-  chunksPerEpisode: Int = 8
-
-  # Optional payload filters
-  source: String
-  episodeUrl: String
-
-  parentPolicy: HumanUpgradeParentPolicyInput = { mode: THRESHOLD }
-  contextWindow: HumanUpgradeContextWindowInput = {
-    around: BEST_CHUNK_PER_PARENT
-    left: 2
-    right: 2
-  }
-}
-
-type HumanUpgradeEpisodeChunkHit {
-  pointId: ID!
-  score: Float!
-  isMatch: Boolean!
-
-  text: String
-  chunkIndex: Int
-
-  parentMongoEpisodeId: String
-  episodeUrl: String
-  source: String
-}
-
-type HumanUpgradeEpisodeSearchHit {
-  episodeId: ID!
-
-  # full Episode object (so you can traverse to guests/businesses via existing resolvers)
-  episode: Episode!
-
-  # returned based on parentPolicy rules (use this in the UI)
-  summaryDetailed: String
-
-  bestScore: Float!
-  bestChunkPointId: ID!
-
-  # ranked / contextualized chunks
-  chunks: [HumanUpgradeEpisodeChunkHit!]!
-}
-
-type HumanUpgradeEpisodeSearchResult {
-  hits: [HumanUpgradeEpisodeSearchHit!]!
-}
+# ============================================================================
+# Query & Mutation
+# ============================================================================
 
 type Query {
-  me: User
-  myProfile: UserProfile
-  episodes(limit: Int = 20, offset: Int = 0): [Episode!]!
-  episode(id: ID!): Episode
-  episodeByPageUrl(pageUrl: String!): Episode
-  protocols(limit: Int = 20, offset: Int = 0): [Protocol!]!
-  protocol(id: ID!): Protocol
-  products(limit: Int = 20, offset: Int = 0): [Product!]!
-  product(id: ID!): Product
-  productByName(name: String!): Product
-  compounds(limit: Int = 20, offset: Int = 0): [Compound!]!
-  compound(id: ID!): Compound
-  compoundByName(name: String!): Compound
-  people(limit: Int = 20, offset: Int = 0): [Person!]!
-  person(id: ID!): Person
-  personByName(name: String!): Person
-  businesses(limit: Int = 20, offset: Int = 0): [Business!]!
-  business(id: ID!): Business
-  businessByName(name: String!): Business
-  caseStudies(limit: Int = 20, offset: Int = 0): [CaseStudy!]!
-  caseStudy(id: ID!): CaseStudy
-  allUsers(limit: Int = 20, offset: Int = 0): [User!]!
-
-  vectorSearchProducts(args: VectorSearchArgs!): [ProductSearchPayload!]
-  vectorSearchBusinesses(args: VectorSearchArgs!): [BusinessSearchPayload!]
-  vectorSearchPeople(args: VectorSearchArgs!): [PersonSearchPayload!]
-
-  savedEntities(
-    filter: SavedEntitiesFilterInput
-    page: CursorPageInput
-  ): UserSavedConnection!
-
-  myUserProtocols(
-    filter: UserProtocolsFilterInput
-    page: CursorPageInput
-  ): UserProtocolConnection!
-
-  dashboard: Dashboard!
-  humanUpgradeEpisodeSearch(
-    input: HumanUpgradeEpisodeSearchInput!
-  ): HumanUpgradeEpisodeSearchResult!
-}
-
-type AuthPayload {
-  token: String!
-  user: User!
-}
-
-type DeleteResult {
-  deletedCount: Int!
-}
-
-input VectorSearchArgs {
-  query: String!
-  numCandidates: Int
-  limit: Int
-}
-
-type ProductSearchPayload {
-  id: ID!
-  name: String!
-  description: String!
-  score: Float
-}
-
-type BusinessSearchPayload {
-  id: ID!
-  name: String!
-  description: String!
-  score: Float
-}
-
-type PersonSearchPayload {
-  id: ID!
-  name: String!
-  bio: String!
-  score: Float
-}
-
-type DashboardItem {
-  entityType: String!
-  entityId: ID!
-  score: Float
-  reasons: [String!]
-  entity: SavedTargetUnion
-}
-
-type ContinueEpisode {
-  kind: String! # always "EPISODE"
-  episodeId: ID!
-  timestamp: Float
-  lastActivityAt: String!
-  episode: Episode
-}
-
-type ContinueEntity {
-  kind: String! # always "ENTITY"
-  entityType: String!
-  entityId: ID!
-  lastActivityAt: String!
-  entity: SavedTargetUnion
-}
-
-type ContinueNone {
-  kind: String! # always "NONE"
-}
-
-union DashboardContinue = ContinueEpisode | ContinueEntity | ContinueNone
-
-type Dashboard {
-  continue: DashboardContinue!
-  trending: [DashboardItem!]!
-  recommended: [DashboardItem!]!
+  organizations: [Organization!]! 
+  products: [Product!]! 
+  searchOrganizations(input: OrganizationSearchInput!): OrganizationSearchResult!
+  # searchProducts(input: ProductSearchInput!): ProductSearchResult! 
+  #   autocompleteOrganizations(q: String!, first: Int = 10): [AutocompleteItem!]!
+  # autocompleteProducts(q: String!, first: Int = 10): [AutocompleteItem!]!
 }
 
 type Mutation {
-  register(email: String!, password: String!, name: String): AuthPayload!
-  login(email: String!, password: String!): AuthPayload!
-
-  upsertUserProfile(input: UserProfileUpsertInput!): UserProfile!
-  deleteUserProfile(userId: ID!): DeleteResult!
-  deleteUser(userId: ID!): UserDeleteResult!
-
-  # --- Business management ---
-
-  createBusinessWithRelations(input: BusinessCreateRelationsInput!): Business!
-  updateBusiness(input: BusinessUpdateWithIdsInput!): Business
-  upsertBusinessWithRelations(
-    input: BusinessUpsertRelationFieldsInput!
-  ): Business
-  deleteBusiness(id: ID!): DeleteResult!
-
-  # --- Product management ---
-
-  createProduct(input: ProductCreateWithIdsInput!): Product!
-  updateProduct(input: ProductUpdateWithIdsInput!): Product
-  upsertProductWithRelations(input: ProductUpsertRelationFieldsInput!): Product
-  deleteProduct(id: ID!): Product!
-  # --- Person management ---
-
-  createPerson(input: PersonCreateInput!): Person!
-  updatePerson(input: PersonUpdateInput!): Person
-  deletePerson(id: ID!): Person!
-
-  # --- Episode management ---
-
-  createEpisode(input: EpisodeCreateWithIdsInput!): Episode!
-  updateEpisode(input: EpisodeUpdateWithIdsInput!): Episode
-  updateEpisodeRelations(input: EpisodeUpdateRelationFieldsInput!): Episode
-  deleteEpisode(identifier: String!): Episode
-  deleteAllEpisodes: DeleteResult!
-
-  # --- Compound management ---
-
-  createCompound(input: CompoundCreateWithIdsInput!): Compound!
-  updateCompound(input: CompoundUpdateWithIdsInput!): Compound
-  updateCompoundRelations(input: CompoundUpdateRelationFieldsInput!): Compound
-  deleteCompound(id: ID!): Compound!
-
-  createCaseStudy(input: CaseStudyCreateWithOptionalIdsInput!): CaseStudy!
-
-  updateCaseStudy(input: CaseStudyUpdateWithOptionalIdsInput!): CaseStudy!
-
-  upsertUser(input: UserUpsertInput!): User!
-
-  createProtocol(input: ProtocolCreateWithIdsInput!): Protocol!
-  updateProtocol(input: ProtocolUpdateWithIdsInput!): Protocol
-  updateProtocolRelations(input: ProtocolUpdateRelationFieldsInput!): Protocol
-  deleteProtocol(id: ID!): Protocol!
-
-  createUserProtocol(input: CreateUserProtocolInput!): UserProtocol!
-  updateUserProtocol(input: UpdateUserProtocolInput!): UserProtocol
-  deleteUserProtocol(id: ID!): Boolean!
-
-  # --- Vector management ---
-
-  embedProductDescription(productId: ID!): Product!
-  embedBusinessDescription(businessId: ID!): Business!
-  embedPersonBio(personId: ID!): Person!
-
-  saveEntity(input: SaveEntityInput!): UserSaved!
-  unsaveEntity(input: UnsaveEntityInput!): Boolean!
+  createOrganization(input: OrganizationInput!): Organization!
+  updateOrganization(input: UpdateOrganizationInput!): Organization!
+  createProduct(input: ProductInput!): Product!
+  updateProduct(input: ProductUpdateInput!): Product! 
+  upsertEmbedding(input: UpsertEmbeddingInput!): UpsertEmbeddingResult! 
+  upsertEmbeddings(inputs: [UpsertEmbeddingInput!]!): [UpsertEmbeddingResult!]!  
+  upsertResearchPlanRef(input: UpsertResearchPlanRefInput!): ResearchPlanRef! 
+  upsertResearchRunRef(input: UpsertResearchRunRefInput!): ResearchRunRef!  
+  linkResearchRunUsesPlan(input: LinkResearchRunUsesPlanInput!): ResearchRunRef! 
+  upsertDocument(input: UpsertDocumentInput!): Document!   
+  upsertDocumentTextVersionBundle(input: UpsertDocumentTextVersionBundleInput!): UpsertDocumentTextVersionBundleResult! 
+  upsertEvidenceEdge(input: EvidenceEdgeInput!): UpsertEvidenceEdgeResult!
+  upsertEvidenceEdges(input: [UpsertEvidenceEdgesInput!]!): [UpsertEvidenceEdgesResult!]!
 }
 
-type ActivityEvent {
-  id: ID!
-  userId: ID!
-  eventType: String!
-  entityType: String
-  entityId: ID
-  surface: String
-  createdAt: String!
-}
 
-type Subscription {
-  myActivity: ActivityEvent!
-  dashboardInvalidated: Boolean!
-  trendingInvalidated: Boolean!
-  recommendationsReady: Boolean!
+type Subscription { 
+  embeddingJobEvents(targetType: EmbeddingTargetType!, targetID: ID): EmbeddingJobEvent! 
+  documentIngested(documentId: String): Document! 
+  documentTextVersionBundleIngested(documentTextVersionId: String): UpsertDocumentTextVersionBundleResult! 
+  evidenceEdgeUpserted(relKey: String): UpsertEvidenceEdgeResult!   
+ 
 }

@@ -1,182 +1,271 @@
-mutation Login($email: String!, $password: String!) {
-  login(email: $email, password: $password) {
-    token
-    user {
-      id
-      email
-      name
-      role
-    }
-  }
-}
-
-# --- Business Mutations ---
-
-mutation UpsertBusinessWithRelations(
-  $input: BusinessUpsertRelationFieldsInput!
-) {
-  upsertBusinessWithRelations(input: $input) {
-    id
+mutation CreateOrganization($input: OrganizationInput!) {
+  createOrganization(input: $input) {
+    organizationId
     name
-    description
-    website
-    mediaLinks {
-      url
-      description
-      posterUrl
-    }
-    products {
-      id
-      name
-      description
-      price
-      ingredients
-      sourceUrl
-      mediaLinks {
-        url
-        description
-        posterUrl
-      }
-      compounds {
-        id
-        name
-        description
-        aliases
-        mediaLinks {
-          url
-          description
-          posterUrl
-        }
-      }
-    }
-    owners {
-      id
-      name
-      role
-      bio
-      mediaLinks {
-        url
-        description
-        posterUrl
-      }
-    }
-    executives {
-      person {
-        id
-        name
-        role
-        bio
-        mediaLinks {
-          url
-          description
-          posterUrl
-        }
-      }
-      title
-      role
-    }
+    
   }
 }
 
-# --- Product Mutations ---
-
-mutation UpsertProductWithRelations($input: ProductUpsertRelationFieldsInput!) {
-  upsertProductWithRelations(input: $input) {
-    id
+mutation UpdateOrganization($input: UpdateOrganizationInput!) {
+  updateOrganization(input: $input) {
+    organizationId
     name
-    description
-    price
-    ingredients
-    sourceUrl
-    mediaLinks {
-      url
-      description
-      posterUrl
-    }
-    business {
-      id
-      name
-      description
-      website
-    }
-    compounds {
-      id
-      name
-      description
-      aliases
-      mediaLinks {
-        url
-        description
-        posterUrl
+    aliases
+    orgType
+   
+  }
+}
+
+mutation UpsertResearchPlanRef($input: UpsertResearchPlanRefInput!) {
+  upsertResearchPlanRef(input: $input) {
+    researchPlanRefId
+    mongoPlanId
+    label
+    version
+    validAt
+    invalidAt
+    expiredAt
+    createdAt
+    updatedAt
+  }
+}
+
+mutation UpsertResearchRunRef($input: UpsertResearchRunRefInput!) {
+  upsertResearchRunRef(input: $input) {
+    researchRunRefId
+    mongoRunId
+    label
+    startedAt
+    endedAt
+    validAt
+    invalidAt
+    expiredAt
+    createdAt
+    updatedAt
+    usesPlan {
+      researchPlanRef {
+        researchPlanRefId
+        mongoPlanId
+        label
+        version
+        validAt
+        invalidAt
+        expiredAt
+        createdAt
+        updatedAt
       }
+      validAt
+      invalidAt
+      expiredAt
+      createdAt
     }
   }
 }
 
-# --- Episode Mutations ---
+mutation LinkResearchRunUsesPlan($input: LinkResearchRunUsesPlanInput!) {
+  linkResearchRunUsesPlan(input: $input) {
+    researchRunRefId
+    mongoRunId
+    label
+    startedAt
+    endedAt
+    validAt
+    invalidAt
+    expiredAt
+    createdAt
+    updatedAt
+    usesPlan {
+      researchPlanRef {
+        researchPlanRefId
+        mongoPlanId
+        label
+        version
+        validAt
+        invalidAt
+        expiredAt
+        createdAt
+        updatedAt
+      }
+      validAt
+      invalidAt
+      expiredAt
+      createdAt
+    }
+  }
+}
 
-mutation UpdateEpisodeRelations($input: EpisodeUpdateRelationFieldsInput!) {
-  updateEpisodeRelations(input: $input) {
-    id
-    channelName
-    episodeNumber
-    episodeTitle
-    episodePageUrl
-    episodeTranscriptUrl
+mutation UpsertDocument($input: UpsertDocumentInput!) {
+  upsertDocument(input: $input) {
+    documentId
+    documentKey
+    type
+    title
+    url
     publishedAt
-    summaryShort
-    webPageSummary
-    summaryDetailed
-    publishedSummary
-    youtubeVideoId
-    youtubeWatchUrl
-    youtubeEmbedUrl
-    takeaways
-    s3TranscriptKey
-    s3TranscriptUrl
-    mediaLinks {
-      url
-      description
-      posterUrl
-    }
-    guests {
-      id
-      name
-      role
-      bio
-      mediaLinks {
-        url
-        description
-        posterUrl
+    retrievedAt
+    validAt
+    invalidAt
+    expiredAt
+    createdAt
+    updatedAt
+    searchText
+    searchTextEmbedding
+    searchTextModel
+    searchTextVersion
+    searchTextUpdatedAt
+    hasTextVersion {
+      documentTextVersion {
+        documentTextVersionId
+        textVersionHash
+        source
+        language
+        text
+        validAt
+        invalidAt
+        expiredAt
+        createdAt
+        updatedAt
+        searchText
+        searchTextEmbedding
+        searchTextModel
+        searchTextVersion
+        searchTextUpdatedAt
       }
+      validAt
+      invalidAt
+      expiredAt
+      createdAt
     }
-    sponsorBusinesses {
-      id
-      name
-      description
-      website
-      mediaLinks {
-        url
-        description
-        posterUrl
+    chunks {
+      chunk {
+        chunkId
+        chunkKey
+        index
+        text
+        charStart
+        charEnd
+        startMs
+        endMs
+        embedding
+        embeddingModel
+        embeddingVersion
+        validAt
+        invalidAt
+        expiredAt
+        createdAt
+        updatedAt
       }
+      validAt
+      invalidAt
+      expiredAt
+      createdAt
     }
-    protocols {
-      id
-      name
-      description
-      categories
-      goals
-      steps
-      cautions
-      aliases
-      sourceUrl
+    generatedBy {
+      researchRunRef {
+        researchRunRefId
+        mongoRunId
+        label
+        startedAt
+        endedAt
+        validAt
+        invalidAt
+        expiredAt
+        createdAt
+        updatedAt
+      }
+      operation
+      stageKey
+      subStageKey
+      extractorVersion
+      extractedAt
+      validAt
+      invalidAt
+      expiredAt
+      createdAt
     }
   }
-} 
+}
 
+mutation UpsertDocumentTextVersionBundle($input: UpsertDocumentTextVersionBundleInput!) {
+  upsertDocumentTextVersionBundle(input: $input) {
+    documentId
+    documentTextVersionId
+    segmentationId
+    chunkMetas {
+      chunkId
+      chunkKey
+      index
+    }
+    nextChunkEdgesCreated
+  }
+}
 
+mutation UpsertEvidenceEdge($input: EvidenceEdgeInput!) {
+  upsertEvidenceEdge(input: $input) {
+    ok
+    edgeType
+    relKey
+    relationshipId
+    source {
+      ... on EvidenceSourceRefDocumentResult {
+        kind
+        documentId
+      }
+      ... on EvidenceSourceRefChunkResult {
+        kind
+        chunkId
+      }
+    }
+    target {
+      nodeId
+      label
+      uniqueKey
+      uniqueKeyValue
+    }
+    created
+    updated
+  }
+}
 
-# -- Case Study Mutations -- #
-
-# Person, Compound, Episode Mutations and helpers if needed
+mutation UpsertEvidenceEdges($input: [UpsertEvidenceEdgesInput!]!) {
+  upsertEvidenceEdges(input: $input) {
+    ok
+    counts {
+      received
+      attempted
+      created
+      updated
+      failed
+    }
+    results {
+      ok
+      edgeType
+      relKey
+      relationshipId
+      source {
+        ... on EvidenceSourceRefDocumentResult {
+          kind
+          documentId
+        }
+        ... on EvidenceSourceRefChunkResult {
+          kind
+          chunkId
+        }
+      }
+      target {
+        nodeId
+        label
+        uniqueKey
+        uniqueKeyValue
+      }
+      created
+      updated
+    }
+    errors {
+      index
+      edgeType
+      message
+      code
+    }
+  }
+}
