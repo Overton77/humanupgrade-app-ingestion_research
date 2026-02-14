@@ -25,7 +25,7 @@ from langchain.agents import create_agent
 from langchain.agents.structured_output import ProviderStrategy
 from langchain.tools import BaseTool
 from langchain_core.runnables import RunnableConfig
-from langgraph.graph import StateGraph
+from langgraph.graph import StateGraph, END
 from langgraph.graph.state import CompiledStateGraph
 from langgraph.types import Send
 from typing_extensions import TypedDict
@@ -37,6 +37,7 @@ from research_agent.graphs.nodes.intel_mongo_nodes_beanie import (
     persist_seeds_node,
     persist_official_sources_node,
     persist_domain_catalogs_node_beanie,
+    persist_connected_candidates_slices_node,
     persist_candidates_node_beanie,
 )
 from research_agent.utils.logger import logger
@@ -72,6 +73,15 @@ from research_agent.structured_outputs.candidates_outputs import (
    
     SeedExtraction,
 )
+from research_agent.infrastructure.storage.redis.client import get_streams_manager
+from research_agent.infrastructure.storage.redis.streams_manager import StreamAddress
+from research_agent.infrastructure.storage.redis.event_registry import (
+    GROUP_GRAPH,
+    CHANNEL_ENTITY_DISCOVERY,
+    EVENT_TYPE_SLICE_STARTED,
+    EVENT_TYPE_SLICE_COMPLETE,
+    EVENT_TYPE_MERGE_COMPLETE,
+)
 
 load_dotenv()
 os.environ["OPENAI_API_KEY"] = os.getenv("OPENAI_API_KEY")  # noqa: SIM112
@@ -89,17 +99,25 @@ class EntityIntelConnectedCandidatesAndSourcesInputState(TypedDict, total=False)
     query: the user's intent / question / target entity to investigate
     starter_sources: optional starting URLs/domains to anchor discovery
     starter_content: optional "starter context" (notes, pasted text, previous summary, etc.)
+    intel_run_id: optional run ID for persistence and event tracking (if not provided, will be generated)
     """
     query: str
     starter_sources: List[str]
     starter_content: str
+    intel_run_id: str
 
 
 class EntityIntelConnectedCandidatesAndSourcesOutputState(TypedDict, total=False):
     """
     Small output state intended for FastAPI + Taskiq response bodies.
+    
+    Returns the final merged candidate sources plus metadata about what was persisted.
     """
     candidate_sources: CandidateSourcesConnected
+    intel_run_id: str
+    intel_pipeline_version: str
+    candidate_entity_ids: List[str]
+    dedupe_group_map: Dict[str, str]
 
 
 class EntityIntelConnectedCandidatesAndSourcesState(
@@ -271,6 +289,32 @@ CONNECTED_TOOLS = [
 
 
 # -----------------------------------------------------------------------------
+# Helper: Progress Event Publishing
+# -----------------------------------------------------------------------------
+async def _publish_progress(
+    run_id: str,
+    event_type: str,
+    data: Dict[str, Any],
+) -> None:
+    """
+    Helper to publish progress events to Redis Streams.
+    
+    This allows real-time WebSocket updates as the graph executes.
+    """
+    try:
+        manager = await get_streams_manager()
+        addr = StreamAddress(
+            group=GROUP_GRAPH,
+            channel=CHANNEL_ENTITY_DISCOVERY,
+            key=run_id,
+        )
+        await manager.publish(addr, event_type=event_type, data=data)
+    except Exception as e:
+        # Don't fail the node if event publishing fails
+        logger.warning(f"Failed to publish progress event {event_type}: {e}")
+
+
+# -----------------------------------------------------------------------------
 # Nodes
 # -----------------------------------------------------------------------------
 async def seed_extraction_node(
@@ -418,13 +462,18 @@ def fanout_candidate_source_slices(
     catalogs_any = state.get("domain_catalogs_for_fanout")
 
     if catalogs_any is None:
-        domain_catalogs = state["domain_catalogs"]
+        domain_catalogs = state.get("domain_catalogs")
+        if domain_catalogs is None:
+            logger.warning("No domain_catalogs found in state; returning empty Send list")
+            return []
         catalogs_any = domain_catalogs.catalogs if hasattr(domain_catalogs, "catalogs") else (domain_catalogs.get("catalogs") or [])
 
     filtered_catalogs = _filter_catalogs_for_fanout(catalogs_any, max_catalogs=3)
 
     sends: List[Send] = []
-    for cat in filtered_catalogs:
+    total_slices = len(filtered_catalogs)
+    
+    for idx, cat in enumerate(filtered_catalogs):
         sends.append(
             Send(
                 "candidate_sources_slice",
@@ -443,6 +492,10 @@ def fanout_candidate_source_slices(
                         if hasattr(state["official_starter_sources"], "model_dump")
                         else state["official_starter_sources"]
                     ),
+                    # Add slice tracking metadata
+                    "slice_index": idx,
+                    "total_slices": total_slices,
+                    "intel_run_id": state.get("intel_run_id"),  # Pass run_id for progress events
                 },
             )
         )
@@ -458,15 +511,40 @@ async def candidate_sources_slice_node(
       - run Assembler agent (C3) to produce ConnectedCandidates
       - return CandidateSourcesConnected with a single ConnectedCandidates in .connected
     """
-    catalog: Dict[str, Any] = state["catalog"]
+    catalog: Dict[str, Any] | None = state.get("catalog")
+    if catalog is None:
+        raise ValueError("catalog is required in candidate_sources_slice_node (should be provided via Send)")
+    
     query: str = state.get("query", "")
     starter_sources: List[str] = state.get("starter_sources", []) or []
     starter_content: str = state.get("starter_content", "")
 
-    seed_extraction = state["seed_extraction"]
-    official_sources = state["official_starter_sources"]
+    seed_extraction = state.get("seed_extraction")
+    if seed_extraction is None:
+        raise ValueError("seed_extraction is required in candidate_sources_slice_node")
+    
+    official_sources = state.get("official_starter_sources")
+    if official_sources is None:
+        raise ValueError("official_starter_sources is required in candidate_sources_slice_node")
 
     base_domain = catalog.get("baseDomain") or "unknown"
+    
+    # Get slice tracking metadata
+    slice_index = state.get("slice_index", 0)
+    total_slices = state.get("total_slices", 1)
+    run_id = state.get("intel_run_id")
+    
+    # Publish slice started event
+    if run_id:
+        await _publish_progress(
+            run_id=run_id,
+            event_type=EVENT_TYPE_SLICE_STARTED,
+            data={
+                "base_domain": base_domain,
+                "slice_index": slice_index,
+                "total_slices": total_slices,
+            },
+        )
 
     # --- prepare small URL slices ---
     org_urls = _select_org_identity_people_tech_urls(catalog)
@@ -562,6 +640,7 @@ async def candidate_sources_slice_node(
     assembler_prompt = PROMPT_NODE_C3_CONNECTED_CANDIDATES_ASSEMBLER.format(
         query=query,
         base_domain=base_domain,
+        starter_content=starter_content or "",  # Provide empty string if None
         assembler_input_json=assembler_input.model_dump_json(indent=2),
     )
 
@@ -586,6 +665,20 @@ async def candidate_sources_slice_node(
         "candidate_sources_connected_slice",
         suffix=base_domain.replace("/", "_")[:30] + "_" + datetime.now().strftime("%Y%m%d_%H%M%S"),
     )
+    
+    # Publish slice complete event
+    if run_id:
+        candidate_count = len(out.connected) if hasattr(out, "connected") else len(out.get("connected", []))
+        await _publish_progress(
+            run_id=run_id,
+            event_type=EVENT_TYPE_SLICE_COMPLETE,
+            data={
+                "base_domain": base_domain,
+                "slice_index": slice_index,
+                "total_slices": total_slices,
+                "candidate_count": candidate_count,
+            },
+        )
 
     return {
         "candidate_sources_slice_outputs": [out],
@@ -614,6 +707,18 @@ async def merge_candidate_sources_node(
         connected=merged_connected,
         globalNotes=" | ".join(notes) if notes else "Merged candidate sources slices.",
     )
+    
+    # Publish merge complete event
+    run_id = state.get("intel_run_id")
+    if run_id:
+        await _publish_progress(
+            run_id=run_id,
+            event_type=EVENT_TYPE_MERGE_COMPLETE,
+            data={
+                "total_candidates": len(merged_connected),
+                "total_slices": len(slice_outputs),
+            },
+        )
 
     return {"candidate_sources": merged}
 
@@ -641,6 +746,7 @@ def build_entity_intel_connected_candidates_and_sources_graph() -> StateGraph:
     builder.add_node("persist_seeds", persist_seeds_node)
     builder.add_node("persist_official_sources", persist_official_sources_node)
     builder.add_node("persist_domain_catalogs", persist_domain_catalogs_node_beanie)
+    builder.add_node("persist_connected_slices", persist_connected_candidates_slices_node)
     builder.add_node("persist_candidates", persist_candidates_node_beanie)
 
     # Core nodes
@@ -665,15 +771,22 @@ def build_entity_intel_connected_candidates_and_sources_graph() -> StateGraph:
     builder.add_edge("persist_official_sources", "domain_catalogs")
     builder.add_edge("domain_catalogs", "persist_domain_catalogs")
 
-    # Fanout from persisted point
+    # Fan-out from persisted point using Send API
+    # The routing function returns List[Send] which creates dynamic edges to candidate_sources_slice nodes
     builder.add_conditional_edges(
         "persist_domain_catalogs",
         fanout_candidate_source_slices,
-        then="merge_candidate_sources",
     )
 
-    # Merge -> persist final candidates + entities
-    builder.add_edge("merge_candidate_sources", "persist_candidates")
+    # Fan-in: all candidate_sources_slice nodes converge to merge_candidate_sources
+    builder.add_edge("candidate_sources_slice", "merge_candidate_sources")
+
+    # After merge, persist per-domain slice documents, then persist final merged graph + entities
+    builder.add_edge("merge_candidate_sources", "persist_connected_slices")
+    builder.add_edge("persist_connected_slices", "persist_candidates")
+    
+    # Final node -> END
+    builder.add_edge("persist_candidates", END)
 
     return builder
 

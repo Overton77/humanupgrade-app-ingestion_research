@@ -2,10 +2,10 @@ from langchain.agents import create_agent
 from typing import List, Dict, Any, Optional
 
 from langchain_openai import ChatOpenAI
-from research_agent.human_upgrade.prompts.web_search_summary_prompts import TAVILY_SUMMARY_PROMPT 
-from research_agent.human_upgrade.logger import logger  
-from research_agent.human_upgrade.structured_outputs.sources_and_search_summary_outputs import TavilyResultsSummary
-from research_agent.human_upgrade.utils.artifacts import save_json_artifact 
+from research_agent.prompts.web_search_summary_prompts import TAVILY_SUMMARY_PROMPT 
+from research_agent.utils.logger import logger  
+from research_agent.structured_outputs.sources_and_search_summary_outputs import TavilyResultsSummary
+from research_agent.utils.artifacts import save_json_artifact 
 from langchain.agents.structured_output import ProviderStrategy  
 
 

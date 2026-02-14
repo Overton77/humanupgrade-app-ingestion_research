@@ -30,6 +30,9 @@ class IntelCandidateRunDoc(Document):
     candidateEntityCount: int = 0
     dedupeGroupCount: int = 0
     domainCount: int = 0
+    
+    # Track dedupe group IDs created during this run for easy querying
+    dedupeGroupIds: list[str] = Field(default_factory=list)
 
     notes: Optional[str] = None
 

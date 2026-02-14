@@ -7,7 +7,7 @@ from beanie import PydanticObjectId
 
 from research_agent.models.mongo.candidates.docs.connected_candidates import ConnectedCandidatesDoc
 from research_agent.models.mongo.candidates.embedded.entities_connected import ConnectedCandidatesModel
-from research_agent.human_upgrade.structured_outputs.candidates_outputs import ConnectedCandidates
+from research_agent.structured_outputs.candidates_outputs import ConnectedCandidates
 from research_agent.utils.datetime_helpers import utc_now
 
 

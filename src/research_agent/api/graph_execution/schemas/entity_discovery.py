@@ -21,8 +21,8 @@ class EntityDiscoveryRequest(BaseModel):
         max_length=10,
     )
     
-    starter_content: str = Field(
-        default="",
+    starter_content: Optional[str] = Field(
+        None,
         description="Optional starter context (notes, pasted text, previous summary)",
         max_length=5000,
     )

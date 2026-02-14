@@ -18,14 +18,14 @@ from typing import  Callable, Dict, List,  Optional
 from zoneinfo import ZoneInfo
 
 
-from research_agent.human_upgrade.structured_outputs.research_plans_outputs import (
+from research_agent.structured_outputs.research_plans_outputs import (
     AgentInstancePlanWithSources,
     AgentType,
 )
-from research_agent.human_upgrade.utils.default_tools_by_agent_type import (
+from research_agent.utils.default_tools_by_agent_type import (
     FULL_ENTITIES_BASIC_DEFAULT_TOOL_MAP,
 )
-from research_agent.human_upgrade.graphs.state.agent_instance_state import WorkerAgentState
+from research_agent.graphs.state.agent_instance_state import WorkerAgentState
 
 
 # ---------------------------

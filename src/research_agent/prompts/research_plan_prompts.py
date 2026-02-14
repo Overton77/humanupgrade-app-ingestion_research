@@ -1,6 +1,6 @@
 from typing import Dict, List 
-from research_agent.human_upgrade.structured_outputs.research_plans_outputs import StageMode  
-from research_agent.human_upgrade.constants.export_plans import PREBUILT_RESEARCH_PLANS
+from research_agent.structured_outputs.research_plans_outputs import StageMode  
+from research_agent.constants.export_plans import PREBUILT_RESEARCH_PLANS
 
 
 def _generate_mode_spec_blueprint(stage_mode: str) -> str:

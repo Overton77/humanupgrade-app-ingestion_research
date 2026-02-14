@@ -12,9 +12,19 @@ from typing import List, Optional
 
 from research_agent.infrastructure.storage.redis.streams_manager import EventRouter, Handler
 from research_agent.infrastructure.storage.redis.entity_candidate_run_events import (
+    # Lifecycle events
     EntityCandidateRunStart,
     EntityCandidateRunComplete,
     EntityCandidateRunError,
+    # Progress events
+    EntityCandidateRunInitialized,
+    EntityCandidateRunSeedsComplete,
+    EntityCandidateRunOfficialSourcesComplete,
+    EntityCandidateRunDomainCatalogsComplete,
+    EntityCandidateRunSliceStarted,
+    EntityCandidateRunSliceComplete,
+    EntityCandidateRunMergeComplete,
+    EntityCandidateRunPersistenceComplete,
 )
 
 
@@ -22,9 +32,20 @@ from research_agent.infrastructure.storage.redis.entity_candidate_run_events imp
 GROUP_GRAPH = "graph"
 CHANNEL_ENTITY_DISCOVERY = "entity_discovery"
 
+# Lifecycle events
 EVENT_TYPE_START = "start"
 EVENT_TYPE_COMPLETE = "complete"
 EVENT_TYPE_ERROR = "error"
+
+# Progress events
+EVENT_TYPE_INITIALIZED = "initialized"
+EVENT_TYPE_SEEDS_COMPLETE = "seeds_complete"
+EVENT_TYPE_OFFICIAL_SOURCES_COMPLETE = "official_sources_complete"
+EVENT_TYPE_DOMAIN_CATALOGS_COMPLETE = "domain_catalogs_complete"
+EVENT_TYPE_SLICE_STARTED = "slice_started"
+EVENT_TYPE_SLICE_COMPLETE = "slice_complete"
+EVENT_TYPE_MERGE_COMPLETE = "merge_complete"
+EVENT_TYPE_PERSISTENCE_COMPLETE = "persistence_complete"
 
 
 def create_event_router(
@@ -54,7 +75,9 @@ def create_event_router(
     """
     router = EventRouter()
     
-    # Register entity discovery events
+    # =========================================================================
+    # Entity Discovery - Lifecycle Events
+    # =========================================================================
     router.register(
         group=GROUP_GRAPH,
         channel=CHANNEL_ENTITY_DISCOVERY,
@@ -76,6 +99,73 @@ def create_event_router(
         channel=CHANNEL_ENTITY_DISCOVERY,
         event_type=EVENT_TYPE_ERROR,
         data_model=EntityCandidateRunError,
+        handlers=[],
+    )
+    
+    # =========================================================================
+    # Entity Discovery - Progress Events
+    # =========================================================================
+    router.register(
+        group=GROUP_GRAPH,
+        channel=CHANNEL_ENTITY_DISCOVERY,
+        event_type=EVENT_TYPE_INITIALIZED,
+        data_model=EntityCandidateRunInitialized,
+        handlers=[],
+    )
+    
+    router.register(
+        group=GROUP_GRAPH,
+        channel=CHANNEL_ENTITY_DISCOVERY,
+        event_type=EVENT_TYPE_SEEDS_COMPLETE,
+        data_model=EntityCandidateRunSeedsComplete,
+        handlers=[],
+    )
+    
+    router.register(
+        group=GROUP_GRAPH,
+        channel=CHANNEL_ENTITY_DISCOVERY,
+        event_type=EVENT_TYPE_OFFICIAL_SOURCES_COMPLETE,
+        data_model=EntityCandidateRunOfficialSourcesComplete,
+        handlers=[],
+    )
+    
+    router.register(
+        group=GROUP_GRAPH,
+        channel=CHANNEL_ENTITY_DISCOVERY,
+        event_type=EVENT_TYPE_DOMAIN_CATALOGS_COMPLETE,
+        data_model=EntityCandidateRunDomainCatalogsComplete,
+        handlers=[],
+    )
+    
+    router.register(
+        group=GROUP_GRAPH,
+        channel=CHANNEL_ENTITY_DISCOVERY,
+        event_type=EVENT_TYPE_SLICE_STARTED,
+        data_model=EntityCandidateRunSliceStarted,
+        handlers=[],
+    )
+    
+    router.register(
+        group=GROUP_GRAPH,
+        channel=CHANNEL_ENTITY_DISCOVERY,
+        event_type=EVENT_TYPE_SLICE_COMPLETE,
+        data_model=EntityCandidateRunSliceComplete,
+        handlers=[],
+    )
+    
+    router.register(
+        group=GROUP_GRAPH,
+        channel=CHANNEL_ENTITY_DISCOVERY,
+        event_type=EVENT_TYPE_MERGE_COMPLETE,
+        data_model=EntityCandidateRunMergeComplete,
+        handlers=[],
+    )
+    
+    router.register(
+        group=GROUP_GRAPH,
+        channel=CHANNEL_ENTITY_DISCOVERY,
+        event_type=EVENT_TYPE_PERSISTENCE_COMPLETE,
+        data_model=EntityCandidateRunPersistenceComplete,
         handlers=[],
     )
     

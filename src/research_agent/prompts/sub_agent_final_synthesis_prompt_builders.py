@@ -1,12 +1,12 @@
 from __future__ import annotations
 
 from typing import Callable, Dict, List, Optional 
-from research_agent.human_upgrade.structured_outputs.research_plans_outputs import (
+from research_agent.structured_outputs.research_plans_outputs import (
     AgentInstancePlanWithSources,
     AgentType,
 )
-from research_agent.human_upgrade.structured_outputs.file_outputs import FileReference
-from research_agent.human_upgrade.graphs.state.agent_instance_state import WorkerAgentState
+from research_agent.structured_outputs.file_outputs import FileReference
+from research_agent.graphs.state.agent_instance_state import WorkerAgentState
 
 # ---------------------------
 # Final Synthesis Prompt Builders (for after_agent middleware)

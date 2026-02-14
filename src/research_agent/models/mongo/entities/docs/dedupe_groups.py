@@ -32,4 +32,6 @@ class IntelDedupeGroupDoc(Document):
         indexes = [
             [("typeHint", pymongo.ASCENDING), ("entityKey", pymongo.ASCENDING)],
             [("resolutionStatus", pymongo.ASCENDING), ("createdAt", pymongo.DESCENDING)],
+            # Allow querying all dedupe groups from a specific run via members.runId
+            [("members.runId", pymongo.ASCENDING)],
         ]

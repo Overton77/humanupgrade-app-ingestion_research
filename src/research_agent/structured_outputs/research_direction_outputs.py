@@ -1,7 +1,7 @@
 from pydantic import BaseModel, Field
 from typing import Optional, List, Literal
 from enum import Enum
-from research_agent.human_upgrade.structured_outputs.enums_literals import SourcePriorityType, PriorityLevel
+from research_agent.structured_outputs.enums_literals import SourcePriorityType, PriorityLevel
 
 
 # ============================================================================

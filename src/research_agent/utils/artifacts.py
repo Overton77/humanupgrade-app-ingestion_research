@@ -6,7 +6,7 @@ import aiofiles
 import aiofiles.os
 from typing import Any
 
-from research_agent.human_upgrade.logger import logger
+from research_agent.utils.logger import logger
 
 
 

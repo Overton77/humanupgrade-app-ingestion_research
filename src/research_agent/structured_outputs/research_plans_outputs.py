@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pydantic import BaseModel, Field
 from typing import Any, Dict, List, Literal, Optional 
-from research_agent.human_upgrade.structured_outputs.candidates_outputs import ConnectedCandidates
+from research_agent.structured_outputs.candidates_outputs import ConnectedCandidates
 
 
 StageMode = Literal["full_entities_standard", "full_entities_basic", "full_entities_deep"] 

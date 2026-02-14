@@ -4,7 +4,7 @@ from typing import Optional, Literal, List, Dict, Any
 from pydantic import BaseModel, Field
 from datetime import datetime
 from enum import Enum 
-from research_agent.human_upgrade.structured_outputs.enums_literals import SourceType
+from research_agent.structured_outputs.enums_literals import SourceType
 import uuid
 
 

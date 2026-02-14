@@ -5,7 +5,6 @@ from typing import Optional, Tuple
 
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 from langgraph.store.postgres.aio import AsyncPostgresStore 
-from research_agent.human_upgrade.utils.windows_event_loop_fix import ensure_selector_event_loop_on_windows
 from dotenv import load_dotenv
 
 _stack: Optional[AsyncExitStack] = None
@@ -13,9 +12,7 @@ _store: Optional[AsyncPostgresStore] = None
 _checkpointer: Optional[AsyncPostgresSaver] = None
 _lock = asyncio.Lock() 
 
-load_dotenv()   
-
-ensure_selector_event_loop_on_windows()
+load_dotenv()
 
 
 async def get_persistence() -> Tuple[AsyncPostgresStore, AsyncPostgresSaver]:

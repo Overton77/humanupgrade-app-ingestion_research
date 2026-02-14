@@ -79,20 +79,27 @@ async def run_entity_discovery_graph(
         
         graph = await make_entity_intel_connected_candidates_and_sources_graph(config)
         
-        # Run graph
+        # Run graph (pass run_id as intel_run_id so all events use the same stream key)
         result = await graph.ainvoke(
             {
                 "query": query,
                 "starter_sources": starter_sources,
                 "starter_content": starter_content,
+                "intel_run_id": run_id,  # Critical: ensures progress events use same stream key
             },
             config=config,
         )
         
-        # Extract output
+        # Extract output (now available via OutputState)
         candidate_sources = result.get("candidate_sources")
-        intel_run_id = result.get("intel_run_id", "unknown")
+        intel_run_id = result.get("intel_run_id", run_id)  # Fallback to input run_id if not in output
         pipeline_version = result.get("intel_pipeline_version", "v1")
+        
+        # Extract entity counts from result (now available via OutputState)
+        candidate_entity_ids = result.get("candidate_entity_ids")
+        entity_count_val = len(candidate_entity_ids) if candidate_entity_ids else None
+        dedupe_group_map = result.get("dedupe_group_map", {})
+        dedupe_group_count_val = len(set(dedupe_group_map.values())) if dedupe_group_map else None
         
         # Publish completion event (validated against EntityCandidateRunComplete model)
         await manager.publish(
@@ -102,6 +109,8 @@ async def run_entity_discovery_graph(
                 "intel_run_id": intel_run_id,
                 "pipeline_version": pipeline_version,
                 "has_candidates": candidate_sources is not None,
+                "entity_count": entity_count_val,
+                "dedupe_group_count": dedupe_group_count_val,
             },
         )
         

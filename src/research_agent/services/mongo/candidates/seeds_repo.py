@@ -7,7 +7,7 @@ from beanie import PydanticObjectId
 
 from research_agent.models.mongo.candidates.docs.candidate_seeds import CandidateSeedDoc
 from research_agent.models.mongo.candidates.embedded.seeds import SeedExtractionModel
-from research_agent.human_upgrade.structured_outputs.candidates_outputs import SeedExtraction
+from research_agent.structured_outputs.candidates_outputs import SeedExtraction
 from research_agent.utils.datetime_helpers import utc_now
 
 

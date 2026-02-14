@@ -119,8 +119,9 @@ async def update_run_stats(
     candidate_entity_count: Optional[int] = None,
     dedupe_group_count: Optional[int] = None,
     domain_count: Optional[int] = None,
+    dedupe_group_ids: Optional[list[str]] = None,
 ) -> None:
-    """Update run statistics."""
+    """Update run statistics and dedupe group tracking."""
     doc = await IntelCandidateRunDoc.find_one(IntelCandidateRunDoc.runId == run_id)
     if not doc:
         return
@@ -131,6 +132,8 @@ async def update_run_stats(
         doc.dedupeGroupCount = dedupe_group_count
     if domain_count is not None:
         doc.domainCount = domain_count
+    if dedupe_group_ids is not None:
+        doc.dedupeGroupIds = dedupe_group_ids
     
     doc.updatedAt = utc_now()
     await doc.save()

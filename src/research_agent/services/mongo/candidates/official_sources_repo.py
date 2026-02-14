@@ -7,7 +7,7 @@ from beanie import PydanticObjectId
 
 from research_agent.models.mongo.candidates.docs.official_starter_sources import OfficialStarterSourcesDoc
 from research_agent.models.mongo.candidates.embedded.official_sources import OfficialStarterSourcesModel
-from research_agent.human_upgrade.structured_outputs.candidates_outputs import OfficialStarterSources
+from research_agent.structured_outputs.candidates_outputs import OfficialStarterSources
 from research_agent.utils.datetime_helpers import utc_now
 
 

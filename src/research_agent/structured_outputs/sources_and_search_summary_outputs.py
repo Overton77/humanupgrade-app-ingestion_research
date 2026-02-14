@@ -1,7 +1,7 @@
 from pydantic import BaseModel, Field
 from datetime import datetime, timezone
 from typing import Optional, List
-from research_agent.human_upgrade.structured_outputs.enums_literals import SourceType
+from research_agent.structured_outputs.enums_literals import SourceType
 
 def utc_now() -> datetime:
     """Get the current UTC time."""

@@ -10,7 +10,7 @@ from research_agent.models.mongo.entities.embedded.dedupe_members import DedupeM
 from research_agent.models.mongo.candidates.embedded.entity_sources import SourceCandidateModel
 from research_agent.models.base.enums import EntityTypeHint, CandidateStatus, DedupeResolutionStatus
 from research_agent.utils.datetime_helpers import utc_now
-from research_agent.human_upgrade.structured_outputs.candidates_outputs import (
+from research_agent.structured_outputs.candidates_outputs import (
     ConnectedCandidates,
     EntitySourceResult,
 )

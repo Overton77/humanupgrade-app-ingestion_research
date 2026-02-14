@@ -7,7 +7,7 @@ from beanie import PydanticObjectId
 
 from research_agent.models.mongo.domains.docs.domain_catalog_sets import DomainCatalogSetDoc
 from research_agent.models.mongo.domains.domain_catalog_set import DomainCatalogSetModel
-from research_agent.human_upgrade.structured_outputs.candidates_outputs import DomainCatalogSet
+from research_agent.structured_outputs.candidates_outputs import DomainCatalogSet
 from research_agent.utils.datetime_helpers import utc_now
 
 

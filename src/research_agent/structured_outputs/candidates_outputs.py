@@ -1,7 +1,7 @@
 from pydantic import BaseModel, Field, field_validator
 from typing import Optional, List, Literal
 
-from research_agent.human_upgrade.structured_outputs.enums_literals import SourceType, ValidationLevel, EntityTypeHint 
+from research_agent.structured_outputs.enums_literals import SourceType, ValidationLevel, EntityTypeHint 
 
 
 
@@ -296,7 +296,7 @@ DomainRole = Literal["primary", "shop", "help", "docs", "blog", "other"]
 class SourceCandidate(BaseModel):
     url: str
     label: str = Field(..., min_length=1)
-    sourceType: "SourceType"
+    sourceType: str = Field(..., description="Type of source (e.g., OFFICIAL, DOCUMENTATION, WIKIPEDIA, NEWS_OR_PR, etc.)")
     rank: int = Field(..., ge=1)
     score: float = Field(..., ge=0.0, le=1.0)
     signals: List[str] = Field(default_factory=list)

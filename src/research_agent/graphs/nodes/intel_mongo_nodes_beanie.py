@@ -3,14 +3,27 @@ Intel MongoDB persistence nodes using Beanie ODM.
 
 These nodes persist graph outputs to MongoDB using Beanie document models.
 They are designed to work with the entity_candidates_connected_graph.
+
+These nodes also publish progress events to Redis Streams for real-time WebSocket updates.
 """
 from __future__ import annotations
 
 from typing import Any, Dict, List
 from beanie import PydanticObjectId
 
-from research_agent.human_upgrade.logger import logger
+from research_agent.utils.logger import logger
 from research_agent.models.base.enums import PipelineStatus
+from research_agent.infrastructure.storage.redis.client import get_streams_manager
+from research_agent.infrastructure.storage.redis.streams_manager import StreamAddress
+from research_agent.infrastructure.storage.redis.event_registry import (
+    GROUP_GRAPH,
+    CHANNEL_ENTITY_DISCOVERY,
+    EVENT_TYPE_INITIALIZED,
+    EVENT_TYPE_SEEDS_COMPLETE,
+    EVENT_TYPE_OFFICIAL_SOURCES_COMPLETE,
+    EVENT_TYPE_DOMAIN_CATALOGS_COMPLETE,
+    EVENT_TYPE_PERSISTENCE_COMPLETE,
+)
 
 # Import repository functions
 from research_agent.services.mongo.candidates import (
@@ -42,7 +55,7 @@ from research_agent.services.mongo.candidates import (
     flatten_connected_candidates_to_entity_docs,
 )
 
-from research_agent.human_upgrade.structured_outputs.candidates_outputs import (
+from research_agent.structured_outputs.candidates_outputs import (
     SeedExtraction,
     OfficialStarterSources,
     DomainCatalogSet,
@@ -51,6 +64,32 @@ from research_agent.human_upgrade.structured_outputs.candidates_outputs import (
 from research_agent.models.mongo.entities.docs.candidate_entities import IntelCandidateEntityDoc
 
 PIPELINE_VERSION_DEFAULT = "entity-intel-v1"
+
+
+# =============================================================================
+# Helper: Publish Progress Event
+# =============================================================================
+async def _publish_progress(
+    run_id: str,
+    event_type: str,
+    data: Dict[str, Any],
+) -> None:
+    """
+    Helper to publish progress events to Redis Streams.
+    
+    This allows real-time WebSocket updates as the graph executes.
+    """
+    try:
+        manager = await get_streams_manager()
+        addr = StreamAddress(
+            group=GROUP_GRAPH,
+            channel=CHANNEL_ENTITY_DISCOVERY,
+            key=run_id,
+        )
+        await manager.publish(addr, event_type=event_type, data=data)
+    except Exception as e:
+        # Don't fail the node if event publishing fails
+        logger.warning(f"Failed to publish progress event {event_type}: {e}")
 
 
 # =============================================================================
@@ -88,6 +127,16 @@ async def initialize_run_node(state: Dict[str, Any]) -> Dict[str, Any]:
     await update_run_status(run_doc.runId, PipelineStatus.running)
     
     logger.info("✅ Initialized candidate run: runId=%s", run_doc.runId)
+    
+    # Publish progress event
+    await _publish_progress(
+        run_id=run_doc.runId,
+        event_type=EVENT_TYPE_INITIALIZED,
+        data={
+            "intel_run_id": run_doc.runId,
+            "pipeline_version": pipeline_version,
+        },
+    )
     
     return {
         "intel_run_id": run_doc.runId,
@@ -136,6 +185,19 @@ async def persist_seeds_node(state: Dict[str, Any]) -> Dict[str, Any]:
     
     logger.info("✅ Persisted seed extraction: runId=%s docId=%s", run_id, doc_id)
     
+    # Publish progress event
+    await _publish_progress(
+        run_id=run_id,
+        event_type=EVENT_TYPE_SEEDS_COMPLETE,
+        data={
+            "people_count": len(seed_extraction.people_candidates or []),
+            "org_count": len(seed_extraction.organization_candidates or []),
+            "product_count": len(seed_extraction.product_candidates or []),
+            "compound_count": len(seed_extraction.compound_candidates or []),
+            "tech_count": len(seed_extraction.technology_candidates or []),
+        },
+    )
+    
     return {
         "seeds_doc_id": doc_id,
     }
@@ -181,6 +243,35 @@ async def persist_official_sources_node(state: Dict[str, Any]) -> Dict[str, Any]
     await update_run_outputs(run_id, official_starter_sources_doc_id=doc_id)
     
     logger.info("✅ Persisted official sources: runId=%s docId=%s", run_id, doc_id)
+    
+    # Publish progress event - count total sources across all entity targets
+    source_count = 0
+    if hasattr(official_sources, "people"):
+        source_count += sum(len(target.sources) for target in official_sources.people)
+    if hasattr(official_sources, "organizations"):
+        source_count += sum(len(target.sources) for target in official_sources.organizations)
+    if hasattr(official_sources, "products"):
+        source_count += sum(len(target.sources) for target in official_sources.products)
+    if hasattr(official_sources, "technologies"):
+        source_count += sum(len(target.sources) for target in official_sources.technologies)
+    
+    # Get primary entity info from seed_extraction (if available in state)
+    seed_extraction = state.get("seed_extraction")
+    has_primary_org = False
+    has_primary_person = False
+    if seed_extraction:
+        has_primary_org = getattr(seed_extraction, "primary_organization", None) is not None
+        has_primary_person = getattr(seed_extraction, "primary_person", None) is not None
+    
+    await _publish_progress(
+        run_id=run_id,
+        event_type=EVENT_TYPE_OFFICIAL_SOURCES_COMPLETE,
+        data={
+            "source_count": source_count,
+            "has_primary_org": has_primary_org,
+            "has_primary_person": has_primary_person,
+        },
+    )
     
     return {
         "official_sources_doc_id": doc_id,
@@ -238,70 +329,103 @@ async def persist_domain_catalogs_node_beanie(state: Dict[str, Any]) -> Dict[str
     
     logger.info("✅ Persisted domain catalogs: runId=%s docId=%s domains=%s", run_id, doc_id, domain_count)
     
+    # Publish progress event - extract domains safely from Pydantic models or dicts
+    domains = []
+    if catalog_list:
+        for cat in catalog_list:
+            if hasattr(cat, "baseDomain"):
+                # Pydantic model - use attribute access
+                domains.append(cat.baseDomain or "unknown")
+            elif isinstance(cat, dict):
+                # Dict - use .get()
+                domains.append(cat.get("baseDomain", "unknown"))
+            else:
+                domains.append("unknown")
+    await _publish_progress(
+        run_id=run_id,
+        event_type=EVENT_TYPE_DOMAIN_CATALOGS_COMPLETE,
+        data={
+            "catalog_count": domain_count,
+            "domains": domains[:10],  # Send first 10 to avoid huge payloads
+        },
+    )
+    
     return {
         "domain_catalog_set_doc_id": doc_id,
     }
 
 
 # =============================================================================
-# Node: Persist Connected Candidates (per-domain slice)
+# Node: Persist Connected Candidates Slices (ALL per-domain slices)
 # =============================================================================
-async def persist_connected_candidates_slice_node(state: Dict[str, Any]) -> Dict[str, Any]:
+async def persist_connected_candidates_slices_node(state: Dict[str, Any]) -> Dict[str, Any]:
     """
-    Persist a single ConnectedCandidates slice (per-domain output).
+    Persist ALL ConnectedCandidates slices (per-domain outputs) after merging.
     
-    This node is typically called from within a fanout/map-reduce pattern,
-    so it operates on a single domain's output at a time.
+    This is called AFTER merge to persist each domain slice separately,
+    then updates the run with the list of slice doc IDs.
     
     Writes:
-      - intel_connected_candidates (via Beanie)
+      - intel_connected_candidates (via Beanie, one doc per domain)
+    
+    Updates:
+      - intel_candidate_runs.outputs.connectedCandidatesDocIds
     
     Returns:
-      - connected_candidates_slice_doc_id
+      - connected_candidates_slice_doc_ids
     """
     run_id = state.get("intel_run_id")
     if not run_id:
-        # In some fanout scenarios, run_id may not be propagated
         logger.warning("⚠️ intel_run_id not found; skipping slice persist.")
         return {}
     
-    # This would come from the slice fanout state
-    catalog = state.get("catalog")
-    if catalog is None:
-        logger.warning("⚠️ No catalog in slice state; skipping slice persist.")
-        return {}
-    
-    base_domain = catalog.get("baseDomain") or "unknown"
     query = state.get("query", "")
     pipeline_version = state.get("intel_pipeline_version") or PIPELINE_VERSION_DEFAULT
     
-    # Extract the ConnectedCandidates from slice output
+    # Get all slice outputs from state (accumulated during fanout)
     slice_outputs = state.get("candidate_sources_slice_outputs", []) or []
     if not slice_outputs:
         logger.warning("⚠️ No candidate_sources_slice_outputs; skipping slice persist.")
         return {}
     
-    # Take the last slice output (most recent for this fanout)
-    last_slice = slice_outputs[-1]
-    connected_list = last_slice.connected if hasattr(last_slice, "connected") else (last_slice.get("connected") or [])
-    
-    if not connected_list:
-        logger.warning("⚠️ No connected candidates in slice; skipping slice persist.")
-        return {}
-    
-    # Persist each ConnectedCandidates in the slice
+    # Persist each slice
     doc_ids: List[PydanticObjectId] = []
-    for connected in connected_list:
-        doc_id = await upsert_connected_candidates_doc(
-            run_id=run_id,
-            query=query,
-            base_domain=base_domain,
-            connected_candidates=connected,
-            pipeline_version=pipeline_version,
-        )
-        doc_ids.append(doc_id)
+    for slice_output in slice_outputs:
+        # Extract connected list safely (might be Pydantic model or dict)
+        if hasattr(slice_output, "connected"):
+            connected_list = slice_output.connected
+        elif isinstance(slice_output, dict):
+            connected_list = slice_output.get("connected") or []
+        else:
+            connected_list = []
+        
+        if not connected_list:
+            continue
+        
+        # Persist each ConnectedCandidates in this slice
+        for connected in connected_list:
+            # Extract base_domain from the connected candidate
+            if hasattr(connected, "baseDomain"):
+                base_domain = connected.baseDomain or "unknown"
+            elif isinstance(connected, dict):
+                base_domain = connected.get("baseDomain", "unknown")
+            else:
+                base_domain = "unknown"
+            
+            doc_id = await upsert_connected_candidates_doc(
+                run_id=run_id,
+                query=query,
+                base_domain=base_domain,
+                connected_candidates=connected,
+                pipeline_version=pipeline_version,
+            )
+            doc_ids.append(doc_id)
     
-    logger.info("✅ Persisted connected candidates slice: runId=%s domain=%s docs=%s", run_id, base_domain, len(doc_ids))
+    # Update run outputs with slice doc IDs
+    if doc_ids:
+        await update_run_outputs(run_id, connected_candidates_doc_ids=doc_ids)
+    
+    logger.info("✅ Persisted connected candidates slices: runId=%s docs=%s", run_id, len(doc_ids))
     
     return {
         "connected_candidates_slice_doc_ids": doc_ids,
@@ -357,7 +481,7 @@ async def persist_candidates_node_beanie(state: Dict[str, Any]) -> Dict[str, Any
     )
     
     # 2. Flatten to entity docs
-    from research_agent.human_upgrade.structured_outputs.candidates_outputs import ConnectedCandidates
+    from research_agent.structured_outputs.candidates_outputs import ConnectedCandidates
     
     connected_payload = candidate_sources.model_dump() if hasattr(candidate_sources, "model_dump") else dict(candidate_sources)
     
@@ -385,6 +509,7 @@ async def persist_candidates_node_beanie(state: Dict[str, Any]) -> Dict[str, Any
     
     # 4. Create dedupe groups
     dedupe_group_map: Dict[str, str] = {}
+    dedupe_group_ids_set: set[str] = set()
     doc: IntelCandidateEntityDoc
     for doc in entity_docs:
         group = await upsert_dedupe_group_and_add_member(
@@ -397,13 +522,17 @@ async def persist_candidates_node_beanie(state: Dict[str, Any]) -> Dict[str, Any
             },
         )
         dedupe_group_map[doc.entityKey] = group.dedupeGroupId
+        dedupe_group_ids_set.add(group.dedupeGroupId)
     
-    # 5. Update run outputs and stats
+    dedupe_group_ids = list(dedupe_group_ids_set)
+    
+    # 5. Update run outputs and stats (including dedupe group IDs)
     await update_run_outputs(run_id, connected_graph_doc_id=graph_doc_id)
     await update_run_stats(
         run_id,
         candidate_entity_count=len(entity_docs),
-        dedupe_group_count=len(set(dedupe_group_map.values())),
+        dedupe_group_count=len(dedupe_group_ids),
+        dedupe_group_ids=dedupe_group_ids,
     )
     
     # 6. Mark run as complete
@@ -414,6 +543,16 @@ async def persist_candidates_node_beanie(state: Dict[str, Any]) -> Dict[str, Any
         run_id,
         len(entity_docs),
         len(set(dedupe_group_map.values())),
+    )
+    
+    # 7. Publish final persistence event
+    await _publish_progress(
+        run_id=run_id,
+        event_type=EVENT_TYPE_PERSISTENCE_COMPLETE,
+        data={
+            "entity_count": len(entity_docs),
+            "dedupe_group_count": len(set(dedupe_group_map.values())),
+        },
     )
     
     return {

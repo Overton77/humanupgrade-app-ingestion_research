@@ -59,6 +59,7 @@ async def execute_entity_discovery(
     
     try:
         # Enqueue task
+        print(f"[api] Enqueuing entity discovery task for run_id={run_id}")
         task = await run_entity_discovery_graph.kiq(
             query=request.query,
             starter_sources=request.starter_sources,
@@ -67,6 +68,7 @@ async def execute_entity_discovery(
             thread_id=thread_id,
             checkpoint_ns=checkpoint_ns,
         )
+        print(f"[api] ✅ Task enqueued: task_id={task.task_id}, run_id={run_id}")
         
         return TaskResponse(
             task_id=task.task_id,
@@ -76,6 +78,7 @@ async def execute_entity_discovery(
         )
     
     except Exception as e:
+        print(f"[api] ❌ Failed to enqueue task: {e}")
         raise HTTPException(
             status_code=500,
             detail=f"Failed to enqueue task: {str(e)}",
@@ -90,11 +93,13 @@ async def websocket_entity_discovery_progress(
     """
     WebSocket endpoint for streaming entity discovery progress.
     
+    Streams ALL event types (lifecycle + progress) for the given run_id.
+    
     **Message Format:**
     ```json
     {
         "id": "1234567890-0",
-        "event_type": "start" | "complete" | "error",
+        "event_type": "start" | "complete" | "error" | "initialized" | ...,
         "group": "graph",
         "channel": "entity_discovery",
         "key": "<run_id>",
@@ -104,10 +109,23 @@ async def websocket_entity_discovery_progress(
     }
     ```
     
-    **Event Types:**
-    - `start`: Graph execution started (EntityCandidateRunStart model)
-    - `complete`: Graph execution completed (EntityCandidateRunComplete model)
-    - `error`: Graph execution failed (EntityCandidateRunError model)
+    **Lifecycle Event Types:**
+    - `start`: Graph execution started (EntityCandidateRunStart)
+    - `complete`: Graph execution completed (EntityCandidateRunComplete)
+    - `error`: Graph execution failed (EntityCandidateRunError)
+    
+    **Progress Event Types:**
+    - `initialized`: Graph state initialized (EntityCandidateRunInitialized)
+    - `seeds_complete`: Seed entities processed (EntityCandidateRunSeedsComplete)
+    - `official_sources_complete`: Official sources processed (EntityCandidateRunOfficialSourcesComplete)
+    - `domain_catalogs_complete`: Domain catalogs processed (EntityCandidateRunDomainCatalogsComplete)
+    - `slice_started`: Processing slice started (EntityCandidateRunSliceStarted)
+    - `slice_complete`: Processing slice completed (EntityCandidateRunSliceComplete)
+    - `merge_complete`: Entity merge completed (EntityCandidateRunMergeComplete)
+    - `persistence_complete`: Database persistence completed (EntityCandidateRunPersistenceComplete)
+    
+    **Client-Side Filtering:**
+    The client can choose to filter events by event_type if only specific events are needed.
     """
     await manager.connect(websocket, run_id)
     
