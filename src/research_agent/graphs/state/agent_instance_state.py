@@ -4,12 +4,12 @@ from typing import Any, Dict, Optional, Annotated, List, Union
 import operator 
 from typing_extensions import NotRequired 
 from langchain.agents import  AgentState
-from research_agent.human_upgrade.structured_outputs.research_plans_outputs import ( 
+from research_agent.structured_outputs.research_plans_outputs import ( 
    AgentType,  
     AgentInstancePlanWithSources,  
    
 ) 
-from research_agent.human_upgrade.structured_outputs.file_outputs import ( 
+from research_agent.structured_outputs.file_outputs import ( 
     FileReference 
 ) 
 

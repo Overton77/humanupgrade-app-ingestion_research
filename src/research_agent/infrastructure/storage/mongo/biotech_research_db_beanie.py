@@ -20,6 +20,7 @@ from research_agent.models.mongo.entities.docs.candidate_entities import IntelCa
 from research_agent.models.mongo.entities.docs.dedupe_groups import IntelDedupeGroupDoc
 from research_agent.models.mongo.entities.docs.artifacts import IntelArtifactDoc
 from research_agent.models.mongo.research.docs.research_runs import ResearchRunDoc
+from research_agent.models.mongo.threads.docs.conversation_threads import ConversationThreadDoc
 
 
 
@@ -47,6 +48,8 @@ def get_document_models() -> Sequence[Type[Document]]:
         IntelArtifactDoc,
         # Runs
         ResearchRunDoc,
+        # Conversation threads (for coordinator agent)
+        ConversationThreadDoc,
     ]
 
 

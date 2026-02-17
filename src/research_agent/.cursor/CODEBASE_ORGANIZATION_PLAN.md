@@ -1,16 +1,28 @@
 # Research Agent Codebase Organization Plan
 
+> **📋 Living Documentation**: As we implement this system, we will create detailed `.cursor/rules/*.mdc` files and specifications that live on. This ensures each component has persistent, AI-accessible documentation that guides future development and maintenance.
+
 ## Executive Summary
 
-This document outlines the comprehensive reorganization of the `research_agent` codebase to eliminate the legacy `human_upgrade/` module and establish a clean, scalable architecture that supports:
+This document outlines the **NEW PHASED APPROACH** for building the `research_agent` codebase. We are moving away from the entity-candidate-domain-catalog approach to a more flexible, conversation-first architecture.
 
-1. **FastAPI Server Layer** (3 servers: Graph Execution, Mission Control, Memory/Thread Management)
+### Implementation Phases (In Order)
+
+1. **PHASE 1: Coordinator Agent** (Priority 1) - Interactive research plan builder with human-in-the-loop
+2. **PHASE 2: Research Plan & Mission Orchestration** (Priority 2 - MOST CRITICAL) - Redesigned flexible execution
+3. **PHASE 3: Entity Candidates Refactor** (Priority 3) - Lightweight candidate ranking tool  
+4. **PHASE 4: Extraction & Storage** (Priority 4) - Knowledge graph ingestion pipeline
+
+### Architecture Supports
+
+1. **FastAPI Server Layer** (4 servers: Coordinator, Mission Control, Memory/Thread, Extraction)
 2. **Distributed Task Execution** (Taskiq + RabbitMQ + Redis + MongoDB state)
-3. **MongoDB Persistence** (Beanie ODM for all research artifacts)
+3. **MongoDB Persistence** (Beanie ODM for all research artifacts + thread messages)
 4. **Neo4j Knowledge Graph Ingestion** (via GraphQL client)
 5. **LangGraph Memory System** (Semantic, Episodic, Procedural via PostgreSQL Store)
+6. **Next.js Research Client** (Human-in-the-loop interface in `research_client/`)
 
-**Primary Goal**: Flatten `human_upgrade/` into a logical, maintainable structure within `research_agent/` that cleanly separates concerns and supports multiple FastAPI servers.
+**Primary Goal**: Build a flexible, human-guided research system where plans are created conversationally (Coordinator Agent) and executed flexibly (redesigned Mission Orchestration), with existing code refactored/reused where appropriate.
 
 ---
 
@@ -119,24 +131,23 @@ ingestion/src/research_agent/
 │   │   ├── exceptions.py                 # Custom exception handlers
 │   │   └── responses.py                  # Standard response schemas
 │   │
-│   ├── graph_execution/                  # Server 1: Graph Execution API
+│   ├── coordinator/                      # Server 1: Coordinator Agent API (PHASE 1 - NEW)
 │   │   ├── __init__.py
 │   │   ├── main.py                       # FastAPI app
 │   │   ├── routes/
 │   │   │   ├── __init__.py
-│   │   │   ├── entity_discovery.py       # POST/WS /graphs/entity-discovery/*
-│   │   │   ├── research_planning.py      # POST/WS /graphs/research-plan/*
+│   │   │   ├── threads.py                # POST/GET /coordinator/threads/*
+│   │   │   ├── checkpoints.py            # POST /coordinator/checkpoints/{id}/approve
 │   │   │   └── health.py                 # GET /health, /ready
-│   │   ├── schemas/                      # Request/response models
+│   │   ├── schemas/
 │   │   │   ├── __init__.py
-│   │   │   ├── entity_discovery.py       # EntityDiscoveryRequest/Response
-│   │   │   └── research_planning.py      # ResearchPlanRequest/Response
+│   │   │   ├── threads.py                # Thread request/response models
+│   │   │   └── checkpoints.py            # Checkpoint approval models
 │   │   └── websockets/
 │   │       ├── __init__.py
-│   │       ├── graph_stream.py           # WebSocket graph streaming
-│   │       └── connection_manager.py     # WS connection pool
+│   │       └── coordinator_stream.py     # WebSocket streaming for Coordinator
 │   │
-│   ├── mission_control/                  # Server 2: Mission Control API
+│   ├── mission_control/                  # Server 2: Mission Control API (PHASE 2 - ENHANCED)
 │   │   ├── __init__.py
 │   │   ├── main.py
 │   │   ├── routes/
@@ -185,32 +196,48 @@ ingestion/src/research_agent/
 │
 ├── graphs/                                # Layer 2: LangGraph Orchestration
 │   ├── __init__.py
-│   ├── entity_discovery/
+│   ├── coordinator/                      # PHASE 1: Coordinator Agent Graph (NEW)
 │   │   ├── __init__.py
-│   │   ├── graph.py                      # Main graph builder
-│   │   ├── nodes/                        # Node implementations
-│   │   │   ├── __init__.py
-│   │   │   ├── seed_extraction.py
-│   │   │   ├── official_sources.py
-│   │   │   ├── domain_catalogs.py
-│   │   │   ├── candidate_slices.py
-│   │   │   └── persistence.py            # Beanie persistence nodes
-│   │   ├── state.py                      # Graph state definitions
-│   │   └── helpers.py                    # Graph-specific helpers
-│   │
-│   ├── research_planning/
-│   │   ├── __init__.py
-│   │   ├── graph.py
+│   │   ├── graph.py                      # Main coordinator graph builder
 │   │   ├── nodes/
 │   │   │   ├── __init__.py
-│   │   │   ├── initial_plan.py
-│   │   │   ├── source_expansion.py
-│   │   │   ├── attach_sources.py
-│   │   │   └── assemble_final.py
+│   │   │   ├── understand_goals.py       # Extract research goals from user
+│   │   │   ├── query_knowledge.py        # Query existing KG entities
+│   │   │   ├── query_past_research.py    # Query similar past runs
+│   │   │   ├── build_scope.py            # Build research scope
+│   │   │   ├── scope_checkpoint.py       # Human approval checkpoint #1
+│   │   │   ├── suggest_strategies.py     # Suggest research strategies
+│   │   │   ├── build_stages.py           # Build research stages
+│   │   │   ├── allocate_agents.py        # Allocate agent types
+│   │   │   ├── final_plan_checkpoint.py  # Human approval checkpoint #2
+│   │   │   └── save_and_emit.py          # Save plan, emit to mission queue
+│   │   ├── state.py                      # CoordinatorAgentState
+│   │   └── helpers.py                    # Coordinator-specific helpers
+│   │
+│   ├── candidate_exploration/            # PHASE 3: Candidate Exploration (REFACTORED)
+│   │   ├── __init__.py
+│   │   ├── graph.py                      # Lightweight exploration graph
+│   │   ├── nodes/
+│   │   │   ├── __init__.py
+│   │   │   ├── quick_extraction.py       # Fast entity extraction
+│   │   │   ├── relevance_ranking.py      # Rank by relevance
+│   │   │   ├── novelty_check.py          # Check against KG
+│   │   │   └── completeness_estimate.py  # Estimate researchability
 │   │   ├── state.py
 │   │   └── helpers.py
 │   │
-│   ├── entity_extraction/                # Future: Re-implemented extraction graph
+│   ├── research_planning/                # PHASE 2: Research Planning (REDESIGNED)
+│   │   ├── __init__.py
+│   │   ├── graph.py                      # Flexible research plan graph
+│   │   ├── nodes/
+│   │   │   ├── __init__.py
+│   │   │   ├── validate_plan.py          # Validate plan structure
+│   │   │   ├── optimize_dependencies.py  # Optimize stage dependencies
+│   │   │   └── prepare_for_execution.py  # Final prep before execution
+│   │   ├── state.py
+│   │   └── helpers.py
+│   │
+│   ├── entity_extraction/                # PHASE 4: Extraction Graph (TO BE IMPLEMENTED)
 │   │   ├── __init__.py
 │   │   ├── graph.py
 │   │   ├── nodes/
@@ -359,30 +386,57 @@ ingestion/src/research_agent/
 │   │
 │   ├── mongo/                            # MongoDB Beanie models
 │   │   ├── __init__.py
-│   │   ├── research/
-│   │   │   ├── __init__.py
-│   │   │   ├── docs/                     # Document models
-│   │   │   │   ├── __init__.py
-│   │   │   │   ├── research_mission_plans.py
-│   │   │   │   ├── research_runs.py
-│   │   │   │   └── outputs.py
-│   │   │   ├── embedded/                 # Embedded models
-│   │   │   │   ├── __init__.py
-│   │   │   │   ├── plan_models.py
-│   │   │   │   └── stage_models.py
-│   │   │   └── enums.py
-│   │   │
-│   │   ├── candidates/
+│   │   ├── coordinator/                  # PHASE 1: Coordinator Models (NEW)
 │   │   │   ├── __init__.py
 │   │   │   ├── docs/
 │   │   │   │   ├── __init__.py
-│   │   │   │   ├── candidate_seeds.py
-│   │   │   │   ├── official_starter_sources.py
-│   │   │   │   ├── connected_candidates.py
-│   │   │   │   └── candidate_sources_connected.py
+│   │   │   │   ├── coordinator_threads.py    # Conversation threads
+│   │   │   │   └── coordinator_checkpoints.py # Human approval checkpoints
 │   │   │   └── embedded/
+│   │   │       ├── __init__.py
+│   │   │       ├── research_goals.py         # Structured research goals
+│   │   │       └── research_scope.py         # Research scope model
 │   │   │
-│   │   ├── entities/
+│   │   ├── research/                     # PHASE 2: Research Models (REDESIGNED)
+│   │   │   ├── __init__.py
+│   │   │   ├── docs/
+│   │   │   │   ├── __init__.py
+│   │   │   │   ├── research_mission_plans.py # Flexible research plans
+│   │   │   │   ├── research_runs.py          # Mission execution tracking
+│   │   │   │   ├── agent_instance_outputs.py # Agent instance outputs (NEW)
+│   │   │   │   └── substage_outputs.py       # Sub-stage aggregated outputs (NEW)
+│   │   │   ├── embedded/
+│   │   │   │   ├── __init__.py
+│   │   │   │   ├── research_objectives.py    # ResearchObjective model (NEW)
+│   │   │   │   ├── agent_instance_plan.py    # AgentInstancePlan model (NEW)
+│   │   │   │   ├── sub_stage.py              # SubStage model (NEW)
+│   │   │   │   └── stage.py                  # Stage model (NEW)
+│   │   │   └── enums.py
+│   │   │
+│   │   ├── candidates/                   # PHASE 3: Candidates (SIMPLIFIED)
+│   │   │   ├── __init__.py
+│   │   │   ├── docs/
+│   │   │   │   ├── __init__.py
+│   │   │   │   ├── candidate_explorations.py # Exploration results (NEW)
+│   │   │   │   └── ranked_candidates.py      # Ranked candidates (NEW)
+│   │   │   └── embedded/
+│   │   │       ├── __init__.py
+│   │   │       └── ranked_candidate.py       # Single ranked candidate
+│   │   │
+│   │   ├── extraction/                   # PHASE 4: Extraction Models (NEW)
+│   │   │   ├── __init__.py
+│   │   │   ├── docs/
+│   │   │   │   ├── __init__.py
+│   │   │   │   ├── extraction_runs.py        # Extraction pipeline runs
+│   │   │   │   └── extracted_entities.py     # Pre-KG extracted entities
+│   │   │   └── embedded/
+│   │   │       ├── __init__.py
+│   │   │       ├── organization_extracted.py
+│   │   │       ├── person_extracted.py
+│   │   │       ├── product_extracted.py
+│   │   │       └── compound_extracted.py
+│   │   │
+│   │   ├── entities/                     # Keep for backward compatibility
 │   │   │   ├── __init__.py
 │   │   │   ├── docs/
 │   │   │   │   ├── __init__.py
@@ -392,7 +446,7 @@ ingestion/src/research_agent/
 │   │   │   │   └── artifacts.py
 │   │   │   └── embedded/
 │   │   │
-│   │   └── domains/
+│   │   └── domains/                      # DEPRECATED (keep for backward compat)
 │   │       ├── __init__.py
 │   │       ├── docs/
 │   │       │   ├── __init__.py
@@ -421,6 +475,22 @@ ingestion/src/research_agent/
 │   │   ├── tavily_extract.py             # Tavily extract tool
 │   │   ├── exa_search.py                 # Exa search tool
 │   │   └── wikipedia.py                  # Wikipedia tool
+│   │
+│   ├── graphql/                          # PHASE 1: GraphQL Query Tools (NEW)
+│   │   ├── __init__.py
+│   │   ├── query_entities.py             # Query existing entities in KG
+│   │   ├── get_entity_details.py         # Get full entity details
+│   │   └── search_by_type.py             # Search entities by type
+│   │
+│   ├── research_history/                 # PHASE 1: Research History Tools (NEW)
+│   │   ├── __init__.py
+│   │   ├── query_past_runs.py            # Query similar past research
+│   │   ├── get_run_summary.py            # Get run summary/outcomes
+│   │   └── get_effective_agents.py       # Get agent types that worked
+│   │
+│   ├── candidate_exploration/            # PHASE 3: Candidate Tools (NEW)
+│   │   ├── __init__.py
+│   │   └── explore_and_rank.py           # Explore and rank candidates tool
 │   │
 │   ├── browser/
 │   │   ├── __init__.py
@@ -567,161 +637,799 @@ ingestion/src/research_agent/
 
 ---
 
-## Migration Strategy (Step-by-Step)
+## NEW Implementation Strategy (Phased Approach)
 
-### Phase 1: Foundation (Week 1)
+> **Critical Change**: We are NOT migrating the old structure. We are building NEW components first (Phases 1-4), then refactoring existing code to integrate.
 
-**Goal**: Set up new directory structure + move non-breaking modules
+---
 
-1. **Create new directory structure**:
-   ```bash
-   mkdir -p api/{common,graph_execution,mission_control,memory_and_threads,mongodb_models}
-   mkdir -p graphs/{entity_discovery,research_planning,common}
-   mkdir -p agents/{factory,types,state,prompts,tools}
-   mkdir -p orchestration/{dag,scheduler,workers,queue}
-   mkdir -p services/{mongo,neo4j,graphql}
-   mkdir -p memory/{langmem,store,tools}
-   mkdir -p models/{base,mongo,api,graph}
-   mkdir -p tools/{web,browser,filesystem,scholarly,context}
-   mkdir -p prompts/{graphs,agents}
-   mkdir -p shared
-   mkdir -p config/{environments}
-   mkdir -p scripts/{test_data}
-   mkdir -p tests/{unit,integration,fixtures}
-   ```
+## PHASE 1: Coordinator Agent (Week 1)
 
-2. **Move low-risk modules first** (no import dependencies):
-   ```bash
-   # Utilities
-   mv human_upgrade/utils/datetime_helpers.py shared/datetime_helpers.py
-   mv human_upgrade/utils/dedupe.py shared/dedupe.py
-   mv human_upgrade/utils/formatting.py shared/formatting.py
-   mv human_upgrade/utils/artifacts.py shared/artifacts.py
-   
-   # Logging
-   mv human_upgrade/logger.py shared/logging_utils.py
-   
-   # Constants
-   mv human_upgrade/constants/ shared/constants/
-   
-   # Base models (LLMs)
-   mv human_upgrade/base_models.py infrastructure/llm/model_registry.py
-   ```
+**Goal**: Build interactive research plan builder with human-in-the-loop
 
-3. **Update imports in moved files**:
-   ```python
-   # Before:
-   from research_agent.human_upgrade.utils.artifacts import save_json_artifact
-   
-   # After:
-   from research_agent.shared.artifacts import save_json_artifact
-   ```
+### Step 1: Create Coordinator Directory Structure
 
-### Phase 2: Models & Schemas (Week 1-2)
+```bash
+# Phase 1 directories
+mkdir -p api/coordinator/{routes,schemas,websockets}
+mkdir -p graphs/coordinator/nodes
+mkdir -p models/mongo/coordinator/{docs,embedded}
+mkdir -p tools/{graphql,research_history}
+mkdir -p tests/unit/coordinator
+mkdir -p tests/integration/coordinator
+```
 
-**Goal**: Reorganize all Pydantic models
+### Step 2: Create MongoDB Models
 
-1. **Move structured outputs → models/graph/**:
-   ```bash
-   mv human_upgrade/structured_outputs/candidates_outputs.py models/graph/candidates.py
-   mv human_upgrade/structured_outputs/research_plans_outputs.py models/graph/research_plans.py
-   mv human_upgrade/structured_outputs/file_outputs.py models/graph/file_outputs.py
-   ```
+```python
+# models/mongo/coordinator/docs/coordinator_threads.py
+class CoordinatorThreadDoc(Document):
+    thread_id: str
+    user_id: Optional[str]
+    status: str  # "active" | "scope_approved" | "plan_approved"
+    initial_query: str
+    messages: List[Dict]  # Serialized BaseMessage
+    # ... (see AGENTS.md for full spec)
 
-2. **Keep MongoDB models as is** (already well-organized in `models/mongo/`)
+# models/mongo/coordinator/docs/coordinator_checkpoints.py
+class CoordinatorCheckpointDoc(Document):
+    checkpoint_id: str
+    thread_id: str
+    checkpoint_type: str  # "scope_approval" | "final_plan_approval"
+    state_snapshot: Dict
+    approved: Optional[bool]
+    # ... (see AGENTS.md for full spec)
+```
 
-3. **Create API schemas** (new):
-   ```python
-   # models/api/graph_execution.py
-   from pydantic import BaseModel
-   from typing import List, Optional
-   
-   class EntityDiscoveryRequest(BaseModel):
-       query: str
-       starter_sources: List[str] = []
-       starter_content: str = ""
-   
-   class EntityDiscoveryResponse(BaseModel):
-       candidate_sources: dict  # CandidateSourcesConnected serialized
-       run_id: str
-       pipeline_version: str
-   ```
+### Step 3: Create GraphQL Query Tools
 
-4. **Update all imports**:
-   ```python
-   # Before:
-   from research_agent.human_upgrade.structured_outputs.candidates_outputs import ConnectedCandidates
-   
-   # After:
-   from research_agent.models.graph.candidates import ConnectedCandidates
-   ```
+```python
+# tools/graphql/query_entities.py
+class QueryExistingEntitiesTool(BaseTool):
+    """Query existing entities in the knowledge graph."""
+    name = "query_existing_entities"
+    description = "Search for entities already in the knowledge graph"
+    
+    async def _arun(self, query: str) -> str:
+        # Call GraphQL API to search entities
+        pass
 
-### Phase 3: Tools (Week 2)
+# tools/graphql/get_entity_details.py
+# tools/graphql/search_by_type.py
+```
 
-**Goal**: Consolidate and organize all LangChain tools
+### Step 4: Create Research History Tools
 
-1. **Move web search tools**:
-   ```bash
-   mv human_upgrade/tools/web_search_tools.py tools/web/tavily_search.py
-   # Split into separate files: tavily_search.py, tavily_extract.py, wikipedia.py
-   ```
+```python
+# tools/research_history/query_past_runs.py
+class QueryPastResearchRunsTool(BaseTool):
+    """Query similar past research missions."""
+    name = "query_past_research_runs"
+    description = "Find similar past research missions and their outcomes"
+    
+    async def _arun(self, query: str) -> str:
+        # Query ResearchRunDoc collection
+        # Return summaries of similar runs
+        pass
 
-2. **Move filesystem tools**:
-   ```bash
-   mv human_upgrade/tools/file_system_tools.py tools/filesystem/
-   # Split: read_file.py, write_file.py, workspace_helpers.py
-   ```
+# tools/research_history/get_run_summary.py
+# tools/research_history/get_effective_agents.py
+```
 
-3. **Create tool registry**:
-   ```python
-   # tools/registry.py
-   from typing import Dict, List
-   from langchain.tools import BaseTool
-   from .web.tavily_search import tavily_search_validation
-   from .web.tavily_extract import tavily_extract_validation
-   # ... import all tools
-   
-   TOOL_REGISTRY: Dict[str, BaseTool] = {
-       "search.tavily": tavily_search_validation,
-       "extract.tavily": tavily_extract_validation,
-       # ... register all tools
-   }
-   
-   def get_tools(tool_names: List[str]) -> List[BaseTool]:
-       return [TOOL_REGISTRY[name] for name in tool_names if name in TOOL_REGISTRY]
-   ```
+### Step 5: Build Coordinator LangGraph
 
-4. **Eliminate duplicate `agent_tools/`**:
-   - Merge any unique tools into `tools/`
-   - Delete `agent_tools/` directory
+```python
+# graphs/coordinator/graph.py
+from langgraph.graph import StateGraph, START, END
 
-### Phase 4: Prompts (Week 2-3)
+def build_coordinator_agent_graph():
+    """Build the Coordinator Agent LangGraph."""
+    
+    builder = StateGraph(CoordinatorAgentState)
+    
+    # Nodes
+    builder.add_node("understand_goals", understand_goals_node)
+    builder.add_node("query_knowledge", query_knowledge_node)
+    builder.add_node("build_scope", build_scope_node)
+    builder.add_node("scope_checkpoint", scope_checkpoint_node)  # interrupt()
+    builder.add_node("suggest_strategies", suggest_strategies_node)
+    builder.add_node("build_stages", build_stages_node)
+    builder.add_node("allocate_agents", allocate_agents_node)
+    builder.add_node("final_plan_checkpoint", final_plan_checkpoint_node)  # interrupt()
+    builder.add_node("save_and_emit", save_and_emit_node)
+    
+    # Edges
+    builder.add_edge(START, "understand_goals")
+    builder.add_edge("understand_goals", "query_knowledge")
+    builder.add_edge("query_knowledge", "build_scope")
+    builder.add_edge("build_scope", "scope_checkpoint")
+    # ... (full flow in AGENTS.md)
+    
+    return builder.compile(
+        checkpointer=get_postgres_checkpointer(),
+        interrupt_before=["scope_checkpoint", "final_plan_checkpoint"]
+    )
+```
 
-**Goal**: Organize all prompt templates
+### Step 6: Create FastAPI Routes
 
-1. **Move graph prompts**:
-   ```bash
-   mv human_upgrade/prompts/candidates_prompts.py prompts/graphs/entity_discovery/
-   # Split into: seed_extraction.py, official_sources.py, domain_catalogs.py, candidate_slices.py
-   
-   mv human_upgrade/prompts/research_plan_prompts.py prompts/graphs/research_planning/
-   # Split into: initial_plan.py, source_expansion.py, attach_sources.py
-   ```
+```python
+# api/coordinator/routes/threads.py
+@router.post("/coordinator/threads")
+async def create_coordinator_thread(request: CreateThreadRequest):
+    """Start a new Coordinator Agent conversation."""
+    # Create thread in MongoDB
+    # Invoke graph with initial message
+    # Return thread_id
+    pass
 
-2. **Move agent prompts**:
-   ```bash
-   mv human_upgrade/prompts/sub_agent_prompt_builders.py agents/prompts/initial/
-   mv human_upgrade/prompts/sub_agent_final_synthesis_prompt_builders.py agents/prompts/final_synthesis/
-   ```
+@router.post("/coordinator/threads/{thread_id}/messages")
+async def send_message(thread_id: str, message: SendMessageRequest):
+    """Send a message to the Coordinator Agent."""
+    # Append message to thread
+    # Invoke graph
+    # Return response
+    pass
 
-3. **Update prompt imports**:
-   ```python
-   # Before:
-   from research_agent.human_upgrade.prompts.candidates_prompts import PROMPT_NODE_SEED_ENTITY_EXTRACTION
-   
-   # After:
-   from research_agent.prompts.graphs.entity_discovery.seed_extraction import PROMPT_NODE_SEED_ENTITY_EXTRACTION
-   ```
+# api/coordinator/routes/checkpoints.py
+@router.post("/coordinator/checkpoints/{checkpoint_id}/approve")
+async def approve_checkpoint(checkpoint_id: str, approval: CheckpointApprovalRequest):
+    """Approve or reject a checkpoint."""
+    # Update checkpoint
+    # Resume graph from checkpoint
+    pass
+```
+
+### Step 7: Initialize Next.js Research Client
+
+```bash
+cd ../../  # Go to repo root
+mkdir -p research_client
+cd research_client
+npx create-next-app@latest . --typescript --tailwind --app --no-src-dir
+```
+
+```typescript
+// research_client/app/page.tsx
+export default function Home() {
+  return (
+    <div>
+      <h1>Research Plan Builder</h1>
+      {/* Thread list or create new thread */}
+    </div>
+  );
+}
+
+// research_client/app/threads/[thread_id]/page.tsx
+export default function ThreadPage({ params }: { params: { thread_id: string } }) {
+  return (
+    <ChatInterface threadId={params.thread_id} />
+  );
+}
+```
+
+### Step 8: Create .cursor/rules Specification
+
+```markdown
+# .cursor/rules/coordinator-agent.mdc
+---
+description: Coordinator Agent implementation specification
+---
+
+# Coordinator Agent Specification
+
+[Full detailed spec with examples, state transitions, tool usage patterns]
+```
+
+---
+
+## PHASE 2: Research Plan & Mission Orchestration (Week 2-3)
+
+**Goal**: Redesign research plan structure and enhance execution engine
+
+### Step 1: Redesign Research Plan Models
+
+```python
+# models/mongo/research/embedded/research_objectives.py
+class ResearchObjective(BaseModel):
+    objective_id: str
+    description: str  # "Identify the leadership team"
+    success_criteria: List[str]
+    priority: str  # "critical" | "high" | "medium" | "low"
+
+# models/mongo/research/embedded/agent_instance_plan.py
+class AgentInstancePlan(BaseModel):
+    instance_id: str
+    agent_type: str
+    objectives: List[ResearchObjective]  # What to do
+    seed_context: Dict[str, Any]
+    starter_sources: List[str]  # OPTIONAL
+    allowed_tools: List[str]
+    requires_outputs_from: List[str]  # Dependencies
+    previous_stage_outputs: Optional[Dict]  # From prev stage
+
+# models/mongo/research/embedded/sub_stage.py
+class SubStage(BaseModel):
+    sub_stage_id: str
+    name: str
+    agent_instances: List[str]  # instance_ids
+    execution_mode: str  # "parallel" | "sequential"
+    depends_on_sub_stages: List[str]
+    output_aggregation: str  # "merge_all" | "best_of" | "consensus"
+
+# models/mongo/research/embedded/stage.py
+class Stage(BaseModel):
+    stage_id: str
+    name: str
+    sub_stages: List[str]  # sub_stage_ids
+    execution_mode: str
+    depends_on_stages: List[str]
+
+# models/mongo/research/docs/research_mission_plans.py
+class ResearchMissionPlanDoc(Document):
+    mission_id: str
+    created_by: str  # "coordinator_agent"
+    mission_name: str
+    stages: List[Stage]
+    sub_stages: List[SubStage]
+    agent_instances: List[AgentInstancePlan]
+    execution_strategy: str  # "sequential" | "parallel" | "hybrid"
+    # ... (see AGENTS.md for full spec)
+```
+
+### Step 2: Update DAG Builder for Flexible Execution
+
+```python
+# orchestration/dag/builder.py (ENHANCED)
+def build_mission_dag(plan: ResearchMissionPlan) -> MissionDAG:
+    """Build DAG from flexible research plan."""
+    
+    tasks = {}
+    
+    # Create tasks for agent instances
+    for instance in plan.agent_instances:
+        task_id = f"instance::{plan.mission_id}::{instance.instance_id}"
+        
+        # Build dependencies from:
+        # 1. requires_outputs_from (instance dependencies)
+        # 2. sub_stage dependencies
+        # 3. stage dependencies
+        depends_on = build_dependencies(instance, plan)
+        
+        tasks[task_id] = TaskDefinition(
+            task_id=task_id,
+            task_type="INSTANCE_RUN",
+            depends_on=depends_on,
+            payload=instance.model_dump(),
+        )
+    
+    # Create aggregation tasks for sub-stages
+    for sub_stage in plan.sub_stages:
+        task_id = f"substage_reduce::{plan.mission_id}::{sub_stage.sub_stage_id}"
+        depends_on = [f"instance::{plan.mission_id}::{inst_id}" 
+                      for inst_id in sub_stage.agent_instances]
+        
+        tasks[task_id] = TaskDefinition(
+            task_id=task_id,
+            task_type="SUBSTAGE_REDUCE",
+            depends_on=depends_on,
+            payload=sub_stage.model_dump(),
+        )
+    
+    return MissionDAG(tasks=tasks)
+```
+
+### Step 3: Enhance Worker Execution (Output Passing)
+
+```python
+# orchestration/workers/handlers/instance_run.py (ENHANCED)
+async def handle_instance_run(task: TaskDefinition) -> TaskResult:
+    """Execute agent instance with output passing support."""
+    
+    plan = AgentInstancePlan(**task.payload)
+    
+    # Load previous stage outputs if this instance depends on others
+    previous_outputs = None
+    if plan.requires_outputs_from:
+        previous_outputs = await load_outputs_from_instances(plan.requires_outputs_from)
+    
+    # Build agent
+    agent = build_worker_agent(
+        agent_type=plan.agent_type,
+        allowed_tools=plan.allowed_tools,
+    )
+    
+    # Execute with previous outputs
+    result = await execute_agent_instance(
+        plan=plan,
+        previous_outputs=previous_outputs,  # NEW: pass outputs
+    )
+    
+    # Save outputs for downstream instances
+    await save_instance_outputs(
+        instance_id=plan.instance_id,
+        outputs=result.outputs,
+    )
+    
+    return TaskResult(status="completed", outputs=result.outputs)
+```
+
+### Step 4: Implement Sub-Stage Aggregation
+
+```python
+# orchestration/workers/handlers/substage_reduce.py (NEW)
+async def handle_substage_reduce(task: TaskDefinition) -> TaskResult:
+    """Aggregate outputs from all instances in a sub-stage."""
+    
+    sub_stage = SubStage(**task.payload)
+    
+    # Load outputs from all instances in this sub-stage
+    instance_outputs = await load_instance_outputs(sub_stage.agent_instances)
+    
+    # Aggregate based on strategy
+    if sub_stage.output_aggregation == "merge_all":
+        aggregated = merge_all_outputs(instance_outputs)
+    elif sub_stage.output_aggregation == "best_of":
+        aggregated = await llm_select_best_outputs(instance_outputs)
+    elif sub_stage.output_aggregation == "consensus":
+        aggregated = await llm_find_consensus(instance_outputs)
+    
+    # Save aggregated outputs
+    await save_substage_outputs(
+        sub_stage_id=sub_stage.sub_stage_id,
+        outputs=aggregated,
+    )
+    
+    return TaskResult(status="completed", outputs=aggregated)
+```
+
+### Step 5: Implement WebSocket Progress Streaming
+
+```python
+# api/mission_control/websockets/progress_stream.py (NEW)
+@router.websocket("/missions/runs/{run_id}/progress")
+async def stream_mission_progress(websocket: WebSocket, run_id: str):
+    """Stream real-time progress updates."""
+    await websocket.accept()
+    
+    # Subscribe to Redis events for this mission
+    async for event in subscribe_to_mission_events(run_id):
+        await websocket.send_json({
+            "event_type": event.event_type,
+            "message": event.message,
+            "progress_percent": event.progress_percent,
+            "timestamp": event.timestamp.isoformat(),
+        })
+```
+
+### Step 6: Update Coordinator Agent to Generate Flexible Plans
+
+```python
+# graphs/coordinator/nodes/allocate_agents.py (UPDATED)
+async def allocate_agents_node(state: CoordinatorAgentState) -> Dict:
+    """Allocate agent types with flexible objectives."""
+    
+    # Generate agent instances with objectives (not domain catalogs)
+    agent_instances = []
+    for stage in state["research_stages"]:
+        for objective_group in stage.objective_groups:
+            instance = AgentInstancePlan(
+                instance_id=generate_id(),
+                agent_type=select_agent_type(objective_group),
+                objectives=objective_group.objectives,
+                seed_context=build_seed_context(objective_group),
+                starter_sources=state.get("source_recommendations", []),  # Optional
+                allowed_tools=["tavily_search", "tavily_extract", "write_file", ...],
+            )
+            agent_instances.append(instance)
+    
+    return {"agent_instances": agent_instances}
+```
+
+### Step 7: Create .cursor/rules Specification
+
+```markdown
+# .cursor/rules/research-plan-structure.mdc
+---
+description: Research Plan flexible structure specification
+---
+
+# Research Plan Structure
+
+[Full spec with examples of sequential, parallel, and hybrid execution]
+```
+
+---
+
+## PHASE 3: Entity Candidates Refactor (Week 3-4)
+
+**Goal**: Transform entity discovery into lightweight candidate ranking tool
+
+### Step 1: Simplify Entity Discovery Graph
+
+```python
+# graphs/candidate_exploration/graph.py (SIMPLIFIED)
+def build_candidate_exploration_graph():
+    """Build lightweight candidate exploration graph."""
+    
+    builder = StateGraph(CandidateExplorationState)
+    
+    # Simplified nodes (NO domain catalogs)
+    builder.add_node("quick_extraction", quick_extraction_node)  # Fast LLM extraction
+    builder.add_node("relevance_ranking", relevance_ranking_node)  # Score relevance
+    builder.add_node("novelty_check", novelty_check_node)  # Query KG
+    builder.add_node("completeness_estimate", completeness_estimate_node)  # Quick check
+    
+    builder.add_edge(START, "quick_extraction")
+    builder.add_edge("quick_extraction", "relevance_ranking")
+    builder.add_edge("relevance_ranking", "novelty_check")
+    builder.add_edge("novelty_check", "completeness_estimate")
+    builder.add_edge("completeness_estimate", END)
+    
+    return builder.compile()
+```
+
+### Step 2: Implement Ranking Logic
+
+```python
+# graphs/candidate_exploration/nodes/relevance_ranking.py
+async def relevance_ranking_node(state: CandidateExplorationState) -> Dict:
+    """Rank candidates by relevance to query."""
+    
+    candidates = state["extracted_candidates"]
+    query = state["query"]
+    
+    # Use LLM to score relevance (0-1)
+    ranked = await llm_rank_candidates_by_relevance(
+        candidates=candidates,
+        query=query,
+    )
+    
+    return {"ranked_candidates": ranked}
+
+# graphs/candidate_exploration/nodes/novelty_check.py
+async def novelty_check_node(state: CandidateExplorationState) -> Dict:
+    """Check if candidates are already in KG."""
+    
+    for candidate in state["ranked_candidates"]:
+        # Query GraphQL API
+        existing = await query_kg_for_entity(candidate.canonical_name)
+        
+        if existing:
+            candidate.novelty_score = 0.1  # Already have it
+        else:
+            candidate.novelty_score = 0.9  # New entity
+    
+    return {"ranked_candidates": state["ranked_candidates"]}
+```
+
+### Step 3: Create Tool Interface
+
+```python
+# tools/candidate_exploration/explore_and_rank.py
+class ExploreAndRankCandidatesTool(BaseTool):
+    """Tool for Coordinator Agent to explore and rank candidates."""
+    
+    name = "explore_and_rank_candidates"
+    description = """
+    Quickly explore candidate entities and rank them by research priority.
+    Use this to help users prioritize which entities to research deeply.
+    
+    Input: query (string), max_candidates (int, default 10)
+    Output: Ranked list with recommendations
+    """
+    
+    async def _arun(self, query: str, max_candidates: int = 10) -> str:
+        graph = build_candidate_exploration_graph()
+        result = await graph.ainvoke({
+            "query": query,
+            "max_candidates": max_candidates,
+        })
+        
+        # Format for LLM
+        output = "Ranked Candidates:\n\n"
+        for i, candidate in enumerate(result["ranked_candidates"], 1):
+            output += f"{i}. {candidate.canonical_name}\n"
+            output += f"   Priority: {candidate.research_priority}\n"
+            output += f"   Relevance: {candidate.relevance_score:.2f}\n"
+            output += f"   Novelty: {candidate.novelty_score:.2f}\n"
+            output += f"   Summary: {candidate.quick_summary}\n\n"
+        
+        return output
+```
+
+### Step 4: Integrate with Coordinator Agent
+
+```python
+# graphs/coordinator/graph.py (ADD TOOL)
+def build_coordinator_agent_graph():
+    """Build Coordinator Agent with candidate exploration tool."""
+    
+    tools = [
+        tavily_search_tool,
+        query_existing_entities_tool,
+        query_past_research_runs_tool,
+        explore_and_rank_candidates_tool,  # NEW TOOL
+    ]
+    
+    # ... rest of graph setup
+```
+
+---
+
+## PHASE 4: Extraction & Storage (Week 4+)
+
+**Goal**: Build extraction pipeline to populate knowledge graph
+
+### Step 1: Create Extraction Graph
+
+```python
+# graphs/entity_extraction/graph.py
+def build_extraction_graph():
+    """Build entity extraction graph."""
+    
+    builder = StateGraph(ExtractionState)
+    
+    builder.add_node("parse_reports", parse_reports_node)
+    builder.add_node("extract_entities", extract_entities_node)
+    builder.add_node("extract_relationships", extract_relationships_node)
+    builder.add_node("link_evidence", link_evidence_node)
+    builder.add_node("graphql_upsert", graphql_upsert_node)
+    
+    builder.add_edge(START, "parse_reports")
+    builder.add_edge("parse_reports", "extract_entities")
+    builder.add_edge("extract_entities", "extract_relationships")
+    builder.add_edge("extract_relationships", "link_evidence")
+    builder.add_edge("link_evidence", "graphql_upsert")
+    builder.add_edge("graphql_upsert", END)
+    
+    return builder.compile()
+
+# graphs/entity_extraction/nodes/extract_entities.py
+async def extract_entities_node(state: ExtractionState) -> Dict:
+    """Extract structured entities from reports using LLM."""
+    
+    reports_content = state["parsed_reports"]
+    
+    # Use LLM with structured outputs
+    organizations = await llm_extract_organizations(reports_content)
+    people = await llm_extract_people(reports_content)
+    products = await llm_extract_products(reports_content)
+    compounds = await llm_extract_compounds(reports_content)
+    
+    return {
+        "organizations": organizations,
+        "people": people,
+        "products": products,
+        "compounds": compounds,
+    }
+```
+
+### Step 2: Implement GraphQL Mutations
+
+```python
+# services/graphql/mutations.py
+async def upsert_organization(client: GraphQLClient, org: OrganizationExtracted) -> str:
+    """Upsert organization to Neo4j."""
+    
+    mutation = """
+    mutation UpsertOrganization($input: OrganizationInput!) {
+        upsertOrganization(input: $input) {
+            id
+            canonicalName
+        }
+    }
+    """
+    
+    result = await client.execute(mutation, variables={
+        "input": {
+            "canonicalName": org.canonical_name,
+            "domains": org.domains,
+            "description": org.description,
+            "aliases": org.aliases,
+        }
+    })
+    
+    return result["upsertOrganization"]["id"]
+
+# Similar functions for:
+# - upsert_person()
+# - upsert_product()
+# - upsert_compound()
+# - create_relationship()
+# - link_evidence()
+```
+
+### Step 3: Create Extraction API Routes
+
+```python
+# api/extraction/routes/extract.py
+@router.post("/extraction/extract-from-mission")
+async def extract_from_mission(request: ExtractFromMissionRequest) -> ExtractFromMissionResponse:
+    """Extract entities from a completed research mission."""
+    
+    # Load mission outputs
+    mission_outputs = await load_mission_outputs(request.mission_id)
+    
+    # Build extraction graph
+    graph = build_extraction_graph()
+    
+    # Execute extraction
+    result = await graph.ainvoke({
+        "mission_id": request.mission_id,
+        "final_reports": mission_outputs.final_reports,
+        "checkpoint_files": mission_outputs.checkpoint_files,
+    })
+    
+    return ExtractFromMissionResponse(
+        extraction_run_id=result["extraction_run_id"],
+        entities_added=len(result["graphql_entity_ids"]),
+        relationships_created=len(result["relationships"]),
+    )
+```
+
+### Step 4: Integrate with Mission Control
+
+```python
+# api/mission_control/routes/missions.py (ENHANCED)
+@router.post("/missions/{mission_id}/complete")
+async def complete_mission(mission_id: str):
+    """Mark mission complete and trigger extraction."""
+    
+    # Update mission status
+    await update_mission_status(mission_id, "completed")
+    
+    # Trigger extraction (async)
+    extraction_task = await trigger_extraction(mission_id)
+    
+    return {
+        "mission_id": mission_id,
+        "status": "completed",
+        "extraction_run_id": extraction_task.extraction_run_id,
+    }
+```
+
+### Step 5: Update Research Client UI
+
+```typescript
+// research_client/components/mission/MissionProgress.tsx
+export function MissionProgress({ missionId }: { missionId: string }) {
+  const { progress, isComplete } = useMissionProgress(missionId);
+  
+  return (
+    <div>
+      {/* Mission execution progress */}
+      <ProgressBar percent={progress.percent} />
+      
+      {isComplete && (
+        <div>
+          <h3>Extraction in Progress</h3>
+          <ExtractionProgress missionId={missionId} />
+        </div>
+      )}
+    </div>
+  );
+}
+```
+
+---
+
+## Research Client (Next.js Frontend)
+
+The `research_client/` directory is located at the **repository root** (sibling to `ingestion/` and `api/`) and contains the Next.js application for interacting with the Coordinator Agent and monitoring research missions.
+
+**Location**: `C:\Users\Pinda\Proyectos\humanupgradeapp\research_client/`
+
+```
+research_client/
+├── app/
+│   ├── layout.tsx                      # Root layout
+│   ├── page.tsx                        # Home page (thread list/create)
+│   ├── threads/
+│   │   ├── [thread_id]/
+│   │   │   └── page.tsx                # Chat interface with Coordinator
+│   │   └── new/
+│   │       └── page.tsx                # Create new thread
+│   ├── missions/
+│   │   ├── [mission_id]/
+│   │   │   └── page.tsx                # Mission execution progress
+│   │   └── list/
+│   │       └── page.tsx                # List all missions
+│   └── api/
+│       └── coordinator/                # API route proxies (optional)
+│
+├── components/
+│   ├── chat/
+│   │   ├── ChatInterface.tsx           # Main chat UI
+│   │   ├── MessageBubble.tsx           # Message display
+│   │   ├── MessageInput.tsx            # User input
+│   │   ├── ApprovalCheckpoint.tsx      # Human approval UI
+│   │   └── StreamingIndicator.tsx      # Loading/streaming state
+│   ├── plan/
+│   │   ├── ResearchPlanView.tsx        # Full plan visualization
+│   │   ├── StageCard.tsx               # Stage display
+│   │   ├── SubStageCard.tsx            # Sub-stage display
+│   │   ├── AgentAllocationView.tsx     # Agent types per stage
+│   │   └── DependencyGraph.tsx         # Visual dependency graph
+│   ├── mission/
+│   │   ├── MissionProgress.tsx         # Real-time progress
+│   │   ├── StageProgress.tsx           # Per-stage progress
+│   │   ├── AgentProgress.tsx           # Per-agent progress
+│   │   └── ExtractionProgress.tsx      # Extraction progress
+│   ├── knowledge-graph/
+│   │   ├── ExistingEntitiesView.tsx    # Show entities in KG
+│   │   ├── EntityCard.tsx              # Single entity display
+│   │   └── RelationshipGraph.tsx       # Entity relationships
+│   └── ui/
+│       ├── Button.tsx                  # shadcn/ui components
+│       ├── Card.tsx
+│       └── ...
+│
+├── lib/
+│   ├── api-client.ts                   # FastAPI client (fetch wrapper)
+│   ├── websocket.ts                    # WebSocket manager
+│   ├── types.ts                        # TypeScript types
+│   └── utils.ts                        # Utility functions
+│
+├── hooks/
+│   ├── useCoordinatorThread.ts         # Thread state management
+│   ├── useCheckpointApproval.ts        # Approval flow
+│   ├── useMissionProgress.ts           # Mission progress subscription
+│   └── useWebSocket.ts                 # WebSocket connection
+│
+├── package.json                        # Dependencies
+├── tsconfig.json                       # TypeScript config
+├── tailwind.config.ts                  # Tailwind config
+└── next.config.js                      # Next.js config
+```
+
+**Key Features:**
+- Real-time chat with Coordinator Agent (WebSocket streaming)
+- Human-in-the-loop approval UI (scope + final plan)
+- Visual research plan builder/viewer
+- Live mission progress tracking
+- Knowledge graph entity browser
+
+---
+
+## Project Structure (Updated with Phase Components)
+
+The following directories are added/modified per phase:
+
+### Phase 1 Additions
+```
+api/coordinator/
+graphs/coordinator/
+models/mongo/coordinator/
+tools/graphql/
+tools/research_history/
+research_client/  # NEW: Next.js frontend
+```
+
+### Phase 2 Modifications
+```
+models/mongo/research/  # Redesigned models
+orchestration/dag/  # Enhanced DAG builder
+orchestration/workers/handlers/  # Enhanced handlers
+api/mission_control/websockets/  # Progress streaming
+```
+
+### Phase 3 Additions
+```
+graphs/candidate_exploration/  # Simplified from entity_discovery
+models/mongo/candidates/  # Simplified models
+tools/candidate_exploration/
+```
+
+### Phase 4 Additions
+```
+graphs/entity_extraction/
+models/mongo/extraction/
+services/graphql/
+api/extraction/
+```
+
+---
 
 ### Phase 5: Graphs (Week 3)
 
@@ -1193,20 +1901,53 @@ services:
 
 ---
 
-## Success Criteria
+## Success Criteria by Phase
 
-The reorganization is complete when:
+### Phase 1: Coordinator Agent ✅ When:
+1. ✅ User can start conversation with Coordinator Agent via Next.js client
+2. ✅ Coordinator can query existing KG entities (GraphQL tools working)
+3. ✅ Coordinator can query past research runs
+4. ✅ Coordinator can build research plans conversationally
+5. ✅ Scope approval checkpoint works (human can approve/reject)
+6. ✅ Final plan approval checkpoint works
+7. ✅ Approved plans saved to MongoDB
+8. ✅ `.cursor/rules/coordinator-agent.mdc` specification created
 
-1. ✅ **`human_upgrade/` directory deleted**
-2. ✅ **All imports updated** (no broken imports)
-3. ✅ **All tests passing** (unit + integration)
-4. ✅ **4 FastAPI servers implemented** (graph exec, mission control, memory, mongo models)
-5. ✅ **Documentation updated** (AGENTS.md, README.md, MIGRATION_GUIDE.md)
-6. ✅ **Clear layer separation** (API ↔ Graphs ↔ Agents ↔ Services ↔ Infrastructure)
-7. ✅ **Orchestration renamed** (mission_queue → orchestration)
-8. ✅ **Memory module top-level** (memory/langmem, memory/store)
-9. ✅ **Tool consolidation** (single tools/ directory, registry pattern)
-10. ✅ **Configuration management** (config/settings.py with Pydantic)
+### Phase 2: Research Plan & Orchestration ✅ When:
+1. ✅ Flexible research plan models implemented (no domain catalog dependency)
+2. ✅ Agents execute with objectives + optional starter sources
+3. ✅ DAG builder supports flexible dependencies (instance → instance, sub-stage → stage)
+4. ✅ Output passing works (agents can receive previous_outputs)
+5. ✅ Sub-stage aggregation works (merge_all, best_of, consensus)
+6. ✅ WebSocket progress streams to research client
+7. ✅ Missions complete with correct outputs passed between stages
+8. ✅ `.cursor/rules/research-plan-structure.mdc` specification created
+
+### Phase 3: Candidate Exploration ✅ When:
+1. ✅ Simplified exploration graph completes in <30 seconds
+2. ✅ Candidates ranked by relevance, novelty, completeness
+3. ✅ Tool integrated with Coordinator Agent
+4. ✅ Coordinator can recommend prioritized candidates to users
+5. ✅ No dependency on domain catalog generation
+
+### Phase 4: Extraction & Storage ✅ When:
+1. ✅ Extraction graph processes research outputs successfully
+2. ✅ Entities extracted using LLM structured outputs
+3. ✅ GraphQL mutations working (entities created in Neo4j)
+4. ✅ Relationships created correctly
+5. ✅ Evidence linked to entities
+6. ✅ Knowledge graph grows with each research mission
+7. ✅ Extraction progress visible in research client
+
+### Overall System ✅ When:
+1. ✅ End-to-end flow works: Coordinator → Plan → Execute → Extract → KG
+2. ✅ All 4 FastAPI servers running (Coordinator, Mission Control, Memory, Extraction)
+3. ✅ Next.js research client functional
+4. ✅ Human-in-the-loop flow smooth (scope + final approval)
+5. ✅ WebSocket progress streaming works end-to-end
+6. ✅ Tests passing (unit + integration per phase)
+7. ✅ Documentation complete (AGENTS.md, .cursor/rules/*.mdc files)
+8. ✅ Research system is flexible (not rigid domain-catalog-based)
 
 ---
 
@@ -1290,42 +2031,64 @@ The reorganization is complete when:
 
 ---
 
-## Timeline Summary  
+## Implementation Timeline
 
-## Next few days refactor Next 3 weeks complete research agent codebase MVP complete. 
+**Target**: 3-4 weeks for full MVP
 
-| **Phase** | **Duration** | **Key Deliverables** |
-|-----------|--------------|----------------------|
-| 1. Foundation | Week 1 | New directory structure, move utilities |
-| 2. Models & Schemas | Week 1 | Reorganize Pydantic models, create API schemas |
-| 3. Tools | Week 1 | Consolidate tools, create registry |
-| 4. Prompts | Week 1 | Organize prompts by graph/agent |
-| 5. Graphs | Week 1 | Move graphs, split nodes, extract state |
-| 6. Agents | Week 1 | Organize agent factory + types |
-| 7. Orchestration | Week 1 | Rename mission_queue, split handlers |
-| 8. Services | Week 1 | Organize MongoDB services, add Neo4j |
-| 9. Memory | Week 1 | Move memory module, create tools |
-| 10. API Servers | Week 1| Build 4 FastAPI servers |
-| 11. Config & Testing | Week 1 | Settings, unit tests, integration tests |
-| 12. Cleanup & Docs | Week 1 | Delete human_upgrade/, update docs |
+| **Phase** | **Duration** | **Key Deliverables** | **Priority** |
+|-----------|--------------|----------------------|--------------|
+| **Phase 1: Coordinator Agent** | Week 1 | MongoDB models, GraphQL tools, Coordinator graph, FastAPI routes, Next.js client, Human-in-the-loop checkpoints | **HIGHEST** |
+| **Phase 2: Research Plan & Orchestration** | Week 2-3 | Flexible plan models, Enhanced DAG builder, Output passing, WebSocket progress, Sub-stage aggregation | **CRITICAL** |
+| **Phase 3: Candidate Exploration** | Week 3-4 | Simplified exploration graph, Ranking logic, Tool integration, Coordinator integration | **HIGH** |
+| **Phase 4: Extraction & Storage** | Week 4+ | Extraction graph, GraphQL mutations, Extraction API, KG population | **MEDIUM** |
 
-**Total Duration**: ~1 week (incremental, non-blocking)
+**Development Strategy**: Build new components first (Phases 1-4), then refactor existing code to integrate.
 
 ---
 
-## Next Steps
+## Immediate Next Steps (Phase 1 - This Week)
 
-1. **Review this plan** with the team
-2. **Create migration branch** (`feat/reorganize-codebase`)
-3. **Start with Phase 1** (foundation + utilities)
-4. **Run tests after each phase** (ensure no regressions)
-5. **Update AGENTS.md** as structure evolves
-6. **Merge incrementally** (PR per phase)
-7. **Cut over to new structure** (delete human_upgrade/)
+### Day 1-2: MongoDB Models + Tools
+1. ✅ Create `CoordinatorThreadDoc` and `CoordinatorCheckpointDoc` Beanie models
+2. ✅ Implement GraphQL query tools (`query_existing_entities`, `get_entity_details`)
+3. ✅ Implement research history tools (`query_past_runs`, `get_run_summary`)
+4. ✅ Write unit tests for models and tools
+
+### Day 3-4: Coordinator LangGraph
+1. ✅ Create `CoordinatorAgentState` TypedDict
+2. ✅ Implement coordinator graph nodes (understand_goals, query_knowledge, etc.)
+3. ✅ Implement human-in-the-loop checkpoints (`interrupt()`)
+4. ✅ Write integration tests for graph flow
+5. ✅ Create `.cursor/rules/coordinator-agent.mdc` specification
+
+### Day 5-6: FastAPI Routes + Next.js Client
+1. ✅ Create FastAPI Coordinator routes (threads, messages, checkpoints)
+2. ✅ Implement WebSocket streaming
+3. ✅ Initialize Next.js `research_client/` app
+4. ✅ Build basic chat interface component
+5. ✅ Build approval checkpoint UI component
+
+### Day 7: Testing + Integration
+1. ✅ E2E test: Create thread → chat → approve scope → approve plan
+2. ✅ Test WebSocket streaming
+3. ✅ Test checkpoint approval flow
+4. ✅ Documentation review
+
+**Phase 1 Complete** → Move to Phase 2
 
 ---
 
-**Last Updated**: 2026-02-12  
-**Version**: 1.0  
-**Status**: Living Document (update as migration progresses)  
-**Owner**: Research Agent Team
+## Development Principles
+
+1. **Build New First**: Create new components (Phases 1-4) before refactoring old code
+2. **Document as We Go**: Create `.cursor/rules/*.mdc` files for each major component
+3. **Test Early**: Write tests alongside implementation
+4. **Iterate Based on Feedback**: Human-in-the-loop means iterating on UX
+5. **Flexible Over Perfect**: Build for flexibility first, optimize later
+
+---
+
+**Last Updated**: 2026-02-15  
+**Version**: 2.0 (NEW PHASED ARCHITECTURE)  
+**Status**: Living Document - Active Development Phase 1  
+**Next Review**: After Phase 1 Complete

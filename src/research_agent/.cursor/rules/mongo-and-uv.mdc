@@ -1,0 +1,11 @@
+---
+alwaysApply: true
+---
+
+# MongoDB and Python Execution Rules
+
+## MongoDB: Use AsyncMongoClient with Beanie
+Do not use Motor. Always use `AsyncMongoClient` from `pymongo` with Beanie. See [biotech_research_db_beanie.py](mdc:ingestion/src/research_agent/infrastructure/storage/mongo/biotech_research_db_beanie.py) for the pattern.
+
+## Python Execution: Use uv
+Always use `uv` to run Python files. See [pyproject.toml](mdc:ingestion/pyproject.toml) for project configuration.

@@ -22,22 +22,22 @@ from langgraph.graph.state import CompiledStateGraph
 
 from langchain.agents import create_agent
 from langchain.agents.structured_output import ProviderStrategy 
-from research_agent.human_upgrade.base_models import gpt_4_1, gpt_5_nano, gpt_5_mini 
-from research_agent.human_upgrade.structured_outputs.research_plans_outputs import (
+from research_agent.infrastructure.llm.base_models import gpt_4_1, gpt_5_nano, gpt_5_mini 
+from research_agent.structured_outputs.research_plans_outputs import (
     StageMode,
     ResearchMissionPlanFinal,
     InitialResearchPlan,
     SourceExpansion,
     AgentInstancePlanWithSources,
 )  
-from research_agent.human_upgrade.utils.default_tools_by_agent_type import DEFAULT_TOOLS_BY_AGENT_TYPE 
-from research_agent.human_upgrade.structured_outputs.candidates_outputs import DomainCatalog  
-from research_agent.human_upgrade.prompts.domain_expansion_source_curations_prompts import ( 
+from research_agent.utils.default_tools_by_agent_type import DEFAULT_TOOLS_BY_AGENT_TYPE 
+from research_agent.structured_outputs.candidates_outputs import DomainCatalog 
+from research_agent.prompts.domain_expansion_source_curations_prompts import ( 
     PROMPT_SOURCE_EXPANSION
 )  
 
-from research_agent.human_upgrade.utils.entity_slice_inputs import build_slicing_inputs_from_connected_candidates
-from research_agent.human_upgrade.utils.artifacts import save_json_artifact
+from research_agent.utils.entity_slice_inputs import build_slicing_inputs_from_connected_candidates
+from research_agent.utils.artifacts import save_json_artifact
 import os  
 
 load_dotenv()  
@@ -112,7 +112,7 @@ async def build_initial_research_plan_node(
         max_people_per_slice=5,
     )
 
-    from research_agent.human_upgrade.prompts.research_plan_prompts import format_initial_research_plan_prompt
+    from research_agent.prompts.research_plan_prompts import format_initial_research_plan_prompt
 
     prompt = format_initial_research_plan_prompt(
         stage_mode=research_mode,
@@ -200,7 +200,7 @@ async def attach_sources_to_agent_instances_node(
         raise ValueError("source_expansion is required before attach_sources_to_agent_instances_node")
 
     # You’ll create this new prompt template
-    from research_agent.human_upgrade.prompts.research_plan_prompts import ATTACH_SOURCES_TO_AGENT_INSTANCES_PROMPTS
+    from research_agent.prompts.research_plan_prompts import ATTACH_SOURCES_TO_AGENT_INSTANCES_PROMPTS
     research_mode = cast(StageMode, state.get("research_mode", "full_entities_standard"))
     prompt_tmpl = ATTACH_SOURCES_TO_AGENT_INSTANCES_PROMPTS.get(research_mode, "TODO: mode not implemented")
 
@@ -451,7 +451,7 @@ async def run_research_plan_test() -> Dict[str, Any]:
     """
     Test script to run the full research plan creation graph with starter data.
     """
-    from research_agent.human_upgrade.scripts.test_data.one_thousand_roads import (
+    from research_agent.scripts.test_data.one_thousand_roads import (
         STARTER_CONNECTED_CANDIDATES__BRAD_PITZELE__ONETHOUSANDROADS,
         STARTER_DOMAIN_CATALOG_SET__ONETHOUSANDROADS__EWOT_EP_1301,
     )
@@ -521,7 +521,7 @@ async def run_research_plan_test() -> Dict[str, Any]:
 
 if __name__ == "__main__":
     import asyncio
-    from research_agent.human_upgrade.base_models import gpt_5_nano
+    from research_agent.infrastructure.llm.base_models import gpt_5_nano
     
     async def main():
         result = await run_research_plan_test()

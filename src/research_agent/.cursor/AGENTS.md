@@ -1,797 +1,1281 @@
-# Research Ingestion System - Agent Instructions
+# Research Ingestion System - Agent Architecture & Implementation Plan
+
+> **📋 Living Documentation**: As we implement this system, we will create detailed `.cursor/rules/*.mdc` files and specifications that live on. This ensures each component has persistent, AI-accessible documentation that guides future development and maintenance.
+
+---
 
 ## Executive Summary
 
-The **Human Upgrade Research Ingestion System** is a sophisticated, multi-layered AI research platform that discovers, researches, and structures biotech knowledge from unstructured sources into a queryable knowledge graph. The system combines LangGraph-powered AI agents, distributed task orchestration (Taskiq + RabbitMQ + Redis), MongoDB persistence, Neo4j knowledge graph storage, and FastAPI servers to create an end-to-end research automation pipeline.
+This document outlines the **NEW architecture** for the Human Upgrade Research Ingestion System - a flexible, human-in-the-loop biotech research platform that builds knowledge graphs from unstructured sources.
 
-**Key Capabilities:**
-- **Automated Entity Discovery**: From raw queries/sources → structured entity candidates (people, orgs, products, compounds, tech)
-- **Intelligent Research Planning**: Creates multi-stage, multi-agent research plans with dependency management
-- **Distributed Execution**: Executes research plans as DAGs using worker pools
-- **Memory & Learning**: Semantic, episodic, and procedural memory via LangGraph store
-- **Knowledge Graph Storage**: Final entities, relationships, and evidence stored in Neo4j
-- **Human-in-the-Loop**: Optional checkpointing, time-travel, and manual intervention
+**Critical Architectural Shift**: We are moving away from the entity-candidate-domain-catalog approach to a more flexible, conversation-first design where research plans are created through an interactive Coordinator Agent.
 
----
+### Implementation Order (4 Phases)
 
-## System Architecture (30,000 ft View)
-
-```mermaid
-flowchart TB
-    subgraph "Research Client Layer"
-        RC[Research System Client<br/>React/Next.js]
-    end
-    
-    subgraph "FastAPI Server Layer"
-        API1[Graph Execution API<br/>REST + WebSocket]
-        API2[Mission Control API<br/>REST]
-        API3[Memory & Thread API<br/>LangGraph lifecycle]
-    end
-    
-    subgraph "Orchestration Layer"
-        PRODUCER[Mission DAG Producer]
-        SCHEDULER[Task Scheduler<br/>Redis Streams]
-        WORKERS[Taskiq Workers<br/>RabbitMQ consumers]
-    end
-    
-    subgraph "Agent Execution Layer"
-        DISCOVERY[Entity Discovery Graph]
-        PLANNER[Research Plan Graph]
-        INSTANCES[Agent Instance Factory<br/>Worker Agents]
-    end
-    
-    subgraph "Persistence Layer"
-        MONGO[(MongoDB<br/>biotech_research_db<br/>Beanie ODM)]
-        NEO4J[(Neo4j<br/>Knowledge Graph)]
-        STORE[(LangGraph Store<br/>PostgreSQL<br/>Memory)]
-        REDIS[(Redis<br/>Queues + Cache)]
-    end
-    
-    subgraph "External Services"
-        RABBITMQ[RabbitMQ<br/>Task Queue]
-        GRAPHQL[GraphQL API<br/>Ariadne Client]
-    end
-    
-    RC -->|HTTP/WebSocket| API1
-    RC -->|HTTP/WebSocket| API2
-    RC -->|HTTP| API3
-    
-    API1 --> DISCOVERY
-    API1 --> PLANNER
-    API2 --> PRODUCER
-    API3 --> STORE
-    
-    PRODUCER -->|Enqueue tasks| REDIS
-    SCHEDULER <-->|Events & Runnable| REDIS
-    WORKERS <-->|Consume tasks| RABBITMQ
-    WORKERS -->|Execute| INSTANCES
-    
-    DISCOVERY --> MONGO
-    PLANNER --> MONGO
-    INSTANCES --> MONGO
-    INSTANCES --> STORE
-    
-    INSTANCES -->|Final entities| GRAPHQL
-    GRAPHQL --> NEO4J
-    
-    SCHEDULER --> MONGO
-    WORKERS --> MONGO
-```
+1. **Coordinator Agent** (Priority 1) - Interactive research plan builder with human-in-the-loop
+2. **Research Plan & Mission Orchestration** (Priority 2 - MOST CRITICAL) - Redesigned flexible execution system
+3. **Entity Candidates Refactor** (Priority 3) - Lightweight candidate ranking tool
+4. **Extraction & Storage** (Priority 4) - Knowledge graph ingestion pipeline
 
 ---
 
-## Core Workflow (End-to-End)
-
-### Phase 1: Entity Discovery & Candidate Extraction
-
-**Input**: User query + optional starter sources/content
-**Output**: Connected entity candidates with validated sources
-
-**Graph**: `EntityIntelConnectedCandidatesAndSources`
-
-```
-Query: "Research Ozempic and its manufacturer"
-Starter Sources: ["https://www.novonordisk.com"]
-          ↓
-[Seed Extraction Node]
-  → Identifies: Novo Nordisk (org), Ozempic (product), semaglutide (compound)
-          ↓
-[Official Sources Node]
-  → Discovers official domains, help centers, research pages
-          ↓
-[Domain Catalogs Node]
-  → Maps URL structures per domain (products, leadership, docs, etc.)
-          ↓
-[Fan-out: Candidate Slices]
-  → Per domain catalog:
-      - OrgIdentityPeopleTech slice (company, people, tech stack)
-      - ProductsCompounds slice (offerings, ingredients)
-  → Assembler: Merges slices into ConnectedCandidates
-          ↓
-[Persist Candidates]
-  → MongoDB: candidate_seeds, domain_catalogs, connected_candidates
-          ↓
-OUTPUT: CandidateSourcesConnected
-```
-
-**Key Features:**
-- Fanout parallelization (multiple domains processed concurrently)
-- Structured outputs (Pydantic models validated at each step)
-- Persistence at every major checkpoint (Beanie ODM)
-- Intel run tracking (runId, pipelineVersion, timestamps)
-
----
-
-### Phase 2: Research Plan Generation
-
-**Input**: Connected candidates + research mode + tool recommendations
-**Output**: ResearchMissionPlanFinal (DAG-ready agent instances)
-
-**Graph**: `ResearchPlanCreationGraph`
-
-```
-ConnectedCandidates + ResearchMode ("full_entities_basic")
-          ↓
-[Build Initial Plan Node]
-  → Determines stages (S1: Identity, S2: Products, S3: Evidence, S4: Synthesis)
-  → Creates agent instances (WITHOUT sources yet)
-  → Applies slicing logic (e.g., 5 products/agent max)
-          ↓
-OUTPUT: InitialResearchPlan
-  - stages: [S1, S2, S3, S4]
-  - sub_stages: [S1.1, S1.2, ...]
-  - agent_instances: [AgentInstancePlanWithoutSources × N]
-          ↓
-[Source Expansion Node]
-  → Uses web search + domain catalogs to find:
-      - Competitor URLs
-      - Research paper URLs
-      - News/press URLs
-  → Curates sources by category (official, scholarly, marketplace, etc.)
-          ↓
-OUTPUT: SourceExpansion
-          ↓
-[Attach Sources to Agent Instances Node]
-  → Matches expanded sources to agent instance needs
-  → Produces AgentInstancePlanWithSources
-  → Enforces invariants (slice, objectives, dependencies preserved)
-          ↓
-OUTPUT: AgentInstancePlansWithSources
-          ↓
-[Assemble Final Plan Node]
-  → Validates 1:1 mapping (initial instances ↔ instances with sources)
-  → Validates stage references (no dangling instance_ids)
-  → Produces ResearchMissionPlanFinal
-          ↓
-OUTPUT: ResearchMissionPlanFinal
-  - mission_id
-  - stage_mode
-  - target_businesses/people/products
-  - stages + sub_stages (with instance_id references)
-  - agent_instances: [AgentInstancePlanWithSources × N]
-```
-
-**Key Features:**
-- Deterministic slicing (products/people per agent)
-- Source-agent matching (right sources for right tasks)
-- Dependency modeling (stage → substage → instance)
-- Artifact chain planning (requires_artifacts → produces_artifacts)
-
----
-
-### Phase 3: Mission DAG Construction & Orchestration
-
-**Input**: ResearchMissionPlanFinal
-**Output**: Distributed task execution via workers
-
-**Components**: `mission_dag_builder.py`, `scheduler_in_memory.py`, `worker.py`
-
-```
-ResearchMissionPlanFinal
-          ↓
-[DAG Builder]
-  → Creates TaskDefinitions:
-      - INSTANCE_RUN (one per agent instance)
-      - SUBSTAGE_REDUCE (one per substage)
-  → Builds dependency edges:
-      - depends_on_substages
-      - depends_on_stages
-      - requires_instance_output (explicit agent dependencies)
-      - Fan-in: all instances → SUBSTAGE_REDUCE
-          ↓
-OUTPUT: MissionDAG
-  - tasks: Dict[task_id, TaskDefinition]
-  - deps_remaining: Dict[task_id, int]
-  - dependents: Dict[parent_task_id, List[child_task_ids]]
-  - initial_ready: List[task_id] (tasks with 0 deps)
-          ↓
-[Producer/Scheduler]
-  → Enqueues initial_ready → Redis Stream (mission:runnable)
-  → Listens to mission:events for TASK_SUCCEEDED
-  → On completion: decrements deps_remaining for children
-  → Enqueues newly ready tasks
-          ↓
-[Workers] (Taskiq + RabbitMQ)
-  → XREADGROUP from mission:runnable
-  → Claim task (READY → RUNNING in future Mongo state)
-  → Execute based on task_type:
-      - INSTANCE_RUN → run_worker_once(agent_instance_plan)
-      - SUBSTAGE_REDUCE → aggregate instance outputs
-  → Publish TASK_SUCCEEDED → mission:events
-  → XACK task
-```
-
-**Task Execution Flow (INSTANCE_RUN)**:
-```
-Worker receives INSTANCE_RUN task
-          ↓
-[Load Plan] → MongoDB: ResearchMissionPlanDoc
-          ↓
-[Build Worker Agent]
-  → Tools: web search, extract, file system, context summarize, etc.
-  → Middleware:
-      - Dynamic prompt (initial → reminder)
-      - Summarization (context window management)
-      - After-agent (final report synthesis)
-  → State: WorkerAgentState (messages, file_refs, telemetry, etc.)
-          ↓
-[Run Worker Once]
-  → Initial state: {messages: ["Begin"], seed_context, workspace_root, ...}
-  → Agent loop:
-      - Model call → structured thinking
-      - Tool calls (web search, extract, write checkpoint)
-      - Checkpoint files written to S3/filesystem
-      - Research notes accumulated
-  → After agent completion:
-      - Concatenate checkpoint files
-      - GPT-5 synthesis → final_report.txt
-      - Write final report to filesystem
-          ↓
-[Persist to MongoDB]
-  → Update ResearchRunDoc: succeededTasks++
-  → Store file_refs, final_report path
-          ↓
-[Publish TASK_SUCCEEDED]
-  → Redis: mission:events
-  → Payload: {mission_id, task_id, status: "ok", output_refs}
-```
-
----
-
-### Phase 4: Agent Instance Execution (Worker Agents)
-
-**Component**: `agent_instance_factory.py`
-
-**Agent Types** (11 specialized agents):
-1. **BusinessIdentityAndLeadershipAgent**: Company identity, leadership, structure
-2. **PersonBioAndAffiliationsAgent**: Person biographies, affiliations, roles
-3. **EcosystemMapperAgent**: Competitive landscape, partnerships
-4. **ProductSpecAgent**: Product specifications, ingredients, claims
-5. **TechnologyProcessAndManufacturingAgent**: Tech stack, processes, manufacturing
-6. **ClaimsExtractorAndTaxonomyMapperAgent**: Health claims + taxonomy mapping
-7. **ProductReviewsAgent**: User reviews, ratings, sentiment
-8. **CaseStudyHarvestAgent**: Evidence discovery, case studies, research papers
-9. **EvidenceClassifierAgent**: Evidence quality scoring
-10. **KnowledgeSynthesizerAgent**: Cross-agent synthesis
-11. **NarrativeAnalystAgent**: Narrative analysis, controversy detection
-
-**Worker Agent Architecture**:
-```
-WorkerAgentState (TypedDict):
-  - messages: List[BaseMessage]
-  - agent_instance_plan: AgentInstancePlanWithSources
-  - workspace_root: str
-  - seed_context: Dict (slice, starter_sources, objectives)
-  - file_refs: List[FileReference]
-  - thoughts: List[str]
-  - research_notes: List[str]
-  - final_report: Optional[FileReference]
-  - telemetry: (steps_taken, checkpoint_count, tool_counts, missing_fields, visited_urls)
-  - _initial_prompt_sent: bool
-```
-
-**Middleware Pipeline**:
-1. **Dynamic Prompt** (`@dynamic_prompt`):
-   - First call: Full initial prompt (objectives, sources, success criteria, tool instructions)
-   - Later calls: Reminder prompt (ledger, telemetry, missing fields, progress)
-2. **After Model** (`@after_model`):
-   - Latch initial prompt flag after first call
-3. **Summarization Middleware**:
-   - Trigger: context > 170K tokens
-   - Keep: 30K tokens of recent content
-   - Summarize: 12K tokens of older content using GPT-4.1
-4. **After Agent** (`@after_agent`):
-   - Concatenate all checkpoint files
-   - Synthesize final report using GPT-5
-   - Write final_report.txt to workspace
-   - Return FileReference + research notes
-
-**Tool Usage Patterns**:
-- **Web Search**: Tavily, Exa (multi-step search, validation searches)
-- **Extraction**: Tavily extract (content extraction from URLs)
-- **Browser**: Playwright (interactive browsing, form filling)
-- **File System**: Write checkpoint files (progress tracking)
-- **Context**: Summarize long documents (stay within context limits)
-- **PubMed/Semantic Scholar**: Scholarly research (evidence gathering)
-- **Clinical Trials Registry**: Clinical data (safety, efficacy)
-
-**Checkpoint Strategy**:
-- Agent writes intermediate findings to checkpoint files
-- Checkpoint file naming: `checkpoint_{mission_id}_{sub_stage_id}_{uuid}.txt`
-- File refs tracked in WorkerAgentState
-- Final report synthesizes all checkpoints into coherent narrative
-
----
-
-### Phase 5: Memory & Learning (LangMem + LangGraph Store)
-
-**Component**: `langmem_manager.py`
-
-**Memory Types**:
-1. **Semantic Memory** (Entity Facts):
-   - Canonical entity attributes (aliases, domains, products)
-   - Version-aware (time-sensitive facts like pricing)
-   - Namespace: `kg_semantic/{org|person|product|compound}/{entity_id}`
-2. **Episodic Memory** (Run Notes):
-   - Specific run outcomes (what worked, what failed)
-   - Source quality tracking
-   - Namespace: `episodic/{mission|bundle}/{mission_id|bundle_id}`
-3. **Procedural Memory** (Playbooks):
-   - Reusable research tactics
-   - Query templates, extraction steps
-   - Namespace: `procedural/{agent_type|mode}`
-4. **Error Signatures**:
-   - Tool failure patterns → mitigation strategies
-   - Namespace: `errors/{tool_name}`
-5. **Source Facts**:
-   - Official domain structures, sitemap locations
-   - High-yield URL patterns
-   - Namespace: `sources/{domain|url}`
-6. **Fingerprints**:
-   - Entity/source embeddings for similarity recall
-   - Namespace: `fingerprints/{entity|source}/{id}`
-
-**Memory Extraction Flow**:
-```
-Agent completes research run
-          ↓
-[Extract Memories] (LangMem SDK)
-  → Input: agent messages + existing memories
-  → Model: GPT-4.1
-  → Schemas: [SemanticEntityFact, EpisodicRunNote, ProceduralPlaybook, ...]
-  → Instructions: Extract ONLY durable, reusable info
-          ↓
-OUTPUT: List[ExtractedMemory]
-          ↓
-[Route Namespace]
-  → Route memory to correct LangGraph Store namespace
-  → Key strategy: fact:{hash}, note:{hash}, rule:{hash}, etc.
-          ↓
-[Persist] → AsyncPostgresStore
-```
-
-**Memory Recall (Future Integration)**:
-```
-Before agent start:
-  → Query semantic memory for entity facts
-  → Query episodic memory for similar past runs
-  → Query procedural memory for relevant tactics
-
-During agent execution:
-  → Query source facts to optimize URL discovery
-  → Query error signatures to avoid known failures
-
-After agent completion:
-  → Extract + store new memories
-  → Update existing memories if contradicted
-```
-
----
-
-### Phase 6: Knowledge Graph Ingestion (Neo4j via GraphQL)
-
-**Component**: External GraphQL API (Ariadne codegen client)
-
-**Ingestion Pipeline** (Post-Research):
-```
-Agent produces final_report + structured outputs
-          ↓
-[Extraction Graph] (to be re-implemented)
-  → Parse final reports
-  → Extract structured entities (Organizations, People, Products, Compounds)
-  → Extract relationships (Works_For, Develops, Researches, Cites)
-  → Extract evidence edges (Chunk → ABOUT → Entity)
-          ↓
-[GraphQL Mutations] (via Ariadne client)
-  → upsertOrganization(canonicalName, domains, ...)
-  → upsertPerson(canonicalName, affiliations, ...)
-  → upsertProduct(name, organization, claims, ...)
-  → upsertCompound(name, casNumber, mechanism, ...)
-  → createRelationship(source, target, type, properties)
-  → upsertEvidenceEdges(chunk, entity, confidence, ...)
-          ↓
-[Neo4j Knowledge Graph]
-  → Nodes: Organization, Person, Product, Compound, Document, Chunk
-  → Relationships: Works_For, Develops, Contains, Cites, ABOUT, MENTIONS
-  → Properties: validAt, invalidAt, confidence, sources
-          ↓
-[Vector Search] (Neo4j vector index)
-  → Chunk.embedding (precomputed by ingestion)
-  → Semantic search: query → relevant chunks → expand to entities
-```
-
-**Document & Chunk Lineage**:
-```
-Document (raw)
-  ↓ HAS_TEXT_VERSION
-DocumentTextVersion
-  ↓ HAS_SEGMENTATION
-Segmentation
-  ↓ HAS_CHUNK
-Chunk (with embedding)
-  ↓ ABOUT / MENTIONS
-Entity (Organization, Product, etc.)
-```
-
----
-
-## MongoDB Persistence Layer (Beanie ODM)
-
-**Database**: `biotech_research_db`
-
-**Core Collections**:
-
-### Research Plans & Runs
-- **`research_mission_plans`** (`ResearchMissionPlanDoc`):
-  - researchMissionId (unique index)
-  - stageMode
-  - plan (embedded ResearchMissionPlan)
-  - targetBusinesses/People/Products (denormalized for search)
-  
-- **`research_runs`** (`ResearchRunDoc`):
-  - researchMissionId (indexed, NOT unique)
-  - mongoPlanId (ref to plan doc)
-  - planSnapshot (immutable)
-  - status: RUNNING | SUCCEEDED | FAILED | CANCELED
-  - task counters: totalTasks, succeededTasks, failedTasks
-
-### Candidate Discovery Outputs
-- **`candidate_seeds`** (`CandidateSeedDoc`)
-- **`official_starter_sources`** (`OfficialStarterSourcesDoc`)
-- **`domain_catalog_sets`** (`DomainCatalogSetDoc`)
-- **`connected_candidates`** (`ConnectedCandidatesDoc`)
-- **`candidate_sources_connected`** (`CandidateSourcesConnectedDoc`)
-
-### Intel & Entities
-- **`intel_candidate_runs`** (`IntelCandidateRunDoc`)
-- **`intel_candidate_entities`** (`IntelCandidateEntityDoc`)
-- **`intel_dedupe_groups`** (`IntelDedupeGroupDoc`)
-- **`intel_artifacts`** (`IntelArtifactDoc`)
-
-**Beanie Benefits**:
-- Type-safe async MongoDB operations
-- Automatic Pydantic validation
-- Relationship management (refs via PydanticObjectId)
-- Migration support
-- Query builders (find, aggregate, indexes)
-
----
-
-## FastAPI Server Layer (Planned Architecture)
-
-### 1. Graph Execution API
-**Endpoints**:
-- `POST /graphs/entity-discovery/execute`
-  - Input: `{query, starter_sources, starter_content}`
-  - Output: `CandidateSourcesConnected`
-  - Execution: Async invoke of EntityIntelConnectedCandidatesAndSources graph
-  
-- `POST /graphs/research-plan/execute`
-  - Input: `{connected_candidates, research_mode, tool_recs}`
-  - Output: `ResearchMissionPlanFinal`
-  - Execution: Async invoke of ResearchPlanCreationGraph
-
-- `WS /graphs/entity-discovery/stream`
-  - Real-time progress updates (node completions, LLM calls, tool calls)
-
-### 2. Mission Control API
-**Endpoints**:
-- `POST /missions` (Create + Start)
-  - Input: `{researchMissionId, planSnapshot, failFast}`
-  - Creates ResearchRunDoc (status: RUNNING)
-  - Builds MissionDAG
-  - Enqueues initial tasks to Redis
-  - Returns: `{runId, totalTasks}`
-
-- `GET /missions/{researchMissionId}/runs`
-  - Lists all runs for a mission
-  - Filter by status
-
-- `GET /missions/runs/{runId}`
-  - Run details + progress (succeededTasks, failedTasks)
-
-- `POST /missions/runs/{runId}/cancel`
-  - Graceful cancellation (stop enqueueing new tasks)
-
-### 3. MongoDB Model API
-**Endpoints**:
-- `GET /plans/{researchMissionId}`
-  - Retrieve ResearchMissionPlanDoc
-  
-- `GET /runs/{runId}`
-  - Retrieve ResearchRunDoc with full plan snapshot
-
-- `GET /candidates/runs/{runId}`
-  - Retrieve candidate discovery outputs for a run
-
-- `GET /entities/dedupe-groups/{dedupeGroupId}`
-  - Retrieve entity dedupe group with all members
-
-### 4. Memory & Thread API (Optional)
-**Endpoints**:
-- `GET /threads/{thread_id}/checkpoints`
-  - List checkpoints for a thread
-  
-- `POST /threads/{thread_id}/fork`
-  - Fork from a specific checkpoint
-  
-- `GET /store/semantic/org/{org_id}`
-  - Recall semantic memories for an org
-
-- `POST /store/memories/extract`
-  - Trigger memory extraction from message window
-
----
-
-## Key Design Patterns & Best Practices
-
-### 1. Input/Output Schema Separation
-- **Input State**: Small, API-friendly (query, starter_sources)
-- **Internal State**: Large, orchestration-rich (llm_calls, tool_calls, intermediate outputs)
-- **Output State**: Small, API-friendly (candidate_sources)
-- **Benefits**: Clean API contracts, internal evolution without breaking clients
-
-### 2. Persistence at Every Major Checkpoint
-- Seed extraction → `candidate_seeds`
-- Official sources → `official_starter_sources`
-- Domain catalogs → `domain_catalog_sets`
-- Connected candidates → `connected_candidates`
-- **Benefits**: Reproducibility, debugging, rerun safety
-
-### 3. Fanout Parallelization
-- Domain catalogs → multiple concurrent agent calls
-- Agent instances in substage → parallel execution
-- **Pattern**: `Send()` in LangGraph for dynamic fanout
-- **Benefit**: Massive speedup (3 domains × 2 slices = 6 parallel agents)
-
-### 4. Deterministic Task IDs
-- `instance::{mission_id}::{instance_id}`
-- `substage_reduce::{mission_id}::{stage_id}::{sub_stage_id}`
-- **Benefits**: Idempotent enqueueing, clear debugging, distributed tracing
-
-### 5. Fail-Fast vs. Best-Effort
-- **Fail-fast mode**: Any task failure → cancel mission
-- **Best-effort mode**: Continue despite failures, report partial results
-- **Implementation**: `failFast` flag in ResearchRunDoc
-
-### 6. Workspace Isolation
-- Each agent instance gets unique workspace: `{mission_id}/{stage_id}/{sub_stage_id}/{agent_type}_{instance_id}`
-- Checkpoint files written to S3 or local filesystem
-- Final reports synthesized from all checkpoints
-- **Benefits**: Clean isolation, easy provenance, parallel writes
-
-### 7. Structured Outputs Everywhere
-- Every agent → Pydantic models (validated)
-- Every LLM call → `response_format=ProviderStrategy(Model)`
-- **Benefits**: Type safety, validation, schema evolution
-
----
-
-## Technology Stack Summary
+## Technology Stack Overview
 
 ### Core Frameworks
-- **LangGraph**: State graph orchestration, checkpointing, memory
+- **LangGraph**: State graph orchestration, checkpointing, human-in-the-loop
 - **LangChain**: Agent creation, tools, prompt management
 - **Pydantic**: Data validation, structured outputs
+- **FastAPI**: REST + WebSocket API servers
+- **Next.js**: Research client frontend (`research_client/`)
+
+### Persistence & State
+- **MongoDB + Beanie**: Research plans, runs, candidates, thread messages
+- **PostgreSQL + LangGraph Store**: Memory (semantic, episodic, procedural)
+- **Neo4j (via GraphQL)**: Final knowledge graph (entities, relationships, evidence)
+- **Redis**: Task queues, caching
 
 ### Task Orchestration
 - **Taskiq**: Async task queue framework
-- **RabbitMQ**: Message broker (task distribution)
-- **Redis**: Streams (runnable tasks, events), caching
-
-### Persistence
-- **MongoDB + Beanie**: Primary storage (research plans, runs, candidates, entities)
-- **PostgreSQL + LangGraph Store**: Memory storage (semantic, episodic, procedural)
-- **Neo4j**: Knowledge graph (final entities, relationships, evidence)
-- **S3**: Large file storage (transcripts, artifacts, reports)
-
-### API & Clients
-- **FastAPI**: REST + WebSocket servers
-- **Apollo Server (TypeScript)**: GraphQL API (separate repo)
-- **Ariadne Codegen**: Python GraphQL client (for Neo4j ingestion)
+- **RabbitMQ**: Message broker for distributed workers
+- **Redis Streams**: Runnable tasks + events
 
 ### AI Models
-- **GPT-4.1**: Summarization, complex reasoning
-- **GPT-5 Mini**: Most agent work (fast, cost-effective)
-- **GPT-5 Nano**: Simple tasks (source expansion)
+- **GPT-4.1**: Complex reasoning, summarization
+- **GPT-5 Mini**: Primary agent work (fast, cost-effective)
+- **GPT-5 Nano**: Simple tasks (source expansion, quick queries)
 - **GPT-5**: Final report synthesis (highest quality)
 
-### Tools & Integrations
-- **Tavily**: Web search + extraction
-- **Exa**: Semantic web search
-- **Playwright**: Browser automation
-- **PubMed**: Scholarly research
-- **Semantic Scholar**: Citation graphs
-- **ClinicalTrials.gov**: Clinical data
+---
+
+## PHASE 1: Coordinator Agent (Priority 1)
+
+### Purpose
+
+The **Coordinator Agent** is a NEW conversational LangGraph agent that helps users interactively BUILD research plans. It replaces the old approach which used the inefficient entity candidates connected graph -> research plan graph -> mission dag execution approach. Candidate exploration and source discovery will be standalone and potentially part of research plans. 
+
+**Key Insight**: Research plan creation is a creative, iterative process that benefits from human guidance. The Coordinator Agent facilitates this conversation.
+
+### Core Capabilities
+
+1. **Conversational Plan Building**
+   - Multi-turn dialogue to understand research goals
+   - Ask clarifying questions about scope, depth, entities of interest
+   - Suggest research strategies based on user input
+
+2. **Knowledge Graph Queries**
+   - Query existing entities in the knowledge graph (via GraphQL)
+   - "What do we already know about X?"
+   - Avoid redundant research on well-covered entities
+
+3. **Past Research Lookup**
+   - Query previous research runs and their outcomes
+   - Learn from past successes/failures
+   - Suggest reusable approaches
+
+4. **Web Search Integration**
+   - Quick validation searches during planning
+   - "Is this entity real?"
+   - "What are the key domains for this organization?"
+
+5. **Memory Integration**
+   - Semantic memory: Entity facts we've learned
+   - Episodic memory: What worked in similar research missions
+   - Procedural memory: Reusable research tactics
+
+6. **Two Human Approval Stages**
+   - **Stage 1: Scope Approval** - User approves the high-level research scope
+   - **Stage 2: Final Plan Approval** - User approves the complete research plan before execution
+
+### Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    Coordinator Agent                         │
+│                    (LangGraph Graph)                         │
+├─────────────────────────────────────────────────────────────┤
+│                                                               │
+│  ┌───────────────┐  ┌────────────────┐  ┌────────────────┐ │
+│  │  Understand   │  │  Query Existing│  │  Build Initial │ │
+│  │  User Goals   │→ │  Knowledge     │→ │  Scope         │ │
+│  └───────────────┘  └────────────────┘  └────────────────┘ │
+│           │                                       ↓          │
+│           │         ┌─────────────────────────────────────┐ │
+│           │         │  👤 HUMAN APPROVAL #1: Scope        │ │
+│           │         └─────────────────────────────────────┘ │
+│           │                       ↓                          │
+│  ┌───────────────┐  ┌────────────────┐  ┌────────────────┐ │
+│  │  Suggest      │  │  Define Stages │  │  Allocate      │ │
+│  │  Strategies   │→ │  & Sub-Stages  │→ │  Agent Types   │ │
+│  └───────────────┘  └────────────────┘  └────────────────┘ │
+│           │                                       ↓          │
+│           │         ┌─────────────────────────────────────┐ │
+│           │         │  👤 HUMAN APPROVAL #2: Final Plan   │ │
+│           │         └─────────────────────────────────────┘ │
+│           │                       ↓                          │
+│           │         ┌────────────────┐                       │
+│           └────────→│  Save Plan &   │                       │
+│                     │  Emit to       │                       │
+│                     │  Mission Queue │                       │
+│                     └────────────────┘                       │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Tools Available to Coordinator Agent
+
+1. **Web Search Tools**
+   - `tavily_search`: General web search
+   - `exa_search`: Semantic search
+   - `wikipedia_search`: Quick entity validation
+
+2. **Knowledge Graph Query Tools** (NEW - TO BE IMPLEMENTED)
+   - `query_existing_entities`: "What entities do we have for query X?"
+   - `get_entity_details`: "Get full details for entity ID"
+   - `search_entities_by_type`: "Find all organizations in domain X"
+
+3. **Research History Tools** (NEW - TO BE IMPLEMENTED)
+   - `query_past_research_runs`: "Find similar past research missions"
+   - `get_research_run_summary`: "Get outcomes from run ID"
+   - `get_research_run_agents_used`: "What agent types were effective?"
+
+4. **Memory Tools**
+   - `recall_semantic_memory`: Recall entity facts
+   - `recall_episodic_memory`: Recall past run notes
+   - `recall_procedural_memory`: Recall research tactics
+
+5. **Candidate Exploration Tool** (Phase 3)
+   - `explore_and_rank_candidates`: Quick candidate discovery + ranking
+
+### State Model 
+
+### Possible States and Examples 
+
+```python
+class CoordinatorAgentState(TypedDict):
+    """State for the Coordinator Agent conversation."""
+    
+    # User input & context
+    thread_id: str
+    user_query: str
+    messages: List[BaseMessage]
+    
+    # Extracted research goals
+    research_goals: Optional[ResearchGoals]  # LLM-extracted structured goals
+    entities_of_interest: List[str]
+    research_depth: str  # "quick_overview" | "moderate" | "comprehensive"
+    research_focus: List[str]  # ["leadership", "products", "evidence", ...]
+    
+    # Knowledge graph context
+    existing_entities: List[ExistingEntitySummary]  # Entities already in KG
+    gaps_identified: List[str]  # What's missing from KG
+    
+    # Past research context
+    similar_past_runs: List[PastResearchRunSummary]
+    lessons_learned: List[str]
+    
+    # Research plan construction
+    proposed_scope: Optional[ResearchScope]  # High-level scope
+    scope_approved: bool  # Human approval checkpoint #1
+    
+    research_stages: List[ResearchStage]  # S1, S2, S3, ...
+    agent_allocations: List[AgentAllocation]  # Which agent types per stage
+    source_recommendations: List[SourceRecommendation]
+    
+    final_plan: Optional[ResearchMissionPlanFinal]
+    final_plan_approved: bool  # Human approval checkpoint #2
+    
+    # Control flow
+    awaiting_human_input: bool
+    human_feedback: Optional[str]
+    plan_iteration_count: int
+```
+
+### MongoDB Models (NEW)
+
+```python
+# models/mongo/coordinator/docs/coordinator_threads.py
+
+class CoordinatorThreadDoc(Document):
+    """Stores conversation threads with the Coordinator Agent."""
+    
+    thread_id: str  # Unique thread ID
+    user_id: Optional[str]  # Future: multi-user support
+    
+    # Thread metadata
+    created_at: datetime
+    updated_at: datetime
+    status: str  # "active" | "scope_approved" | "plan_approved" | "plan_sent_to_execution"
+    
+    # Research context
+    initial_query: str
+    research_goals: Optional[ResearchGoals]
+    
+    # Messages (persisted for thread replay)
+    messages: List[Dict]  # Serialized BaseMessage objects
+    
+    # Checkpoints (for human-in-the-loop)
+    scope_checkpoint_id: Optional[str]
+    final_plan_checkpoint_id: Optional[str]
+    
+    # Final output
+    final_plan_mongo_id: Optional[PydanticObjectId]  # Ref to ResearchMissionPlanDoc
+    
+    class Settings:
+        name = "coordinator_threads"
+        indexes = ["thread_id", "status", "created_at"]
+
+
+class CoordinatorCheckpointDoc(Document):
+    """Stores checkpoints for human approval stages."""
+    
+    checkpoint_id: str
+    thread_id: str
+    checkpoint_type: str  # "scope_approval" | "final_plan_approval"
+    
+    created_at: datetime
+    
+    # Checkpoint data
+    state_snapshot: Dict  # Full state at checkpoint
+    human_prompt: str  # What we're asking the human
+    
+    # Human response
+    approved: Optional[bool]
+    human_feedback: Optional[str]
+    responded_at: Optional[datetime]
+    
+    class Settings:
+        name = "coordinator_checkpoints"
+        indexes = ["thread_id", "checkpoint_type", "approved"]
+```
+
+### FastAPI Routes (NEW)
+
+```python
+# api/coordinator/routes/threads.py
+
+@router.post("/coordinator/threads")
+async def create_coordinator_thread(
+    request: CreateThreadRequest
+) -> CreateThreadResponse:
+    """Start a new Coordinator Agent conversation."""
+    # Create thread, invoke graph with initial message
+    pass
+
+
+@router.post("/coordinator/threads/{thread_id}/messages")
+async def send_message_to_coordinator(
+    thread_id: str,
+    message: SendMessageRequest
+) -> SendMessageResponse:
+    """Send a message to the Coordinator Agent."""
+    # Append message, invoke graph, stream response
+    pass
+
+
+@router.get("/coordinator/threads/{thread_id}")
+async def get_thread(thread_id: str) -> ThreadResponse:
+    """Get thread details and message history."""
+    pass
+
+
+@router.get("/coordinator/threads/{thread_id}/checkpoints")
+async def get_thread_checkpoints(thread_id: str) -> CheckpointsResponse:
+    """Get all checkpoints for a thread (awaiting human approval)."""
+    pass
+
+
+@router.post("/coordinator/checkpoints/{checkpoint_id}/approve")
+async def approve_checkpoint(
+    checkpoint_id: str,
+    approval: CheckpointApprovalRequest
+) -> CheckpointApprovalResponse:
+    """Approve or reject a checkpoint (human-in-the-loop)."""
+    # Update checkpoint, resume graph from checkpoint
+    pass
+
+
+# WebSocket endpoint for streaming
+@router.websocket("/coordinator/threads/{thread_id}/stream")
+async def stream_coordinator_messages(websocket: WebSocket, thread_id: str):
+    """Stream Coordinator Agent messages in real-time."""
+    pass
+```
+
+### Next.js Research Client
+
+```
+research_client/
+├── app/
+│   ├── layout.tsx
+│   ├── page.tsx                    # Home: List threads or create new
+│   ├── threads/
+│   │   ├── [thread_id]/
+│   │   │   └── page.tsx            # Main chat interface
+│   │   └── new/
+│   │       └── page.tsx            # Create new thread
+│   └── api/
+│       └── coordinator/            # API proxy to FastAPI
+│
+├── components/
+│   ├── chat/
+│   │   ├── ChatInterface.tsx       # Main chat UI
+│   │   ├── MessageBubble.tsx
+│   │   ├── ApprovalCheckpoint.tsx  # Human approval UI
+│   │   └── PlanVisualization.tsx   # Show research plan structure
+│   ├── plan/
+│   │   ├── ResearchPlanView.tsx    # Detailed plan view
+│   │   ├── StageCard.tsx
+│   │   └── AgentAllocationView.tsx
+│   └── knowledge-graph/
+│       └── ExistingEntitiesView.tsx # Show entities already in KG
+│
+├── lib/
+│   ├── api-client.ts               # FastAPI client
+│   ├── websocket.ts                # WebSocket connection manager
+│   └── types.ts                    # TypeScript types
+│
+├── hooks/
+│   ├── useCoordinatorThread.ts
+│   ├── useCheckpointApproval.ts
+│   └── useWebSocket.ts
+│
+└── package.json
+```
+
+### Implementation Steps for Phase 1
+
+1. **Create Beanie Models**
+   - `CoordinatorThreadDoc`
+   - `CoordinatorCheckpointDoc`
+
+2. **Create GraphQL Query Tools**
+   - Implement tools that query the GraphQL API
+   - Tools for entity lookup, entity search, entity details
+
+3. **Create Research History Tools**
+   - Query `ResearchRunDoc` collection
+   - Summarize past research outcomes
+
+4. **Build Coordinator LangGraph**
+   - Define `CoordinatorAgentState`
+   - Implement nodes: understand_goals, query_knowledge, build_scope, etc.
+   - Implement human-in-the-loop checkpoints
+   - Use `interrupt()` for human approval stages
+
+5. **Create FastAPI Routes**
+   - Thread management routes
+   - Checkpoint approval routes
+   - WebSocket streaming
+
+6. **Build Next.js Client**
+   - Chat interface
+   - Approval checkpoint UI
+   - Plan visualization
+   - WebSocket integration
+
+7. **Testing**
+   - Unit tests for tools
+   - Integration tests for graph flow
+   - E2E tests for full conversation → plan approval flow
+
+---
+
+## PHASE 2: Research Plan & Mission Orchestration (MOST CRITICAL)
+
+### The Problem with Current Approach
+
+**Current (BAD) Approach:**
+1. Entity Discovery Graph generates domain catalogs for EVERY entity
+2. Domain catalogs are rigid URL structures
+3. Research Plan Graph relies on these domain catalogs to assign sources
+4. This is **inefficient**, **slow**, and **inflexible**
+
+**Why It Doesn't Make Sense:**
+- Not all research missions need domain catalogs
+- Domain catalogs are expensive to generate (many LLM calls)
+- Some research is better served by web search, not domain crawling
+- Research plans should be flexible, not rigidly tied to URL structures
+
+### New Approach: Flexible Research Plans
+
+**Research Plans should be:**
+- **Agent-centric**: Define what agents do, not what domains they crawl
+- **Objective-driven**: Each agent has clear objectives, not just "crawl these URLs"
+- **Tool-flexible**: Agents can use web search, filesystem, memory, AND optional starter sources
+- **Output-aware**: Stages pass outputs to downstream stages
+- **Execution-flexible**: Can run sequential, incremental, or fully parallel
+
+### Research Plan Structure (REDESIGNED)
+
+```python
+class ResearchObjective(BaseModel):
+    """A specific research objective for an agent."""
+    
+    objective_id: str
+    description: str  # "Identify the leadership team of Novo Nordisk"
+    success_criteria: List[str]  # ["Find CEO name", "Find at least 5 exec names"]
+    priority: str  # "critical" | "high" | "medium" | "low"
+
+
+class AgentInstancePlan(BaseModel):
+    """Plan for a single agent instance execution."""
+    
+    instance_id: str
+    agent_type: str  # "BusinessIdentityAndLeadershipAgent"
+    
+    # What the agent should do
+    objectives: List[ResearchObjective]
+    
+    # What the agent gets as input
+    seed_context: Dict[str, Any]  # Entities, focus areas, etc.
+    starter_sources: List[str]  # OPTIONAL starter URLs
+    
+    # What tools the agent can use
+    allowed_tools: List[str]
+    
+    # Dependencies
+    requires_outputs_from: List[str]  # List of instance_ids
+    previous_stage_outputs: Optional[Dict]  # Outputs from prev stage
+    
+    # Execution config
+    max_steps: int
+    timeout_minutes: int
+
+
+class SubStage(BaseModel):
+    """A sub-stage groups related agent instances."""
+    
+    sub_stage_id: str
+    name: str
+    description: str
+    
+    # Agent instances in this sub-stage
+    agent_instances: List[str]  # instance_ids
+    
+    # Execution mode
+    execution_mode: str  # "parallel" | "sequential"
+    
+    # Dependencies
+    depends_on_sub_stages: List[str]  # sub_stage_ids that must complete first
+    
+    # Output handling
+    output_aggregation: str  # "merge_all" | "best_of" | "consensus"
+
+
+class Stage(BaseModel):
+    """A stage groups related sub-stages."""
+    
+    stage_id: str
+    name: str
+    description: str
+    
+    # Sub-stages in this stage
+    sub_stages: List[str]  # sub_stage_ids
+    
+    # Execution mode
+    execution_mode: str  # "parallel" | "sequential"
+    
+    # Dependencies
+    depends_on_stages: List[str]  # stage_ids that must complete first
+    
+    # Output handling
+    stage_outputs: Dict[str, Any]  # Aggregated outputs from all sub-stages
+
+
+class ResearchMissionPlan(BaseModel):
+    """Complete research mission plan."""
+    
+    mission_id: str
+    created_by: str  # "coordinator_agent" | "manual"
+    
+    # Mission metadata
+    mission_name: str
+    mission_description: str
+    research_depth: str  # "quick" | "moderate" | "comprehensive"
+    
+    # Research structure
+    stages: List[Stage]
+    sub_stages: List[SubStage]
+    agent_instances: List[AgentInstancePlan]
+    
+    # Execution config
+    execution_strategy: str  # "sequential" | "parallel" | "hybrid"
+    fail_fast: bool
+    
+    # WebSocket progress
+    progress_webhook_url: Optional[str]
+    
+    # Output config
+    save_to_knowledge_graph: bool
+    extraction_config: Optional[ExtractionConfig]
+```
+
+### Execution Modes Explained
+
+**Sequential Execution:**
+```
+Stage 1 (Identity)
+  → Complete → Pass outputs to Stage 2
+                 ↓
+               Stage 2 (Products)
+                 → Complete → Pass outputs to Stage 3
+                               ↓
+                             Stage 3 (Evidence)
+```
+
+**Parallel Execution:**
+```
+Stage 1 (Identity)  ──┐
+Stage 2 (Products)  ──┼──→ All run simultaneously
+Stage 3 (Evidence)  ──┘
+```
+
+**Hybrid (Most Common):**
+```
+Stage 1 (Identity - Foundation)
+  → Complete → Outputs passed to:
+                 ┌─────────────┬─────────────┐
+                 ↓             ↓             ↓
+              Stage 2a      Stage 2b      Stage 2c
+              (Products)    (Tech)        (Evidence)
+              [PARALLEL]    [PARALLEL]    [PARALLEL]
+                 └─────────────┴─────────────┘
+                              ↓
+                      Stage 3 (Synthesis)
+```
+
+### Research Mission Orchestration
+
+**Flow:**
+1. **Coordinator Agent** creates `ResearchMissionPlan`
+2. **Mission Control API** receives plan, builds DAG
+3. **DAG Builder** creates task definitions with dependencies
+4. **Scheduler** enqueues tasks as dependencies complete
+5. **Workers** execute agent instances
+6. **Progress** streamed via WebSocket
+7. **Outputs** passed between stages
+8. **Final Results** sent to Extraction Pipeline (Phase 4)
+
+**Enhanced DAG Builder:**
+```python
+def build_mission_dag(plan: ResearchMissionPlan) -> MissionDAG:
+    """Build DAG from flexible research plan."""
+    
+    tasks = {}
+    
+    # Create tasks for each agent instance
+    for instance in plan.agent_instances:
+        task_id = f"instance::{plan.mission_id}::{instance.instance_id}"
+        
+        # Determine dependencies
+        depends_on = []
+        for required_instance_id in instance.requires_outputs_from:
+            depends_on.append(f"instance::{plan.mission_id}::{required_instance_id}")
+        
+        # Add sub-stage dependencies
+        sub_stage = find_sub_stage_for_instance(instance.instance_id, plan)
+        for dep_sub_stage_id in sub_stage.depends_on_sub_stages:
+            depends_on.append(f"substage_reduce::{plan.mission_id}::{dep_sub_stage_id}")
+        
+        tasks[task_id] = TaskDefinition(
+            task_id=task_id,
+            task_type="INSTANCE_RUN",
+            depends_on=depends_on,
+            payload=instance.model_dump(),
+        )
+    
+    # Create aggregation tasks for sub-stages
+    for sub_stage in plan.sub_stages:
+        task_id = f"substage_reduce::{plan.mission_id}::{sub_stage.sub_stage_id}"
+        
+        # Depends on all agent instances in sub-stage
+        depends_on = [
+            f"instance::{plan.mission_id}::{inst_id}"
+            for inst_id in sub_stage.agent_instances
+        ]
+        
+        tasks[task_id] = TaskDefinition(
+            task_id=task_id,
+            task_type="SUBSTAGE_REDUCE",
+            depends_on=depends_on,
+            payload=sub_stage.model_dump(),
+        )
+    
+    return MissionDAG(tasks=tasks)
+```
+
+### WebSocket Progress Updates
+
+```python
+# Real-time progress events streamed to client
+
+class ProgressEvent(BaseModel):
+    mission_id: str
+    event_type: str
+    timestamp: datetime
+    
+    # Event-specific data
+    task_id: Optional[str]
+    stage_id: Optional[str]
+    sub_stage_id: Optional[str]
+    instance_id: Optional[str]
+    
+    message: str
+    progress_percent: float
+
+# Example events:
+# - "MISSION_STARTED"
+# - "STAGE_STARTED" (stage_id: "S1")
+# - "INSTANCE_STARTED" (instance_id: "inst_001")
+# - "INSTANCE_PROGRESS" (instance_id: "inst_001", message: "Completed 5/10 objectives")
+# - "INSTANCE_COMPLETED" (instance_id: "inst_001")
+# - "SUBSTAGE_REDUCE_STARTED" (sub_stage_id: "S1.1")
+# - "SUBSTAGE_COMPLETED" (sub_stage_id: "S1.1")
+# - "STAGE_COMPLETED" (stage_id: "S1")
+# - "MISSION_COMPLETED"
+```
+
+### Agent Instance Execution (Enhanced)
+
+**Agent gets:**
+- Clear objectives (not just "research this domain")
+- Seed context (entities, focus areas)
+- Optional starter sources (if provided)
+- Full tool access (web search, filesystem, memory)
+- Previous stage outputs (if applicable)
+
+**Agent execution flow:**
+```python
+async def execute_agent_instance(
+    plan: AgentInstancePlan,
+    previous_outputs: Optional[Dict] = None
+) -> AgentInstanceOutput:
+    """Execute a single agent instance."""
+    
+    # Build agent with tools
+    agent = build_worker_agent(
+        agent_type=plan.agent_type,
+        allowed_tools=plan.allowed_tools,
+    )
+    
+    # Prepare initial state
+    state = WorkerAgentState(
+        agent_instance_plan=plan,
+        seed_context=plan.seed_context,
+        starter_sources=plan.starter_sources,
+        previous_outputs=previous_outputs,  # NEW: outputs from prev stage
+        objectives=plan.objectives,
+        messages=[],
+        workspace_root=f"/workspace/{plan.instance_id}",
+    )
+    
+    # Execute agent
+    result = await agent.ainvoke(state)
+    
+    # Extract outputs
+    outputs = {
+        "objectives_completed": result["objectives_completed"],
+        "findings": result["research_notes"],
+        "entities_discovered": result["entities_discovered"],
+        "files_created": result["file_refs"],
+    }
+    
+    return AgentInstanceOutput(
+        instance_id=plan.instance_id,
+        status="completed",
+        outputs=outputs,
+    )
+```
+
+### Sub-Stage Output Aggregation
+
+```python
+async def aggregate_substage_outputs(
+    sub_stage: SubStage,
+    instance_outputs: List[AgentInstanceOutput]
+) -> SubStageOutput:
+    """Aggregate outputs from all instances in a sub-stage."""
+    
+    if sub_stage.output_aggregation == "merge_all":
+        # Simply merge all outputs
+        merged = {
+            "findings": [],
+            "entities_discovered": [],
+            "files_created": [],
+        }
+        for output in instance_outputs:
+            merged["findings"].extend(output.outputs["findings"])
+            merged["entities_discovered"].extend(output.outputs["entities_discovered"])
+            merged["files_created"].extend(output.outputs["files_created"])
+        
+        return SubStageOutput(
+            sub_stage_id=sub_stage.sub_stage_id,
+            aggregated_outputs=merged,
+        )
+    
+    elif sub_stage.output_aggregation == "best_of":
+        # Use LLM to select best outputs
+        best = await llm_select_best_outputs(instance_outputs)
+        return SubStageOutput(
+            sub_stage_id=sub_stage.sub_stage_id,
+            aggregated_outputs=best,
+        )
+    
+    elif sub_stage.output_aggregation == "consensus":
+        # Use LLM to find consensus across outputs
+        consensus = await llm_find_consensus(instance_outputs)
+        return SubStageOutput(
+            sub_stage_id=sub_stage.sub_stage_id,
+            aggregated_outputs=consensus,
+        )
+```
+
+### Implementation Steps for Phase 2
+
+1. **Redesign Research Plan Models**
+   - Create new `ResearchObjective`, `AgentInstancePlan`, `SubStage`, `Stage` models
+   - Remove domain catalog dependencies
+
+2. **Update DAG Builder**
+   - Support flexible dependencies (instance → instance, sub-stage → stage)
+   - Support output passing between tasks
+
+3. **Enhance Worker Execution**
+   - Accept `previous_outputs` parameter
+   - Make starter sources optional
+   - Focus on objectives, not domain crawling
+
+4. **Implement Sub-Stage Aggregation**
+   - Merge, best-of, consensus strategies
+   - Pass aggregated outputs to downstream stages
+
+5. **WebSocket Progress**
+   - Emit progress events at each step
+   - Stream to research client
+
+6. **Update Coordinator Agent**
+   - Generate flexible research plans (not domain-catalog-dependent)
+   - Suggest execution strategies based on research goals
+
+---
+
+## PHASE 3: Entity Candidates Refactor
+
+### Current Problems
+
+The current `entity_candidates_connected_graph.py` is **highly inefficient**:
+- Generates domain catalogs for EVERY entity (slow, expensive)
+- Over-generates candidates (too many false positives)
+- Tightly coupled to research plan generation
+
+### New Approach: Lightweight Candidate Ranking
+
+**Purpose:** Transform into a **special tool** that can be used by the Coordinator Agent to:
+- Quickly explore candidate entities
+- Rank candidates by relevance/importance
+- Suggest which entities are worth deep research
+
+**NOT** a mandatory step in every research mission.
+
+### Refactored Graph Structure
+
+```python
+class CandidateExplorationInput(BaseModel):
+    """Input for candidate exploration."""
+    query: str
+    max_candidates: int = 10
+    candidate_types: List[str]  # ["organization", "person", "product"]
+    ranking_criteria: str  # "relevance" | "completeness" | "novelty"
+
+
+class CandidateExplorationOutput(BaseModel):
+    """Output from candidate exploration."""
+    candidates: List[RankedCandidate]
+    exploration_summary: str
+
+
+class RankedCandidate(BaseModel):
+    """A single candidate with ranking score."""
+    
+    entity_type: str
+    canonical_name: str
+    aliases: List[str]
+    
+    # Ranking
+    relevance_score: float  # 0-1
+    completeness_score: float  # 0-1 (how much info we have)
+    novelty_score: float  # 0-1 (is this new or do we already have it?)
+    
+    # Quick context
+    quick_summary: str
+    official_domains: List[str]
+    
+    # Recommendation
+    recommended_for_research: bool
+    research_priority: str  # "high" | "medium" | "low"
+```
+
+### Simplified Graph Flow
+
+```
+User Query: "Research GLP-1 agonist manufacturers"
+          ↓
+[Quick Entity Extraction]
+  → Extract: Organizations (Novo Nordisk, Eli Lilly, etc.)
+             Products (Ozempic, Mounjaro, etc.)
+          ↓
+[Relevance Ranking]
+  → Score each candidate:
+     - Relevance to query: 0.95 (Novo Nordisk)
+     - Relevance to query: 0.92 (Eli Lilly)
+     - Relevance to query: 0.45 (Generic Pharma Corp) → FILTER OUT
+          ↓
+[Novelty Check]
+  → Query Knowledge Graph:
+     - Novo Nordisk: Already have comprehensive data → Novelty: 0.1
+     - Eli Lilly: Minimal data → Novelty: 0.9
+          ↓
+[Completeness Estimation]
+  → Quick web search for each:
+     - Novo Nordisk: Rich official sources → Completeness: 0.9
+     - Eli Lilly: Limited sources → Completeness: 0.6
+          ↓
+[Output Ranked List]
+  1. Eli Lilly (Priority: HIGH - novel, relevant, completable)
+  2. Novo Nordisk (Priority: LOW - already have data)
+```
+
+### Integration as Tool
+
+```python
+# tools/candidate_exploration/explore_and_rank.py
+
+class ExploreAndRankCandidatesTool(BaseTool):
+    """Tool for Coordinator Agent to explore and rank candidates."""
+    
+    name = "explore_and_rank_candidates"
+    description = """
+    Quickly explore candidate entities related to a query and rank them
+    by research priority. Returns top candidates worth deep research.
+    
+    Input: query string, optional max_candidates (default 10)
+    Output: Ranked list of candidates with recommendations
+    """
+    
+    async def _arun(self, query: str, max_candidates: int = 10) -> str:
+        # Invoke simplified entity exploration graph
+        graph = build_candidate_exploration_graph()
+        result = await graph.ainvoke({
+            "query": query,
+            "max_candidates": max_candidates,
+        })
+        
+        # Format output for LLM
+        return format_candidates_for_llm(result["candidates"])
+```
+
+### Implementation Steps for Phase 3
+
+1. **Simplify Entity Discovery Graph**
+   - Remove domain catalog generation
+   - Remove official sources deep dive
+   - Keep only: quick extraction + ranking
+
+2. **Implement Ranking Logic**
+   - Relevance scoring (based on query)
+   - Novelty scoring (query KG for existing entities)
+   - Completeness estimation (quick web search)
+
+3. **Create Tool Interface**
+   - Wrap simplified graph as LangChain tool
+   - Make available to Coordinator Agent
+
+4. **Update Coordinator Agent**
+   - Use tool to help users prioritize entities
+   - "I found 10 candidates. Eli Lilly and Sanofi are high priority because..."
+
+5. **Optional Route**
+   - Keep as standalone API route for manual exploration
+   - `POST /candidates/explore-and-rank`
+
+---
+
+## PHASE 4: Extraction & Storage
+
+### Purpose
+
+After research missions complete, we need to:
+1. Extract structured entities from agent outputs
+2. Store entities in the knowledge graph (Neo4j via GraphQL)
+3. Link entities to evidence (document chunks)
+
+### Extraction Pipeline
+
+```
+Agent Outputs (files, research notes)
+          ↓
+[Parse Reports]
+  → Read all final reports
+  → Read all checkpoint files
+          ↓
+[Extract Entities]
+  → LLM structured extraction:
+     - Organizations (name, domains, description, etc.)
+     - People (name, affiliations, bio, etc.)
+     - Products (name, organization, claims, etc.)
+     - Compounds (name, mechanism, structure, etc.)
+          ↓
+[Extract Relationships]
+  → Identify connections:
+     - Person WORKS_FOR Organization
+     - Organization DEVELOPS Product
+     - Product CONTAINS Compound
+     - Document MENTIONS Entity
+          ↓
+[GraphQL Mutations]
+  → Upsert entities to Neo4j
+  → Create relationships
+  → Link documents to entities
+          ↓
+[Knowledge Graph Updated]
+```
+
+### Extraction Graph
+
+```python
+class ExtractionState(TypedDict):
+    """State for extraction graph."""
+    
+    mission_id: str
+    research_run_id: str
+    
+    # Input files
+    final_reports: List[FileReference]
+    checkpoint_files: List[FileReference]
+    
+    # Extracted entities
+    organizations: List[OrganizationExtracted]
+    people: List[PersonExtracted]
+    products: List[ProductExtracted]
+    compounds: List[CompoundExtracted]
+    
+    # Extracted relationships
+    relationships: List[RelationshipExtracted]
+    
+    # Evidence links
+    evidence_links: List[EvidenceLink]
+    
+    # GraphQL results
+    graphql_entity_ids: Dict[str, str]  # local_id → neo4j_id
+    graphql_errors: List[str]
+```
+
+### GraphQL Mutations (via Ariadne Client)
+
+```python
+# services/graphql/mutations.py
+
+async def upsert_organization(
+    client: GraphQLClient,
+    org: OrganizationExtracted
+) -> str:
+    """Upsert organization to Neo4j, return Neo4j ID."""
+    
+    mutation = """
+    mutation UpsertOrganization($input: OrganizationInput!) {
+        upsertOrganization(input: $input) {
+            id
+            canonicalName
+        }
+    }
+    """
+    
+    result = await client.execute(mutation, variables={
+        "input": {
+            "canonicalName": org.canonical_name,
+            "domains": org.domains,
+            "description": org.description,
+            "aliases": org.aliases,
+        }
+    })
+    
+    return result["upsertOrganization"]["id"]
+
+
+async def create_relationship(
+    client: GraphQLClient,
+    source_id: str,
+    target_id: str,
+    relationship_type: str,
+    properties: Dict
+) -> str:
+    """Create relationship between entities."""
+    
+    mutation = """
+    mutation CreateRelationship($input: RelationshipInput!) {
+        createRelationship(input: $input) {
+            id
+        }
+    }
+    """
+    
+    result = await client.execute(mutation, variables={
+        "input": {
+            "sourceId": source_id,
+            "targetId": target_id,
+            "type": relationship_type,
+            "properties": properties,
+        }
+    })
+    
+    return result["createRelationship"]["id"]
+```
+
+### Implementation Steps for Phase 4
+
+1. **Create Extraction Graph**
+   - Parse reports node
+   - Extract entities node
+   - Extract relationships node
+   - Link evidence node
+
+2. **Implement GraphQL Mutations**
+   - Entity upsert mutations (org, person, product, compound)
+   - Relationship creation mutations
+   - Evidence link mutations
+
+3. **Create Extraction API Route**
+   - `POST /extraction/extract-from-mission`
+   - Input: mission_id
+   - Output: extraction_summary
+
+4. **Integrate with Mission Control**
+   - After mission completes, trigger extraction
+   - Stream extraction progress via WebSocket
+
+5. **Update Research Client**
+   - Show extraction progress
+   - Show entities added to KG
+   - Link to KG visualization
+
+---
+
+## MongoDB Collections Summary
+
+### Coordinator (Phase 1)
+- `coordinator_threads`: Conversation threads
+- `coordinator_checkpoints`: Human approval checkpoints
+
+### Research (Phase 2 - Updated)
+- `research_mission_plans`: Flexible research plans (redesigned structure)
+- `research_runs`: Mission execution tracking
+- `research_outputs`: Agent instance outputs (NEW)
+- `substage_outputs`: Aggregated sub-stage outputs (NEW)
+
+### Candidates (Phase 3 - Simplified)
+- `candidate_explorations`: Quick candidate exploration results
+- `ranked_candidates`: Candidate rankings (simplified)
+
+### Entities (Phase 4)
+- `extracted_entities`: Entities extracted from research (pre-KG)
+- `extraction_runs`: Extraction pipeline run tracking
+
+### Existing (Keep As Is)
+- Domain catalogs: **DEPRECATED** (remove dependency, keep for backward compat)
+- Connected candidates: **DEPRECATED** (replaced by ranked_candidates)
+
+---
+
+## API Servers Summary
+
+### 1. Coordinator API (NEW)
+- **Port**: 8001
+- **Purpose**: Coordinator Agent interaction
+- **Routes**:
+  - `POST /coordinator/threads`
+  - `POST /coordinator/threads/{id}/messages`
+  - `GET /coordinator/threads/{id}`
+  - `POST /coordinator/checkpoints/{id}/approve`
+  - `WS /coordinator/threads/{id}/stream`
+
+### 2. Mission Control API (ENHANCED)
+- **Port**: 8002
+- **Purpose**: Research mission orchestration
+- **Routes**:
+  - `POST /missions` (create and start)
+  - `GET /missions/{id}`
+  - `GET /missions/{id}/runs`
+  - `POST /missions/runs/{id}/cancel`
+  - `WS /missions/runs/{id}/progress` (NEW: WebSocket progress)
+
+### 3. Memory & Thread API (KEEP)
+- **Port**: 8003
+- **Purpose**: LangGraph memory and checkpointing
+- **Routes**: (existing routes remain)
+
+### 4. Extraction API (NEW)
+- **Port**: 8004
+- **Purpose**: Entity extraction and KG storage
+- **Routes**:
+  - `POST /extraction/extract-from-mission`
+  - `GET /extraction/runs/{id}`
+  - `WS /extraction/runs/{id}/progress`
 
 ---
 
 ## Development Workflow
 
-### Running Entity Discovery Graph
-```python
-from research_agent.human_upgrade.graphs.entity_candidates_connected_graph import (
-    make_entity_intel_connected_candidates_and_sources_graph
-)
+### 1. Start Coordinator Agent Conversation
 
-graph = await make_entity_intel_connected_candidates_and_sources_graph(config)
-
-result = await graph.ainvoke({
-    "query": "Research Ozempic for diabetes",
-    "starter_sources": ["https://www.novonordisk.com"],
-    "starter_content": "Ozempic is a GLP-1 agonist..."
-})
-
-candidates = result["candidate_sources"]
-```
-
-### Running Research Plan Graph
-```python
-from research_agent.human_upgrade.graphs.research_plan_graph import (
-    build_research_plan_creation_graph
-)
-
-graph = build_research_plan_creation_graph(llm=gpt_5_mini)
-
-result = await graph.ainvoke({
-    "run_id": "plan_20260212",
-    "research_mode": "full_entities_basic",
-    "connected_candidates": candidates.model_dump(),
-    "starter_domain_catalogs": [...],
-    "mode_and_agent_recs": {...},
-    "tool_recs": {...},
-})
-
-plan = result["final_research_mission_plan"]
-```
-
-### Running Mission DAG
 ```bash
-# Terminal 1: Start scheduler
-python -m research_agent.mission_queue.scheduler_in_memory
+# Terminal 1: Start Coordinator API
+uvicorn research_agent.api.coordinator.main:app --reload --port 8001
 
-# Terminal 2: Start workers (N instances)
-python -m research_agent.mission_queue.worker
+# Terminal 2: Start Next.js client
+cd research_client/
+npm run dev
 ```
 
-### Querying MongoDB
-```python
-from research_agent.models.mongo.research.docs.research_runs import ResearchRunDoc
+**User flow:**
+1. User opens research client
+2. Creates new thread
+3. Chats with Coordinator Agent
+4. Approves scope
+5. Reviews and approves final plan
+6. Plan sent to Mission Control
 
-# Find all running missions
-runs = await ResearchRunDoc.find(
-    ResearchRunDoc.status == "RUNNING"
-).to_list()
+### 2. Execute Research Mission
 
-# Get run progress
-run = await ResearchRunDoc.get(run_id)
-progress = run.succeededTasks / run.totalTasks
+```bash
+# Terminal 3: Start Mission Control API
+uvicorn research_agent.api.mission_control.main:app --reload --port 8002
+
+# Terminal 4: Start Scheduler
+python -m research_agent.orchestration.scheduler.in_memory
+
+# Terminal 5-N: Start Workers
+python -m research_agent.orchestration.workers.taskiq_worker
 ```
 
----
+**Execution flow:**
+1. Mission Control receives plan from Coordinator
+2. Builds DAG with flexible dependencies
+3. Enqueues tasks to Redis
+4. Workers execute agent instances
+5. Progress streamed to research client via WebSocket
+6. Outputs passed between stages
+7. Mission completes
 
-## Future Enhancements
+### 3. Extract and Store Results
 
-### 1. Mongo-Backed Scheduler State
-- Replace in-memory scheduler with MongoDB state
-- Persistent `deps_remaining`, task statuses
-- Multi-scheduler HA (leader election)
+```bash
+# Terminal X: Start Extraction API
+uvicorn research_agent.api.extraction.main:app --reload --port 8004
+```
 
-### 2. Human-in-the-Loop Checkpoints
-- Pause agent at strategic points
-- Human review → approve/reject/modify
-- Resume from human decision
-
-### 3. Dynamic Tool Selection
-- Per-agent tool budget management
-- Cost tracking (LLM calls, tool usage)
-- Adaptive tool selection (if PubMed fails → try Semantic Scholar)
-
-### 4. Cross-Mission Learning
-- Memory sharing across missions
-- Entity deduplication across runs
-- Source quality scoring (learn high-yield domains)
-
-### 5. Real-Time Frontend Dashboard
-- WebSocket progress streaming
-- DAG visualization (task status, dependencies)
-- Agent log streaming
-- Cost/token tracking
-
-### 6. Extraction Graph Revival
-- Re-implement entity extraction → Neo4j pipeline
-- Chunk-level evidence linking
-- Relationship inference (person works at org, product developed by org)
+**Extraction flow:**
+1. Extraction API triggered (manually or automatically)
+2. Extraction graph processes outputs
+3. GraphQL mutations sent to Neo4j
+4. Entities and relationships stored in KG
+5. Progress streamed to research client
 
 ---
 
-## Critical Implementation Notes
+## Key Design Principles
 
-### Eliminating `human_upgrade/` Module
-The current codebase has a legacy `human_upgrade/` folder that should be flattened into `research_agent/`. See `CODEBASE_ORGANIZATION_PLAN.md` for the detailed reorganization strategy.
+### 1. Conversation-First Design
+- Research plans are created through dialogue, not automation
+- Human input guides the research scope and strategy
+- Coordinator Agent provides expertise, but human approves
 
-### Context Window Management
-- Agents can accumulate 170K+ tokens (long research sessions)
-- Summarization middleware compresses older messages
-- Keep 30K tokens of recent work, summarize 12K tokens of history
-- Final report synthesis reads all checkpoint files (bypass context limits)
+### 2. Flexibility Over Rigidity
+- No mandatory domain catalogs
+- No rigid URL structures
+- Agents use whatever tools make sense (web search, sources, memory)
+- Execution can be sequential, parallel, or hybrid
 
-### Error Handling Strategy
-- **Graph-level**: Try-catch in nodes, return error state
-- **Task-level**: Catch exceptions, publish TASK_FAILED event
-- **Mission-level**: failFast flag determines behavior
-- **Memory**: Store error signatures for future avoidance
+### 3. Output-Aware Execution
+- Stages can pass outputs to downstream stages
+- Agents can build on previous work
+- Sub-stage aggregation combines related findings
 
-### Testing Strategy
-- **Unit tests**: Individual nodes (seed extraction, official sources, etc.)
-- **Integration tests**: Full graph execution (end-to-end)
-- **Worker tests**: Mock Redis/RabbitMQ, test task execution
-- **Snapshot tests**: Validate MongoDB writes (Beanie models)
+### 4. Progressive Disclosure
+- Start with lightweight exploration (Phase 3 tool)
+- Deep research only for high-priority entities
+- Human approves before committing resources
 
----
-
-## Glossary
-
-- **Agent Instance**: A single agent worker (e.g., ProductSpecAgent for "Ozempic")
-- **Substage**: Logical grouping of agent instances (e.g., S1.1: "Organization Identity")
-- **Stage**: Top-level research phase (e.g., S1: "Entity Discovery", S2: "Products & Claims")
-- **Mission**: Full research workflow (all stages, substages, instances)
-- **DAG**: Directed Acyclic Graph (task dependencies)
-- **Fanout**: Parallel execution of multiple tasks
-- **Reduce**: Aggregation step (combine agent instance outputs)
-- **Checkpoint**: Intermediate progress file (agent writes findings)
-- **Final Report**: Synthesized narrative (all checkpoints → GPT-5 → coherent report)
-- **Connected Candidates**: Entity candidates with validated sources + relationships
-- **Domain Catalog**: URL structure map for a domain (products, leadership, docs, etc.)
-- **Intel Run**: Entity discovery + candidate extraction run (tracked by runId)
-- **Dedupe Group**: Cluster of candidate entities referring to same real-world entity
+### 5. Observable by Default
+- WebSocket progress at every step
+- Clear visibility into what agents are doing
+- Easy to debug and iterate
 
 ---
 
-## Contact & Support
+## Next Steps
 
-For questions about this system, refer to:
-- `PROJECT_GOALS_AGENT.md` (high-level goals)
-- `CODEBASE_ORGANIZATION_PLAN.md` (reorganization strategy)
-- `RESEARCH_SYSTEM_ORGANIZATION_PROPOSAL.md` (server architecture proposal)
-- `.cursor/text_diagrams/produce_consume_worker_research_mission.md` (DAG execution flow)
+### Immediate (Phase 1 - Week 1)
+1. ✅ Document new architecture (this file)
+2. Create `.cursor/rules/coordinator-agent.mdc` specification
+3. Create `.cursor/rules/research-plan-structure.mdc` specification
+4. Implement Coordinator Agent Beanie models
+5. Create GraphQL query tools
+6. Build Coordinator LangGraph
+7. Create Coordinator API routes
+8. Initialize Next.js research client
 
-**Key Files**:
-- Entity discovery: `human_upgrade/graphs/entity_candidates_connected_graph.py`
-- Research planning: `human_upgrade/graphs/research_plan_graph.py`
-- Agent factory: `human_upgrade/graphs/agent_instance_factory.py`
-- DAG builder: `mission_queue/mission_dag_builder.py`
-- Scheduler: `mission_queue/scheduler_in_memory.py`
-- Worker: `mission_queue/worker.py`
-- Memory: `human_upgrade/graphs/memory/langmem_manager.py`
+### Short-Term (Phase 2 - Week 2-3)
+1. Redesign Research Plan models
+2. Update DAG Builder for flexible execution
+3. Enhance worker execution (output passing)
+4. Implement WebSocket progress streaming
+5. Update Coordinator Agent to generate flexible plans
 
-**MongoDB Beanie Docs**:
-- All models: `research_agent/models/mongo/`
-- Initialization: `infrastructure/storage/mongo/biotech_research_db_beanie.py`
-- Services: `research_agent/services/mongo/`
+### Medium-Term (Phase 3 - Week 3-4)
+1. Refactor entity candidates graph
+2. Implement ranking logic
+3. Create exploration tool
+4. Integrate with Coordinator Agent
+
+### Long-Term (Phase 4 - Week 4+)
+1. Build Extraction Graph
+2. Implement GraphQL mutations
+3. Create Extraction API
+4. Integrate with Mission Control
 
 ---
 
-**Last Updated**: 2026-02-12  
-**Version**: 1.0  
-**Status**: Living Document (update as system evolves)
+## Success Criteria
+
+### Phase 1 Complete When:
+- ✅ User can start a conversation with Coordinator Agent
+- ✅ Coordinator Agent can query existing KG entities
+- ✅ Coordinator Agent can create a research plan
+- ✅ User can approve scope and final plan via UI
+- ✅ Approved plan saved to MongoDB
+
+### Phase 2 Complete When:
+- ✅ Research plans are flexible (no domain catalog dependency)
+- ✅ Agents execute with objectives + optional sources
+- ✅ Stages can pass outputs to downstream stages
+- ✅ WebSocket progress streams to client
+- ✅ Missions complete successfully with correct outputs
+
+### Phase 3 Complete When:
+- ✅ Candidate exploration is fast (<30 seconds)
+- ✅ Candidates ranked by relevance/novelty/completeness
+- ✅ Coordinator Agent can use exploration tool
+- ✅ Users can see prioritized candidate recommendations
+
+### Phase 4 Complete When:
+- ✅ Entities extracted from research outputs
+- ✅ Entities stored in Neo4j via GraphQL
+- ✅ Relationships created correctly
+- ✅ Evidence linked to entities
+- ✅ Knowledge graph grows with each research mission
+
+---
+
+**Last Updated**: 2026-02-15  
+**Version**: 2.0 (NEW ARCHITECTURE)  
+**Status**: Active Development - Phase 1 Starting  
+**Next Review**: After Phase 1 Complete

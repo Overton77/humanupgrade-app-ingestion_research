@@ -106,6 +106,17 @@ async def wiki_search_tool(runtime: ToolRuntime, query: str) -> Command:
 wiki_tool = wiki_search_tool
 
 
+# Coordinator-friendly Wikipedia tool (no step counting, returns string)
+@tool(
+    description="Search Wikipedia for background information. Useful for finding general knowledge about companies, people, concepts, and historical context.",
+    parse_docstring=False,
+)
+async def search_wikipedia(query: str) -> str:
+    """Search Wikipedia for information about a topic."""
+    result = await _wikipedia_tool_instance.ainvoke(query)
+    return result
+
+
 
 
 
@@ -263,14 +274,20 @@ async def _tavily_map_impl(
     return format_tavily_map_response(map_results, urls_override=urls)
 
 # ============================================================================
-# VALIDATION TOOLS (NO STEP COUNTING)
+# COORDINATOR TOOLS (NO STEP COUNTING - for conversational use)
 # ============================================================================
+# These tools are designed for the Coordinator Agent to use during planning
+# conversations with research administrators. They don't increment step counts.
 
 @tool(
-    description="Search the web for information about a topic using Tavily. Returns results (summary or raw) and citations when summary mode is used.",
+    description=(
+        "Search the web for information using Tavily. Best for: finding company info, "
+        "product details, recent news, market research, and general web knowledge. "
+        "Returns either a summarized digest with citations or raw formatted results."
+    ),
     parse_docstring=False,
 )
-async def tavily_search_validation(
+async def search_web(
     runtime: ToolRuntime,
     query: Annotated[
         str,
@@ -334,10 +351,15 @@ async def tavily_search_validation(
 
 
 @tool(
-    description="Extract content from one or more URLs using Tavily Extract. Returns results (summary or raw) and citations when summary mode is used.",
+    description=(
+        "Extract and analyze content from specific URLs using Tavily Extract. "
+        "Best for: reading product pages, documentation, about pages, and company websites. "
+        "Can filter content with a query to focus on specific information. "
+        "Returns either a summarized digest with citations or raw extracted content."
+    ),
     parse_docstring=False,
 )
-async def tavily_extract_validation(
+async def extract_from_urls(
     runtime: ToolRuntime,
     urls: Annotated[
         Union[str, List[str]],
@@ -386,10 +408,15 @@ async def tavily_extract_validation(
 
 
 @tool(
-    description="Map a website to discover internal links using Tavily Map. Returns a formatted list or raw URL list (optionally deduped).",
+    description=(
+        "Map and discover links within a website using Tavily Map. "
+        "Best for: finding product catalogs, documentation structure, site navigation, "
+        "and discovering all relevant pages on a domain. "
+        "Returns a formatted list or raw URL-per-line output (deduped by default)."
+    ),
     parse_docstring=False,
 )
-async def tavily_map_validation(
+async def map_website(
     runtime: ToolRuntime,
     url: Annotated[
         str,
